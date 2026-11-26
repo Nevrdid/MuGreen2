@@ -1,6 +1,6 @@
 # Build output
 *.o
-green
+mugreen2
 
 # MuPDF build workspace and generated prefix
 mupdf-build/

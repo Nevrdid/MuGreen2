@@ -1,4 +1,4 @@
-/* green - the PDF reader
+/* MuGreen2 - the PDF reader
  * Copyright (C) 2009 Florian Tobias Schandinat
  *
  * This program is free software: you can redistribute it and/or modify
@@ -12,6 +12,10 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+/* This Green-derived header retains its original GPL-3.0 terms.
+ * The combined MuGreen2 application is distributed under AGPL-3.0-only;
+ * see LICENSE and README.md. The original copyright notice is preserved.
  */
 #ifndef __GREEN_H__
 #define __GREEN_H__

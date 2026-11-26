@@ -1,0 +1,12 @@
+# Build output
+*.o
+green
+
+# MuPDF build workspace and generated prefix
+mupdf-build/
+prefix/
+*.a
+
+# Editor / OS files
+*~
+.DS_Store

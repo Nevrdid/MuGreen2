@@ -37,7 +37,7 @@ Some controls are optional and depend on the controller exposing the correspondi
 
 ## Build
 
-The supplied build scripts are configured for an AArch64 Cortex-A53 target and expect the ARM GNU toolchain and SDL2 development files at the paths shown in `Makefile.green` and `build-mupdf.sh`.
+The supplied build scripts are configured for an AArch64 Cortex-A53 target and expect the ARM GNU toolchain and SDL2 development files at the paths shown in `Makefile` and `build-mupdf.sh`.
 
 1. Install the AArch64 cross toolchain and SDL2 2.30.8 (or adjust the paths in the build files).
 2. Build the trimmed static MuPDF libraries:
@@ -49,13 +49,13 @@ The supplied build scripts are configured for an AArch64 Cortex-A53 target and e
 3. Build MuGreen2:
 
    ```sh
-   make -f Makefile.green MUPDF=/opt/mupdf-aarch64
+   make MUPDF=/opt/mupdf-aarch64
    ```
 
 4. Run it with one PDF:
 
    ```sh
-   ./green /path/to/document.pdf
+   ./mugreen2 /path/to/document.pdf
    ```
 
 The MuPDF build script downloads the MuPDF 1.24.11 source release and builds the static libraries. It requires network access for that download on the first run.

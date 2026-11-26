@@ -1,4 +1,4 @@
-/* green - the PDF reader
+/* MuGreen2 - the PDF reader
  * Copyright (C) 2009 Florian Tobias Schandinat
  *
  * This program is free software: you can redistribute it and/or modify
@@ -12,6 +12,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* This Green-derived file retains its original GPL-3.0 terms.
+ * The combined MuGreen2 application is distributed under AGPL-3.0-only;
+ * see LICENSE and README.md. The original copyright notice is preserved.
  */
 
 #include <unistd.h>
@@ -64,7 +69,7 @@ struct SchemeProperty	scheme_property[] =
 
 const char	*help_text =
 "Usage:\n"
-"    green [<options>] <PDF file>\n"
+"    mugreen2 [<options>] <PDF file>\n"
 "\n"
 "The following options are available:\n"
 "    -config=<filename>          to read a configuration from a non-standard path\n"
@@ -77,7 +82,7 @@ const char	*help_text =
 "    -version                    displays version information\n"
 "\n"
 "Further help is available online:\n"
-"    http://wiki.github.com/schandinat/green/help\n";
+"    https://github.com/Nevrdid/MuGreen2\n";
 
 
 void	PrintHelp()

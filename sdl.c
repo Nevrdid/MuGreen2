@@ -1,4 +1,4 @@
-/* green - the PDF reader
+/* MuGreen2 - the PDF reader
  * Copyright (C) 2009 Florian Tobias Schandinat
  *
  * This program is free software: you can redistribute it and/or modify
@@ -12,6 +12,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/* This Green-derived file retains its original GPL-3.0 terms.
+ * The combined MuGreen2 application is distributed under AGPL-3.0-only;
+ * see LICENSE and README.md. The original copyright notice is preserved.
  */
 
 #include <stdlib.h>
@@ -1374,7 +1379,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		}
 		
 		SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "0" );
-		g_window = SDL_CreateWindow( "green - the PDF reader", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ww, wh, wflags );
+		g_window = SDL_CreateWindow( "MuGreen2 - the PDF reader", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ww, wh, wflags );
 		g_renderer = g_window ? SDL_CreateRenderer( g_window, -1, 0 ) : NULL;
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) || CreateFramebuffer( ow, oh ))
 		{

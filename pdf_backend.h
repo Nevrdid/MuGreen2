@@ -1,3 +1,7 @@
+/* MuGreen2 MuPDF backend interface.
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * This interface is part of the combined MuGreen2 application; see LICENSE.
+ */
 /* pdf_backend.h - thin MuPDF wrapper for Green.
  * The backend exposes page geometry, rendering and document outline operations.
  */

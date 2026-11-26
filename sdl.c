@@ -1,0 +1,1681 @@
+/* green - the PDF reader
+ * Copyright (C) 2009 Florian Tobias Schandinat
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; version 3.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_gamecontroller.h>
+#include "green.h"
+
+
+#define FLAG_QUIT	0x0001
+#define FLAG_RENDER	0x0002
+
+
+typedef enum
+{
+	NORMAL, TOC, HELP
+	
+}	RState;
+
+const Uint32	live_interval = 40;
+
+static RState	g_state = NORMAL;
+
+typedef struct TOCNode
+{
+	char	*title;
+	int	page;
+		// 0-based page index, -1 if none
+	bool	open;
+	int	n_children;
+	struct TOCNode	**children;
+	
+}	TOCNode;
+
+typedef struct
+{
+	TOCNode	*node;
+	int	depth;
+	
+}	TOCEntry;
+
+static TOCNode	*g_toc = NULL;
+static TOCEntry	*g_toc_entries = NULL;
+static int	g_toc_count = 0, g_toc_sel = 0;
+static bool	g_toc_active = false;
+
+/* Tap Select for help; hold it as a modifier for reader options. */
+static bool	g_select_button_held = false;
+static bool	g_select_chord_used = false;
+static bool	g_start_button_held = false;
+static bool	g_exit_chord = false;
+/* Face-button zoom is applied on release. */
+static bool	g_x_held = false;
+static bool	g_y_held = false;
+/* L2/R2 are optional trigger-axis bindings. */
+static bool	g_l2_held = false;
+static bool	g_r2_held = false;
+
+/* Panel mounted upside down: rotate the finished frame by 180° when presenting (GREEN_ROTATE180=1) */
+static int	g_rotate180 = 0;
+
+/* Brief top-right status toast. */
+
+/* Hold D-pad Up/Down to scroll TOC / help. */
+static int	g_list_nav_dir = 0;
+static Uint32	g_list_nav_next = 0;
+#define LIST_NAV_DELAY_MS	280
+#define LIST_NAV_RATE_MS	50
+
+static bool	g_help_active = false;
+static int	g_help_scroll = 0;
+
+static const char	*g_help_lines[] = {
+	"Game controller controls (Nintendo labels)",
+	"",
+	"D-pad          Scroll / navigate the TOC",
+	"B              Fit page to width / select TOC entry",
+	"A              Rotate right / close overlay",
+	"X / Y          Zoom in / zoom out",
+	"L1 / R1        Previous / next page",
+	"L2 / R2        Jump -10 / +10 pages (optional)",
+	"Start          Toggle PDF table of contents",
+	"Select         Tap: help / hold: modifier",
+	"Select+Start   Exit reader (works without Guide)",
+	"Guide          Exit reader (optional)",
+	"",
+	"Select chords (hold Select first)",
+	"",
+	"Select+B       Toggle night mode",
+	"Select+X       Mirror horizontally",
+	"Select+Y       Mirror vertically",
+	"Select+L1      Toggle dual-page mode",
+	"",
+	"In document TOC",
+	"",
+	"Up/Down        Move selection",
+	"Left/Right     Collapse / expand sections",
+	"B              Jump to selected section",
+	"A / Start      Close TOC",
+	"",
+	"Optional / unbound (NULL)",
+	"",
+	"L3 / R3        NULL (not required)",
+	"Stick axes     NULL (not required)",
+	"Other buttons  NULL (unbound)",
+};
+#define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
+
+static int	ViewWidth( Green_RTD *rtd );
+static RState	OpenHelpPanel( unsigned short *flags );
+static void	RenderHelp( SDL_Surface *display );
+static RState	HelpInput( SDL_Event *event, unsigned short *flags );
+static void	HelpStepScroll( int dir, int max_scroll );
+static int	HelpMaxScroll( SDL_Surface *display );
+
+/* ---- SDL2 display ----
+ * All drawing goes into g_fb, an off-screen XRGB8888 surface (so the PDF backend can render straight into it,
+ * whatever pixel format the window/driver uses). Present() uploads it to a streaming texture and shows it.
+ * GREEN_ROTATE180=1 rotates the final image by 180 degrees (panels mounted upside down), nothing else changes. */
+static SDL_Window	*g_window = NULL;
+static SDL_Renderer	*g_renderer = NULL;
+static SDL_Texture	*g_texture = NULL;
+static SDL_Surface	*g_fb = NULL;
+
+static SDL_Surface	*DrawSurface( void )
+{
+	return g_fb;
+}
+
+static void	DestroyFramebuffer( void )
+{
+	if (g_texture)
+		SDL_DestroyTexture( g_texture );
+	if (g_fb)
+		SDL_FreeSurface( g_fb );
+	g_texture = NULL;
+	g_fb = NULL;
+}
+
+/* (Re)create the framebuffer and its texture; 0 on success */
+static int	CreateFramebuffer( int w, int h )
+{
+	DestroyFramebuffer();
+	g_fb = SDL_CreateRGBSurfaceWithFormat( 0, w, h, 32, SDL_PIXELFORMAT_XRGB8888 );
+	if (!g_fb)
+		return -1;
+	g_texture = SDL_CreateTexture( g_renderer, SDL_PIXELFORMAT_XRGB8888, SDL_TEXTUREACCESS_STREAMING, w, h );
+	if (!g_texture)
+	{
+		DestroyFramebuffer();
+		return -1;
+	}
+	return 0;
+}
+
+/* Kept as no-ops/plain helpers so the drawing code below does not care about rotation (done in Present) */
+static void	FlipRect( SDL_Surface *s, SDL_Rect *r )
+{
+	(void)s;
+	(void)r;
+}
+
+static void	FillRect( SDL_Surface *s, SDL_Rect *r, Uint32 color )
+{
+	SDL_FillRect( s, r, color );
+}
+
+static Uint8	*DstPixel( SDL_Surface *d, int lx, int ly )
+{
+	return (Uint8 *)d->pixels + ly * d->pitch + lx * d->format->BytesPerPixel;
+}
+
+static int	DstXStepBytes( SDL_Surface *d )
+{
+	return d->format->BytesPerPixel;
+}
+
+static void	Present( void )
+{
+	if (!g_fb || !g_texture)
+		return;
+	SDL_UpdateTexture( g_texture, NULL, g_fb->pixels, g_fb->pitch );
+	SDL_RenderClear( g_renderer );
+	SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, g_rotate180 ? 180.0 : 0.0, NULL, SDL_FLIP_NONE );
+	SDL_RenderPresent( g_renderer );
+}
+
+// Simple 5x7 bitmap font for basic ASCII characters (32-126)
+// Each character is represented by 7 bytes, one per row
+static const unsigned char bitmap_font[][7] = {
+	{0x00,0x00,0x00,0x00,0x00,0x00,0x00}, // 32: space
+	{0x04,0x04,0x04,0x04,0x00,0x04,0x00}, // 33: !
+	{0x0A,0x0A,0x00,0x00,0x00,0x00,0x00}, // 34: "
+	{0x0A,0x1F,0x0A,0x0A,0x1F,0x0A,0x00}, // 35: #
+	{0x04,0x0F,0x14,0x0E,0x05,0x1E,0x04}, // 36: $
+	{0x18,0x19,0x02,0x04,0x08,0x13,0x03}, // 37: %
+	{0x0C,0x12,0x14,0x08,0x15,0x12,0x0D}, // 38: &
+	{0x04,0x04,0x00,0x00,0x00,0x00,0x00}, // 39: '
+	{0x02,0x04,0x08,0x08,0x08,0x04,0x02}, // 40: (
+	{0x08,0x04,0x02,0x02,0x02,0x04,0x08}, // 41: )
+	{0x00,0x04,0x15,0x0E,0x15,0x04,0x00}, // 42: *
+	{0x00,0x04,0x04,0x1F,0x04,0x04,0x00}, // 43: +
+	{0x00,0x00,0x00,0x00,0x04,0x04,0x08}, // 44: ,
+	{0x00,0x00,0x00,0x1F,0x00,0x00,0x00}, // 45: -
+	{0x00,0x00,0x00,0x00,0x00,0x04,0x00}, // 46: .
+	{0x01,0x02,0x04,0x08,0x10,0x00,0x00}, // 47: /
+	{0x0E,0x11,0x13,0x15,0x19,0x11,0x0E}, // 48: 0
+	{0x04,0x0C,0x04,0x04,0x04,0x04,0x0E}, // 49: 1
+	{0x0E,0x11,0x01,0x06,0x08,0x10,0x1F}, // 50: 2
+	{0x0E,0x11,0x01,0x06,0x01,0x11,0x0E}, // 51: 3
+	{0x02,0x06,0x0A,0x12,0x1F,0x02,0x02}, // 52: 4
+	{0x1F,0x10,0x1E,0x01,0x01,0x11,0x0E}, // 53: 5
+	{0x06,0x08,0x10,0x1E,0x11,0x11,0x0E}, // 54: 6
+	{0x1F,0x01,0x02,0x04,0x08,0x08,0x08}, // 55: 7
+	{0x0E,0x11,0x11,0x0E,0x11,0x11,0x0E}, // 56: 8
+	{0x0E,0x11,0x11,0x0F,0x01,0x02,0x0C}, // 57: 9
+	{0x00,0x04,0x00,0x00,0x04,0x00,0x00}, // 58: :
+	{0x00,0x04,0x00,0x00,0x04,0x04,0x08}, // 59: ;
+	{0x02,0x04,0x08,0x10,0x08,0x04,0x02}, // 60: <
+	{0x00,0x00,0x1F,0x00,0x1F,0x00,0x00}, // 61: =
+	{0x08,0x04,0x02,0x01,0x02,0x04,0x08}, // 62: >
+	{0x0E,0x11,0x01,0x02,0x04,0x00,0x04}, // 63: ?
+	{0x0E,0x11,0x17,0x15,0x17,0x10,0x0E}, // 64: @
+	{0x0E,0x11,0x11,0x1F,0x11,0x11,0x11}, // 65: A
+	{0x1E,0x11,0x11,0x1E,0x11,0x11,0x1E}, // 66: B
+	{0x0E,0x11,0x10,0x10,0x10,0x11,0x0E}, // 67: C
+	{0x1E,0x11,0x11,0x11,0x11,0x11,0x1E}, // 68: D
+	{0x1F,0x10,0x10,0x1E,0x10,0x10,0x1F}, // 69: E
+	{0x1F,0x10,0x10,0x1E,0x10,0x10,0x10}, // 70: F
+	{0x0E,0x11,0x10,0x17,0x11,0x11,0x0F}, // 71: G
+	{0x11,0x11,0x11,0x1F,0x11,0x11,0x11}, // 72: H
+	{0x0E,0x04,0x04,0x04,0x04,0x04,0x0E}, // 73: I
+	{0x07,0x02,0x02,0x02,0x02,0x12,0x0C}, // 74: J
+	{0x11,0x12,0x14,0x18,0x14,0x12,0x11}, // 75: K
+	{0x10,0x10,0x10,0x10,0x10,0x10,0x1F}, // 76: L
+	{0x11,0x1B,0x15,0x11,0x11,0x11,0x11}, // 77: M
+	{0x11,0x19,0x15,0x13,0x11,0x11,0x11}, // 78: N
+	{0x0E,0x11,0x11,0x11,0x11,0x11,0x0E}, // 79: O
+	{0x1E,0x11,0x11,0x1E,0x10,0x10,0x10}, // 80: P
+	{0x0E,0x11,0x11,0x11,0x15,0x12,0x0D}, // 81: Q
+	{0x1E,0x11,0x11,0x1E,0x14,0x12,0x11}, // 82: R
+	{0x0E,0x11,0x10,0x0E,0x01,0x11,0x0E}, // 83: S
+	{0x1F,0x04,0x04,0x04,0x04,0x04,0x04}, // 84: T
+	{0x11,0x11,0x11,0x11,0x11,0x11,0x0E}, // 85: U
+	{0x11,0x11,0x11,0x11,0x11,0x0A,0x04}, // 86: V
+	{0x11,0x11,0x11,0x15,0x15,0x1B,0x11}, // 87: W
+	{0x11,0x11,0x0A,0x04,0x0A,0x11,0x11}, // 88: X
+	{0x11,0x11,0x0A,0x04,0x04,0x04,0x04}, // 89: Y
+	{0x1F,0x01,0x02,0x04,0x08,0x10,0x1F}, // 90: Z
+	{0x0E,0x08,0x08,0x08,0x08,0x08,0x0E}, // 91: [
+	{0x10,0x08,0x04,0x02,0x01,0x00,0x00}, // 92: backslash
+	{0x0E,0x02,0x02,0x02,0x02,0x02,0x0E}, // 93: ]
+	{0x04,0x0A,0x11,0x00,0x00,0x00,0x00}, // 94: ^
+	{0x00,0x00,0x00,0x00,0x00,0x00,0x1F}, // 95: _
+	{0x08,0x04,0x00,0x00,0x00,0x00,0x00}, // 96: `
+	{0x00,0x00,0x0E,0x01,0x0F,0x11,0x0F}, // 97: a
+	{0x10,0x10,0x16,0x19,0x11,0x11,0x1E}, // 98: b
+	{0x00,0x00,0x0E,0x10,0x10,0x11,0x0E}, // 99: c
+	{0x01,0x01,0x0D,0x13,0x11,0x11,0x0F}, // 100: d
+	{0x00,0x00,0x0E,0x11,0x1F,0x10,0x0E}, // 101: e
+	{0x06,0x09,0x08,0x1C,0x08,0x08,0x08}, // 102: f
+	{0x00,0x0F,0x11,0x11,0x0F,0x01,0x0E}, // 103: g
+	{0x10,0x10,0x16,0x19,0x11,0x11,0x11}, // 104: h
+	{0x04,0x00,0x0C,0x04,0x04,0x04,0x0E}, // 105: i
+	{0x02,0x00,0x06,0x02,0x02,0x12,0x0C}, // 106: j
+	{0x10,0x10,0x12,0x14,0x18,0x14,0x12}, // 107: k
+	{0x0C,0x04,0x04,0x04,0x04,0x04,0x0E}, // 108: l
+	{0x00,0x00,0x1A,0x15,0x15,0x11,0x11}, // 109: m
+	{0x00,0x00,0x16,0x19,0x11,0x11,0x11}, // 110: n
+	{0x00,0x00,0x0E,0x11,0x11,0x11,0x0E}, // 111: o
+	{0x00,0x00,0x1E,0x11,0x1E,0x10,0x10}, // 112: p
+	{0x00,0x00,0x0D,0x13,0x0F,0x01,0x01}, // 113: q
+	{0x00,0x00,0x16,0x19,0x10,0x10,0x10}, // 114: r
+	{0x00,0x00,0x0E,0x10,0x0E,0x01,0x1E}, // 115: s
+	{0x08,0x08,0x1C,0x08,0x08,0x09,0x06}, // 116: t
+	{0x00,0x00,0x11,0x11,0x11,0x13,0x0D}, // 117: u
+	{0x00,0x00,0x11,0x11,0x11,0x0A,0x04}, // 118: v
+	{0x00,0x00,0x11,0x11,0x15,0x15,0x0A}, // 119: w
+	{0x00,0x00,0x11,0x0A,0x04,0x0A,0x11}, // 120: x
+	{0x00,0x00,0x11,0x11,0x0F,0x01,0x0E}, // 121: y
+	{0x00,0x00,0x1F,0x02,0x04,0x08,0x1F}, // 122: z
+	{0x06,0x08,0x08,0x10,0x08,0x08,0x06}, // 123: {
+	{0x04,0x04,0x04,0x00,0x04,0x04,0x04}, // 124: |
+	{0x0C,0x02,0x02,0x01,0x02,0x02,0x0C}, // 125: }
+	{0x00,0x08,0x15,0x02,0x00,0x00,0x00}  // 126: ~
+};
+
+
+static Uint32	MapDisplayPixel( Uint32 src, SDL_PixelFormat *fmt, bool night )
+{
+	Uint32	r = (src >> 16) & 0xFF,
+		g = (src >> 8) & 0xFF,
+		b = src & 0xFF;
+	
+	if (night)
+	{
+		r = 0xFF - r;
+		g = 0xFF - g;
+		b = 0xFF - b;
+	}
+	
+	return (((r >> fmt->Rloss) << fmt->Rshift)
+		| ((g >> fmt->Gloss) << fmt->Gshift)
+		| ((b >> fmt->Bloss) << fmt->Bshift));
+}
+
+static Uint32	MapBlendPixel( Uint32 src, SDL_PixelFormat *fmt,
+	Uint32 ia, Uint32 ar, Uint32 ag, Uint32 ab, bool night )
+{
+	Uint32	r = (((src >> 16) & 0xFF) * ia + ar) / 256,
+		g = (((src >> 8) & 0xFF) * ia + ag) / 256,
+		b = ((src & 0xFF) * ia + ab) / 256;
+	
+	if (night)
+	{
+		r = 0xFF - (r & 0xFF);
+		g = 0xFF - (g & 0xFF);
+		b = 0xFF - (b & 0xFF);
+	}
+	
+	return (((r >> fmt->Rloss) << fmt->Rshift)
+		| ((g >> fmt->Gloss) << fmt->Gshift)
+		| ((b >> fmt->Bloss) << fmt->Bshift));
+}
+
+
+/* Draw the window [xoff,xoff+dest.w) x [yoff,yoff+dest.h) of page page_num into the display at dest.
+ * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
+ * so the window origin is converted here. */
+void	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff, int page_num, double tscale )
+{
+	Green_Document	*doc = rtd->doc;
+	SDL_Surface	*display = DrawSurface();
+	int	W, H, xd, yd, w, h, rot = doc->rotation & 3;
+	
+	if (dest.w <= 0 || dest.h <= 0 || pb_device_size( doc->doc, page_num, (float)tscale, rot, &W, &H ))
+		return;
+	
+	switch (rot)
+	{
+		case 1:	xd = W - yoff - dest.w;	yd = xoff;			break;
+		case 2:	xd = W - xoff - dest.w;	yd = H - yoff - dest.h;	break;
+		case 3:	xd = yoff;			yd = H - xoff - dest.h;	break;
+		default:	xd = xoff;			yd = yoff;			break;
+	}
+	if (doc->mirrored)
+		yd = H - yd - dest.h;
+	
+	w = dest.w;
+	h = dest.h;
+	if (xd < 0)
+		xd = 0;
+	if (yd < 0)
+		yd = 0;
+	if (xd + w > W)
+		w = W - xd;
+	if (yd + h > H)
+		h = H - yd;
+	if (w <= 0 || h <= 0)
+		return;
+	
+	/* 32-bit XRGB surface: the backend renders straight into it (no copy, no per-pixel conversion) */
+	pb_render( doc->doc, page_num, (float)tscale, rot, doc->mirrored, rtd->night, xd, yd, w, h,
+		PB_FMT_XRGB8888, DstPixel( display, dest.x, dest.y ), display->pitch );
+	
+	return;
+}
+
+// Draw a single character using bitmap font
+void DrawChar( SDL_Surface *display, int x, int y, char c, Uint32 color )
+{
+	SDL_Rect pixel;
+	int row, col;
+	unsigned char bits;
+	
+	// Only handle printable ASCII characters
+	if (c < 32 || c > 126)
+		return;
+	
+	// Get the bitmap for this character
+	const unsigned char *char_bitmap = bitmap_font[c - 32];
+	
+	// Draw the character pixel by pixel
+	pixel.w = 2;  // Make pixels 2x2 for better visibility
+	pixel.h = 2;
+	
+	for (row = 0; row < 7; row++)
+	{
+		bits = char_bitmap[row];
+		for (col = 0; col < 5; col++)
+		{
+			if (bits & (1 << (4 - col)))
+			{
+				pixel.x = x + col * 2;
+				pixel.y = y + row * 2;
+				FillRect( display, &pixel, color );
+			}
+		}
+	}
+}
+
+// Draw a string using bitmap font
+void DrawString( SDL_Surface *display, int x, int y, const char *str, Uint32 color )
+{
+	int i;
+	int char_width = 12; // 5 pixels * 2 + 2 pixel spacing
+	
+	for (i = 0; str[i] != '\0'; i++)
+	{
+		DrawChar( display, x + i * char_width, y, str[i], color );
+	}
+}
+
+/* UTF-8 text with the built-in 5x7 bitmap font: ASCII only, other characters show as '?', long text gets "...".
+ * (The previous Pango/cairo path handled Arabic; shaped non-Latin text needs a TTF renderer, e.g. SDL2_ttf.) */
+static int	DrawUtf8( SDL_Surface *display, int x, int y, int max_w, int line_h,
+	const char *utf8, Uint8 r, Uint8 g, Uint8 b )
+{
+	const unsigned char	*p = (const unsigned char *)utf8;
+	char	buf[256];
+	int	char_width = 12, max_chars, n = 0;
+	
+	if (!utf8 || !*utf8 || max_w < char_width || line_h < 8)
+		return 0;
+	
+	max_chars = max_w / char_width;
+	if (max_chars > (int)sizeof( buf ) - 1)
+		max_chars = (int)sizeof( buf ) - 1;
+	
+	while (*p && n < max_chars)
+	{
+		if (*p < 0x80)
+		{
+			buf[n++] = (*p >= 32 && *p < 127) ? (char)*p : ' ';
+			p++;
+		}
+		else
+		{
+			buf[n++] = '?';
+			p++;
+			while ((*p & 0xC0) == 0x80)
+				p++;
+		}
+	}
+	if (*p && n >= 3)
+		buf[n-1] = buf[n-2] = buf[n-3] = '.';
+	buf[n] = 0;
+	
+	DrawString( display, x, y, buf, SDL_MapRGB( display->format, r, g, b ) );
+	return line_h;
+}
+
+static int	ViewWidth( Green_RTD *rtd )
+{
+	SDL_Surface	*display = DrawSurface();
+	
+	if (rtd->side_by_side && Green_IsDocValid( rtd)
+		&& rtd->doc->page_count > 1)
+		return display->w / 2;
+	
+	return display->w;
+}
+
+static void	FreeTOC( TOCNode *node )
+{
+	int	i;
+	
+	if (!node)
+		return;
+	
+	for (i = 0; i < node->n_children; i++)
+		FreeTOC( node->children[i] );
+	free( node->children );
+	free( node->title );
+	free( node );
+	return;
+}
+
+static void	RebuildTOCFlat( void );
+
+static void	BuildTOC( Green_RTD *rtd )
+{
+	pb_outline_item	*items = NULL;
+	TOCNode		**last = NULL;
+	int		n, i, maxlevel = 0;
+	
+	FreeTOC( g_toc );
+	g_toc = NULL;
+	if (!Green_IsDocValid( rtd))
+		return;
+	
+	n = pb_outline_load( rtd->doc->doc, &items );
+	g_toc = calloc( 1, sizeof( *g_toc ) );
+	if (!g_toc)
+	{
+		pb_outline_free( items, n );
+		return;
+	}
+	g_toc->page = -1;
+	
+	for (i = 0; i < n; i++)
+		if (items[i].level > maxlevel)
+			maxlevel = items[i].level;
+	last = calloc( (size_t)maxlevel + 1, sizeof( *last ) );
+	if (!last)
+	{
+		pb_outline_free( items, n );
+		return;
+	}
+	
+	/* the backend gives a flat list in document order with a depth: rebuild the tree */
+	for (i = 0; i < n; i++)
+	{
+		TOCNode	*node = calloc( 1, sizeof( *node ) ), *parent, **arr;
+		int	level = items[i].level;
+		
+		if (!node)
+			break;
+		node->title = strdup( items[i].title ? items[i].title : "" );
+		node->page = items[i].page;
+		node->open = items[i].is_open ? true : false;
+		
+		parent = (level > 0 && last[level - 1]) ? last[level - 1] : g_toc;
+		arr = realloc( parent->children, (parent->n_children + 1) * sizeof( *arr ) );
+		if (!arr || !node->title)
+		{
+			free( node->title );
+			free( node );
+			break;
+		}
+		parent->children = arr;
+		arr[parent->n_children++] = node;
+		last[level] = node;
+	}
+	
+	free( last );
+	pb_outline_free( items, n );
+	g_toc_sel = 0;
+	RebuildTOCFlat();
+	return;
+}
+
+static void	EnsureTOC( Green_RTD *rtd )
+{
+	if (!Green_IsDocValid( rtd))
+		return;
+	
+	if (!g_toc)
+		BuildTOC( rtd );
+	return;
+}
+
+static void	CollectVisible( TOCNode *node, int depth, TOCEntry **arr, int *count, int *cap )
+{
+	int	i;
+	
+	for (i = 0; i < node->n_children; i++)
+	{
+		TOCNode	*c = node->children[i];
+		
+		if (*count >= *cap)
+		{
+			*cap = *cap ? *cap * 2 : 32;
+			*arr = realloc( *arr, *cap * sizeof( TOCEntry ) );
+			if (!*arr)
+				return;
+		}
+		
+		(*arr)[*count].node = c;
+		(*arr)[*count].depth = depth;
+		(*count)++;
+		if (c->open)
+			CollectVisible( c, depth + 1, arr, count, cap );
+	}
+	
+	return;
+}
+
+static void	RebuildTOCFlat( void )
+{
+	TOCEntry	*arr = NULL;
+	int		count = 0, cap = 0;
+	
+	free( g_toc_entries );
+	g_toc_entries = NULL;
+	g_toc_count = 0;
+	if (g_toc)
+		CollectVisible( g_toc, 0, &arr, &count, &cap );
+	g_toc_entries = arr;
+	g_toc_count = count;
+	if (g_toc_sel >= g_toc_count)
+		g_toc_sel = g_toc_count ? g_toc_count - 1 : 0;
+	return;
+}
+
+static void	RenderTOC( SDL_Surface *display, Green_RTD *rtd )
+{
+	SDL_Rect	panel, hl;
+	Uint32		title_col, entry_col, sel_col, sel_bg;
+	int		panel_w, x0, y0, line_h, max_lines, start, i, indent, text_w;
+	Uint8		er, eg, eb;
+	
+	(void)rtd;
+	if (!g_toc_active)
+		return;
+	
+	panel_w = (display->w * 3) / 4;
+	if (panel_w < 200)
+		panel_w = display->w < 200 ? display->w : 200;
+	
+	panel.x = 0;
+	panel.y = 0;
+	panel.w = panel_w;
+	panel.h = display->h;
+	FillRect( display, &panel, SDL_MapRGB( display->format, 0x14, 0x14, 0x14 ) );
+	
+	title_col = SDL_MapRGB( display->format, 0xE8, 0xE8, 0xE8 );
+	entry_col = SDL_MapRGB( display->format, 0xB8, 0xB8, 0xB8 );
+	sel_col = SDL_MapRGB( display->format, 0xFF, 0xFF, 0x00 );
+	sel_bg = SDL_MapRGB( display->format, 0x2E, 0x2E, 0x5E );
+	
+	x0 = 8;
+	y0 = 8;
+	DrawString( display, x0, y0, "Table of Contents", title_col );
+	y0 += 22;
+	line_h = 18;
+	max_lines = (display->h - y0) / line_h;
+	if (max_lines <= 0)
+		return;
+	
+	if (g_toc_count <= 0)
+	{
+		DrawString( display, x0, y0, "No table of contents", entry_col );
+		return;
+	}
+	
+	start = 0;
+	if (g_toc_count > max_lines)
+	{
+		start = g_toc_sel - max_lines + 1;
+		if (start < 0)
+			start = 0;
+		if (start + max_lines > g_toc_count)
+			start = g_toc_count - max_lines;
+	}
+	
+	for (i = start; i < g_toc_count && i < start + max_lines; i++)
+	{
+		TOCNode	*n = g_toc_entries[i].node;
+		int	y = y0 + (i - start) * line_h;
+		
+		if (i == g_toc_sel)
+		{
+			hl.x = 0;
+			hl.y = y;
+			hl.w = panel_w;
+			hl.h = line_h;
+			FillRect( display, &hl, sel_bg );
+			er = 0xFF;
+			eg = 0xFF;
+			eb = 0x00;
+		}
+		else
+		{
+			er = 0xB8;
+			eg = 0xB8;
+			eb = 0xB8;
+		}
+		
+		indent = x0 + g_toc_entries[i].depth * 14;
+		if (n->n_children > 0)
+		{
+			if (n->open)
+				DrawString( display, indent, y, "-", i == g_toc_sel ? sel_col : entry_col );
+			else
+				DrawString( display, indent, y, "+", i == g_toc_sel ? sel_col : entry_col );
+		}
+		
+		text_w = panel_w - indent - 28;
+		if (text_w < 8)
+			text_w = 8;
+		DrawUtf8( display, indent + 26, y, text_w, line_h, n->title ? n->title : "", er, eg, eb );
+	}
+	
+	return;
+}
+
+static int	FindTOCIndex( TOCNode *target )
+{
+	int	i;
+	
+	for (i = 0; i < g_toc_count; i++)
+		if (g_toc_entries[i].node == target)
+			return i;
+	
+	return -1;
+}
+
+static int	FindParentIndex( TOCNode *target )
+{
+	int	i, j;
+	
+	for (i = 0; i < g_toc_count; i++)
+		for (j = 0; j < g_toc_entries[i].node->n_children; j++)
+			if (g_toc_entries[i].node->children[j] == target)
+				return i;
+	
+	return -1;
+}
+
+static int	TOCGoToPage( Green_RTD *rtd, TOCNode *node, unsigned short *flags )
+{
+	Green_Document	*doc;
+	
+	if (!node || node->page < 0 || !Green_IsDocValid( rtd))
+		return 0;
+	
+	doc = rtd->doc;
+	if (Green_GotoPage( doc, node->page, true ))
+	{
+		*flags |= FLAG_RENDER;
+		return 1;
+	}
+	return 0;
+}
+
+static void	ListNavStop( void )
+{
+	g_list_nav_dir = 0;
+	g_list_nav_next = 0;
+}
+
+static void	ListNavStart( int dir )
+{
+	g_list_nav_dir = dir;
+	g_list_nav_next = SDL_GetTicks() + LIST_NAV_DELAY_MS;
+}
+
+static void	TOCStepSel( int dir )
+{
+	if (g_toc_count <= 0)
+		return;
+	if (dir > 0 && g_toc_sel < g_toc_count - 1)
+		g_toc_sel++;
+	else if (dir < 0 && g_toc_sel > 0)
+		g_toc_sel--;
+}
+
+
+static RState	TOCInput( Green_RTD *rtd, SDL_Event *event, unsigned short *flags )
+{
+	switch (event->key.keysym.sym)
+	{
+		case SDLK_ESCAPE:
+		case SDLK_LCTRL:
+			/* A: close TOC. */
+			ListNavStop();
+			g_toc_active = false;
+			*flags |= FLAG_RENDER;
+			return NORMAL;
+		case SDLK_DOWN:
+			TOCStepSel( 1 );
+			ListNavStart( 1 );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_UP:
+			TOCStepSel( -1 );
+			ListNavStart( -1 );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_RIGHT:
+			/* Expand hierarchical section */
+			if (g_toc_count > 0)
+			{
+				TOCNode	*n = g_toc_entries[g_toc_sel].node;
+				
+				if (n->n_children > 0 && !n->open)
+				{
+					n->open = true;
+					RebuildTOCFlat();
+					*flags |= FLAG_RENDER;
+				}
+			}
+			break;
+		case SDLK_LEFT:
+			/* Collapse section, or move to parent if already closed */
+			if (g_toc_count > 0)
+			{
+				TOCNode	*n = g_toc_entries[g_toc_sel].node;
+				
+				if (n->n_children > 0 && n->open)
+				{
+					n->open = false;
+					RebuildTOCFlat();
+				}
+				else
+				{
+					int	idx = FindParentIndex( n );
+					if (idx >= 0)
+						g_toc_sel = idx;
+				}
+			}
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_RETURN:
+			/* Start toggles TOC closed */
+			ListNavStop();
+			g_toc_active = false;
+			*flags |= FLAG_RENDER;
+			return NORMAL;
+		case SDLK_SPACE:
+			/* A: jump to selection. */
+			if (g_toc_count > 0)
+			{
+				if (TOCGoToPage( rtd, g_toc_entries[g_toc_sel].node, flags ))
+				{
+					ListNavStop();
+					g_toc_active = false;
+					return NORMAL;
+				}
+			}
+			break;
+		default:
+			break;
+	}
+	
+	return TOC;
+}
+
+
+void	Render( Green_RTD *rtd )
+{
+	Green_Document	*doc;
+	SDL_Surface	*display = DrawSurface();
+	SDL_Rect	rect;
+	double	tscale;
+	int	w, h, w2, h2;
+	
+	rect.x = rect.y = 0;
+	rect.w = display->w;
+	rect.h = display->h;
+	if (rtd->night)
+		FillRect( display, &rect, SDL_MapRGB( display->format, 0x10, 0x10, 0x10 ) );
+	else
+		FillRect( display, &rect, SDL_MapRGB( display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b ));
+	if (!Green_IsDocValid( rtd))
+	{
+		Present();
+		return;
+	}
+	
+	doc = rtd->doc;
+	
+	if (rtd->side_by_side && doc->page_count > 1)
+	{
+		int left_page, right_page;
+		
+		// Book-style pairs: 1-2, 3-4, 5-6, etc.
+		// If current page is odd (1, 3, 5...), show current and next
+		// If current page is even (2, 4, 6...), show previous and current
+		if (doc->page_cur % 2 == 0) { // 0-indexed, so page 0 is page 1, page 1 is page 2
+			left_page = doc->page_cur;
+			right_page = doc->page_cur + 1;
+		} else {
+			left_page = doc->page_cur - 1;
+			right_page = doc->page_cur;
+		}
+		
+		if (left_page >= 0 && right_page < doc->page_count)
+		{
+			tscale = Green_Fit( doc, display->w / 2, display->h ) * doc->finescale;
+			
+			Green_GetDimension( doc, left_page, &w, &h, tscale, doc->rotation % 2 );
+			Green_GetDimension( doc, right_page, &w2, &h2, tscale, doc->rotation % 2 );
+			
+			rect.w = w > display->w / 2 ? display->w / 2 : w;
+			rect.h = h > display->h ? display->h : h;
+			rect.x = (display->w / 2 - rect.w) / 2;
+			rect.y = (display->h - rect.h) / 2;
+			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale );
+			
+			rect.w = w2 > display->w / 2 ? display->w / 2 : w2;
+			rect.h = h2 > display->h ? display->h : h2;
+			rect.x = display->w / 2 + (display->w / 2 - rect.w) / 2;
+			rect.y = (display->h - rect.h) / 2;
+			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale );
+		}
+		else
+		{
+			tscale = Green_Fit( doc, display->w, display->h ) * doc->finescale;
+			Green_GetDimension( doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2 );
+			rect.w = w > display->w ? display->w : w;
+			rect.h = h > display->h ? display->h : h;
+			rect.x = (display->w - rect.w) / 2;
+			rect.y = (display->h - rect.h) / 2;
+			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale );
+		}
+	}
+	else
+	{
+		tscale = Green_Fit( doc, display->w, display->h ) * doc->finescale;
+		Green_GetDimension( doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2 );
+		rect.w = w > display->w ? display->w : w;
+		rect.h = h > display->h ? display->h : h;
+		rect.x = (display->w - rect.w) / 2;
+		rect.y = (display->h - rect.h) / 2;
+		RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale );
+	}
+	
+	// Render table of contents panel if active
+	RenderTOC( display, rtd );
+	
+	RenderHelp( display );
+	
+	
+	Present();
+	return;
+}
+
+static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
+{
+	if (Green_IsDocValid( rtd))
+		Green_Close( rtd );
+
+	/* There is exactly one document: closing it exits the reader. */
+	*flags |= FLAG_QUIT;
+	*flags &= ~FLAG_RENDER;
+}
+
+/* Page turn keeps finescale + pan; clamp offsets to the new page */
+static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h )
+{
+	if (!Green_GotoPage( doc, page, false ))
+		return 0;
+	Green_ValidateOffset( doc, w, h );
+	return 1;
+}
+
+static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, int h, unsigned short *flags )
+{
+	int	page;
+	
+	if (!doc)
+		return;
+	
+	page = doc->page_cur + delta;
+	if (page < 0)
+		page = 0;
+	else if (page >= doc->page_count)
+		page = doc->page_count - 1;
+	
+	if (page == doc->page_cur)
+		return;
+	
+	if (GotoPageKeepView( doc, page, w, h ))
+		*flags |= FLAG_RENDER;
+	return;
+}
+
+static void	HelpStepScroll( int dir, int max_scroll )
+{
+	if (max_scroll < 0)
+		max_scroll = 0;
+	if (dir > 0 && g_help_scroll < max_scroll)
+		g_help_scroll++;
+	else if (dir < 0 && g_help_scroll > 0)
+		g_help_scroll--;
+}
+
+static int	HelpMaxScroll( SDL_Surface *display )
+{
+	int	line_h = 16, y0 = 48, visible;
+	
+	visible = (display->h - y0 - 8) / line_h;
+	if (visible < 1)
+		visible = 1;
+	if (HELP_LINE_COUNT <= visible)
+		return 0;
+	return HELP_LINE_COUNT - visible;
+}
+
+static RState	OpenHelpPanel( unsigned short *flags )
+{
+	if (g_help_active)
+	{
+		ListNavStop();
+		g_help_active = false;
+		*flags |= FLAG_RENDER;
+		return NORMAL;
+	}
+	
+	g_toc_active = false;
+	ListNavStop();
+	g_help_active = true;
+	g_help_scroll = 0;
+	*flags |= FLAG_RENDER;
+	return HELP;
+}
+
+static void	RenderHelp( SDL_Surface *display )
+{
+	SDL_Rect	panel;
+	int		x0, y0, line_h, visible, i, max_scroll;
+	Uint32		title_col, text_col, dim_col;
+	
+	if (!g_help_active)
+		return;
+	
+	panel.x = 0;
+	panel.y = 0;
+	panel.w = display->w;
+	panel.h = display->h;
+	FillRect( display, &panel, SDL_MapRGB( display->format, 0x10, 0x10, 0x18 ) );
+	
+	title_col = SDL_MapRGB( display->format, 0xFF, 0xFF, 0xCC );
+	text_col = SDL_MapRGB( display->format, 0xD0, 0xD0, 0xD0 );
+	dim_col = SDL_MapRGB( display->format, 0x80, 0x80, 0x90 );
+	
+	x0 = 10;
+	y0 = 8;
+	DrawString( display, x0, y0, "Controls  (A / Select: close)", title_col );
+	y0 = 28;
+	DrawString( display, x0, y0, "D-pad scroll", dim_col );
+	y0 = 48;
+	line_h = 16;
+	visible = (display->h - y0 - 8) / line_h;
+	if (visible < 1)
+		return;
+	
+	max_scroll = HelpMaxScroll( display );
+	if (g_help_scroll > max_scroll)
+		g_help_scroll = max_scroll;
+	
+	for (i = 0; i < visible && g_help_scroll + i < HELP_LINE_COUNT; i++)
+	{
+		const char	*line = g_help_lines[g_help_scroll + i];
+		int		y = y0 + i * line_h;
+		
+		if (!line[0])
+			continue;
+		if (line[0] != ' ' && strchr( line, ' ' ) == NULL)
+			DrawString( display, x0, y, line, title_col );
+		else if (strncmp( line, "In ", 3 ) == 0
+			|| !strncmp( line, "Game controller controls", 24 )
+			|| !strncmp( line, "Select chords", 13 )
+			|| !strcmp( line, "Optional / unbound (NULL)" ))
+			DrawString( display, x0, y, line, title_col );
+		else
+			DrawString( display, x0, y, line, text_col );
+	}
+	
+	if (max_scroll > 0 && g_help_scroll < max_scroll)
+		DrawString( display, display->w - 50, display->h - 18, "more", dim_col );
+}
+
+static RState	HelpInput( SDL_Event *event, unsigned short *flags )
+{
+	SDL_Surface	*display = DrawSurface();
+	int		max_scroll = HelpMaxScroll( display );
+	SDL_Keycode		sym = event->key.keysym.sym;
+	
+	switch (sym)
+	{
+		case SDLK_ESCAPE:
+		case SDLK_LCTRL:
+			ListNavStop();
+			g_help_active = false;
+			*flags |= FLAG_RENDER;
+			return NORMAL;
+		case SDLK_DOWN:
+			HelpStepScroll( 1, max_scroll );
+			ListNavStart( 1 );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_UP:
+			HelpStepScroll( -1, max_scroll );
+			ListNavStart( -1 );
+			*flags |= FLAG_RENDER;
+			break;
+		default:
+			break;
+	}
+	
+	return HELP;
+}
+
+static RState	OpenTOCPanel( Green_RTD *rtd, unsigned short *flags )
+{
+	/* Start / o: toggle TOC */
+	if (g_toc_active)
+	{
+		g_toc_active = false;
+		*flags |= FLAG_RENDER;
+		return NORMAL;
+	}
+	
+	if (!Green_IsDocValid( rtd))
+		return NORMAL;
+	
+	g_help_active = false;
+	EnsureTOC( rtd );
+	g_toc_active = true;
+	*flags |= FLAG_RENDER;
+	return TOC;
+}
+
+/* Horizontal pan only: ~1/20 of view width per click (min 8px) */
+static int	HPanStep( int vw )
+{
+	int	s = vw / 20;
+	
+	if (s < 8)
+		s = 8;
+	return s;
+}
+
+RState	NormalInput( Green_RTD *rtd, SDL_Event *event, unsigned short *flags )
+{
+	Green_Document	*doc = NULL;
+	SDL_Surface	*display = DrawSurface();
+	int	vw = ViewWidth( rtd ), hstep = HPanStep( vw );
+	SDL_Keycode	sym = event->key.keysym.sym;
+	
+	if (Green_IsDocValid( rtd))
+		doc = rtd->doc;
+	
+	/* Holding Select turns the following button into a secondary action. */
+	if (g_select_button_held)
+	{
+		switch (sym)
+		{
+			case SDLK_SPACE: /* Select+B: night mode */
+				rtd->night = !rtd->night;
+				Green_SaveSettings( rtd );
+				*flags |= FLAG_RENDER;
+				return NORMAL;
+			case SDLK_LSHIFT: /* Select+X: horizontal mirror */
+				if (doc) Green_MirrorH( doc );
+				*flags |= FLAG_RENDER;
+				return NORMAL;
+			case SDLK_LALT: /* Select+Y: vertical mirror */
+				if (doc) Green_MirrorV( doc );
+				*flags |= FLAG_RENDER;
+				return NORMAL;
+			case 'e': /* Select+L1: dual-page mode */
+				rtd->side_by_side = !rtd->side_by_side;
+				*flags |= FLAG_RENDER;
+				return NORMAL;
+			default:
+				break;
+		}
+	}
+
+	switch (sym)
+	{
+		case SDLK_UP:
+			if (!doc)
+				break;
+			
+			// In side-by-side mode, check if we're at the top and need to go to previous page pair
+			if (rtd->side_by_side && doc->yoffset == 0) {
+				if (!Green_GotoPage( doc, doc->page_cur - 2, true ))
+					break;
+			} else {
+				Green_ScrollRelative( doc, 0, - display->h * rtd->step, vw, display->h, 1 );
+			}
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_DOWN:
+			if (!doc)
+				break;
+			
+			// In side-by-side mode, check if we're at the bottom and need to go to next page pair
+			if (rtd->side_by_side) {
+				int max_x, max_y;
+				Green_GetScrollRegion( doc, vw, display->h, &max_x, &max_y );
+				if (doc->yoffset >= max_y) {
+					if (!Green_GotoPage( doc, doc->page_cur + 2, true ))
+						break;
+				} else {
+					Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
+				}
+			} else {
+				Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
+			}
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_LEFT:
+			if (!doc)
+				break;
+			
+			Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_RIGHT:
+			if (!doc)
+				break;
+			
+			Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_SPACE:
+			/* Nintendo B: fit width. */
+			if (!doc)
+				break;
+			
+			doc->fit_method = WIDTH;
+			doc->finescale = 1;
+			doc->xoffset = 0;
+			doc->yoffset = 0;
+			*flags |= FLAG_RENDER;
+			break;
+		case SDLK_LCTRL:
+			/* Nintendo A: rotate right by 90 degrees. */
+			if (!doc)
+				break;
+			
+			Green_RotateRight( doc );
+			Green_ValidateOffset( doc, display->w, display->h );
+			*flags |= FLAG_RENDER;
+			break;
+		case 'e':
+			/* L1: previous page (keep zoom + pan). */
+			if (!doc)
+				break;
+			
+			if (rtd->side_by_side)
+			{
+				if (!GotoPageKeepView( doc, doc->page_cur - 2, vw, display->h ))
+					break;
+			}
+			else if (!GotoPageKeepView( doc, doc->page_cur - 1, vw, display->h ))
+				break;
+			
+			*flags |= FLAG_RENDER;
+			break;
+		case 't':
+			/* R1: next page (keep zoom + pan). */
+			if (!doc)
+				break;
+			
+			if (rtd->side_by_side)
+			{
+				if (!GotoPageKeepView( doc, doc->page_cur + 2, vw, display->h ))
+					break;
+			}
+			else if (!GotoPageKeepView( doc, doc->page_cur + 1, vw, display->h ))
+				break;
+			
+			*flags |= FLAG_RENDER;
+			break;
+		case 'q':
+			/* L2: back 10 pages (optional trigger). */
+			SkipPages( doc, rtd, -10, vw, display->h, flags );
+			break;
+		case 'w':
+			/* R2: forward 10 pages (optional trigger). */
+			SkipPages( doc, rtd, 10, vw, display->h, flags );
+			break;
+		case SDLK_RETURN:
+			/* Start: table of contents. */
+			return OpenTOCPanel( rtd, flags );
+		default:
+			break;
+	}
+	
+	return NORMAL;
+}
+
+Uint32	live_timer( Uint32 interval, void *param )
+{
+	SDL_Event	event;
+	
+	SDL_memset( &event, 0, sizeof( event ) );
+	event.type = SDL_USEREVENT;
+	SDL_PushEvent( &event );
+	return interval;
+}
+
+/* Controller-only input adapter. Unsupported actions deliberately have no binding. */
+static SDL_GameController *OpenFirstController( void )
+{
+	int device;
+	for (device = 0; device < SDL_NumJoysticks(); device++)
+		if (SDL_IsGameController( device ))
+		{
+			SDL_GameController *controller = SDL_GameControllerOpen( device );
+			if (controller) return controller;
+		}
+	return NULL;
+}
+
+static SDL_Keycode ControllerButtonKey( Uint8 button )
+{
+	switch (button)
+	{
+		/* SDL's standard A/B and X/Y positions are Xbox-oriented.
+		 * On Nintendo-labelled pads these physical positions read B/A and Y/X. */
+		case SDL_CONTROLLER_BUTTON_A: return SDLK_SPACE;       /* Nintendo B: fit width */
+		case SDL_CONTROLLER_BUTTON_B: return SDLK_LCTRL;       /* Nintendo A: rotate right */
+		case SDL_CONTROLLER_BUTTON_X: return SDLK_LALT;        /* Nintendo Y: zoom out */
+		case SDL_CONTROLLER_BUTTON_Y: return SDLK_LSHIFT;      /* Nintendo X: zoom in */
+		case SDL_CONTROLLER_BUTTON_START: return SDLK_RETURN;  /* Start: TOC */
+		case SDL_CONTROLLER_BUTTON_GUIDE: return SDLK_ESCAPE;  /* Optional Guide: exit */
+		case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDLK_UP;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDLK_DOWN;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDLK_LEFT;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDLK_RIGHT;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return 'e';   /* L1: previous page */
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return 't';  /* R1: next page */
+		default: return SDLK_UNKNOWN; /* NULL binding */
+	}
+}
+
+int	Green_SDL_Main( Green_RTD *rtd )
+{
+	SDL_TimerID	timer = 0;
+	SDL_GameController	*controller = NULL;
+	SDL_Surface	*display;
+	SDL_Event	event;
+	unsigned short	flags = FLAG_RENDER;
+	unsigned char	event_count;
+	
+	if (SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER ))
+	{
+		fprintf( stderr, "SDL_Init failed: %s\n", SDL_GetError() );
+		return 1;
+	}
+	
+	/* Open a recognized SDL GameController; hot-plug is also supported below. */
+	SDL_GameControllerEventState( SDL_ENABLE );
+	controller = OpenFirstController();
+	if (!controller)
+		fprintf( stderr, "Waiting for an SDL game controller...\n" );
+
+	/* SDL2: window + renderer, drawing goes into an off-screen XRGB8888 framebuffer (see Present) */
+	{
+		const char	*rot = getenv( "GREEN_ROTATE180" );
+		Uint32	wflags = SDL_WINDOW_RESIZABLE;
+		int	ww = rtd->width, wh = rtd->height, ow, oh;
+		
+		g_rotate180 = rot && atoi( rot );
+		if (rtd->flags & GREEN_FULLSCREEN)
+			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+		if (ww <= 0 || wh <= 0)
+		{
+			SDL_DisplayMode	dm;
+			
+			if (SDL_GetDesktopDisplayMode( 0, &dm ) == 0)
+			{
+				ww = dm.w;
+				wh = dm.h;
+			}
+			else
+			{
+				ww = 640;
+				wh = 480;
+			}
+		}
+		
+		SDL_SetHint( SDL_HINT_RENDER_SCALE_QUALITY, "0" );
+		g_window = SDL_CreateWindow( "green - the PDF reader", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, ww, wh, wflags );
+		g_renderer = g_window ? SDL_CreateRenderer( g_window, -1, 0 ) : NULL;
+		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) || CreateFramebuffer( ow, oh ))
+		{
+			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
+			if (controller) SDL_GameControllerClose( controller );
+			SDL_Quit();
+			return 2;
+		}
+		display = DrawSurface();
+	}
+	if (Green_IsDocValid( rtd))
+		Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
+	
+	timer = SDL_AddTimer( live_interval, live_timer, NULL );
+	SDL_ShowCursor( SDL_DISABLE );
+	
+	do
+	{
+		if ((flags & FLAG_QUIT))
+			break;
+		if (flags&FLAG_RENDER)
+		{
+			Render( rtd );
+			flags ^= FLAG_RENDER;
+		}
+		
+		event_count = 0;
+		if (!SDL_WaitEvent( &event ))
+		{
+			SDL_Quit();
+				return -1;
+		}
+		
+		do
+		{
+			bool mapped_controller_event = false;
+			/* Select is a tap-for-help / hold-for-modifier button. Select+Start exits. */
+			if (event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP)
+			{
+				bool down = event.type == SDL_CONTROLLERBUTTONDOWN;
+				Uint8 button = event.cbutton.button;
+				if (button == SDL_CONTROLLER_BUTTON_BACK)
+				{
+					if (down)
+					{
+						g_select_button_held = true;
+						g_select_chord_used = false;
+						if (g_start_button_held)
+						{
+							g_exit_chord = true;
+							flags |= FLAG_QUIT;
+						}
+						event.type = SDL_USEREVENT;
+					}
+					else
+					{
+						g_select_button_held = false;
+						if (!g_select_chord_used && !g_exit_chord)
+						{
+							event.type = SDL_KEYDOWN;
+							event.key.keysym.sym = SDLK_TAB;
+							event.key.repeat = 0;
+							mapped_controller_event = true;
+						}
+						else event.type = SDL_USEREVENT;
+						if (!g_start_button_held) g_exit_chord = false;
+						g_select_chord_used = false;
+					}
+				}
+				else if (button == SDL_CONTROLLER_BUTTON_START)
+				{
+					if (down)
+					{
+						g_start_button_held = true;
+						if (g_select_button_held) g_exit_chord = true;
+					}
+					else g_start_button_held = false;
+					if (g_exit_chord)
+					{
+						if (down) flags |= FLAG_QUIT;
+						event.type = SDL_USEREVENT;
+						if (!g_select_button_held && !g_start_button_held) g_exit_chord = false;
+					}
+				}
+				else if (down && g_select_button_held
+					&& (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
+					|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER))
+					g_select_chord_used = true;
+			}
+			/* L2/R2 are SDL trigger axes, not controller-button events. They are optional. */
+			if (event.type == SDL_CONTROLLERAXISMOTION
+				&& (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT
+				|| event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
+			{
+				bool *held = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? &g_l2_held : &g_r2_held;
+				SDL_Keycode key = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? 'q' : 'w';
+				bool down = event.caxis.value > 16000;
+				if (down != *held)
+				{
+					*held = down;
+					event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
+					event.key.keysym.sym = key;
+					event.key.repeat = 0;
+					mapped_controller_event = true;
+				}
+				else event.type = SDL_USEREVENT;
+			}
+			/* Convert only SDL GameController events; discard keyboard and mouse input. */
+			if (event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP)
+			{
+				SDL_Keycode key = ControllerButtonKey( event.cbutton.button );
+				if (key == SDLK_UNKNOWN) event.type = SDL_USEREVENT;
+				else
+				{
+					Uint32 controller_type = event.type;
+					event.type = controller_type == SDL_CONTROLLERBUTTONDOWN ? SDL_KEYDOWN : SDL_KEYUP;
+					event.key.keysym.sym = key;
+					event.key.repeat = 0;
+					mapped_controller_event = true;
+				}
+			}
+			else if (!mapped_controller_event && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP
+				|| event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN
+				|| event.type == SDL_MOUSEBUTTONUP || event.type == SDL_MOUSEWHEEL
+				|| event.type == SDL_CONTROLLERAXISMOTION || event.type == SDL_JOYBUTTONDOWN
+				|| event.type == SDL_JOYBUTTONUP || event.type == SDL_JOYAXISMOTION))
+				event.type = SDL_USEREVENT;
+
+			switch (event.type)
+			{
+				case SDL_QUIT:
+					flags |= FLAG_QUIT;
+					break;
+				case SDL_KEYUP:
+					if (event.key.keysym.sym == SDLK_UP
+						|| event.key.keysym.sym == SDLK_DOWN)
+						ListNavStop();
+					
+					if (event.key.keysym.sym == SDLK_LSHIFT)
+					{
+						/* Nintendo X: zoom in. */
+						if (g_x_held && g_state == NORMAL
+							&& Green_IsDocValid( rtd))
+						{
+							Green_Document	*d = rtd->doc;
+							
+							Green_Zoom( d, ViewWidth( rtd ), display->h,
+								d->finescale * rtd->zoomstep );
+							flags |= FLAG_RENDER;
+						}
+						g_x_held = false;
+					}
+					else if (event.key.keysym.sym == SDLK_LALT)
+					{
+						/* Nintendo Y: zoom out. */
+						if (g_y_held && g_state == NORMAL
+							&& Green_IsDocValid( rtd))
+						{
+							Green_Document	*d = rtd->doc;
+							
+							Green_Zoom( d, ViewWidth( rtd ), display->h,
+								d->finescale / rtd->zoomstep );
+							flags |= FLAG_RENDER;
+						}
+						g_y_held = false;
+					}
+					break;
+				case SDL_KEYDOWN:
+					if (event.key.repeat)
+						break;
+					if (event.key.keysym.sym == SDLK_LSHIFT && g_state == NORMAL)
+					{
+						g_x_held = true;
+						break;
+					}
+					
+					if (event.key.keysym.sym == SDLK_LALT && g_state == NORMAL)
+					{
+						g_y_held = true;
+						break;
+					}
+					
+					if (event.key.keysym.sym == SDLK_ESCAPE)
+					{
+						g_x_held = false;
+						g_y_held = false;
+						/* Guide: leave overlays, otherwise close the only document. */
+						if (g_state != NORMAL || g_toc_active || g_help_active)
+						{
+							ListNavStop();
+							g_state = NORMAL;
+							if (g_toc_active)
+							{
+								g_toc_active = false;
+								flags |= FLAG_RENDER;
+							}
+							if (g_help_active)
+							{
+								g_help_active = false;
+								flags |= FLAG_RENDER;
+							}
+						}
+						else
+							CloseCurrentFile( rtd, &flags );
+					}
+					else if (event.key.keysym.sym == SDLK_TAB)
+					{
+						if (g_state == HELP)
+						{
+							ListNavStop();
+							g_help_active = false;
+							g_state = NORMAL;
+							flags |= FLAG_RENDER;
+						}
+						else
+							g_state = OpenHelpPanel( &flags );
+					}
+					else if (g_state == HELP)
+						g_state = HelpInput( &event, &flags );
+					else if (g_state == TOC)
+						g_state = TOCInput( rtd, &event, &flags );
+					else if (g_state == NORMAL)
+						g_state = NormalInput( rtd, &event, &flags );
+					break;
+				case SDL_CONTROLLERDEVICEADDED:
+					if (!controller && SDL_IsGameController( event.cdevice.which ))
+						controller = SDL_GameControllerOpen( event.cdevice.which );
+					break;
+				case SDL_CONTROLLERDEVICEREMOVED:
+					if (controller && SDL_JoystickInstanceID( SDL_GameControllerGetJoystick( controller ) ) == event.cdevice.which)
+					{
+						SDL_GameControllerClose( controller );
+						controller = OpenFirstController();
+						g_select_button_held = g_select_chord_used = g_start_button_held = g_exit_chord = false;
+						g_x_held = g_y_held = false;
+						g_l2_held = g_r2_held = false;
+					}
+					break;
+				case SDL_WINDOWEVENT:
+					if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
+					{
+						int	ow, oh;
+						
+						SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
+						if (ow != display->w || oh != display->h)
+						{
+							if (CreateFramebuffer( ow, oh ))
+							{
+								SDL_Quit();
+								fprintf( stderr, "Resize failed: %s\n", SDL_GetError() );
+													return -5;
+							}
+							
+							display = DrawSurface();
+							if (Green_IsDocValid( rtd))
+								Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
+						}
+						
+						flags |= FLAG_RENDER;
+					}
+					else if (event.window.event == SDL_WINDOWEVENT_EXPOSED
+						|| event.window.event == SDL_WINDOWEVENT_RESTORED)
+						flags |= FLAG_RENDER;
+					
+					break;
+				case SDL_USEREVENT:
+					/* Held D-pad Up/Down: keep scrolling TOC / help */
+					if (g_list_nav_dir
+						&& (g_state == TOC || g_state == HELP)
+						&& SDL_GetTicks() >= g_list_nav_next)
+					{
+						if (g_state == TOC)
+							TOCStepSel( g_list_nav_dir );
+						else
+							HelpStepScroll( g_list_nav_dir, HelpMaxScroll( display ) );
+						g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
+						flags |= FLAG_RENDER;
+					}
+					
+					break;
+			}
+			
+			event_count++;
+			
+		}	while (event_count && SDL_PollEvent( &event ));
+		
+	}	while (!(flags&FLAG_QUIT));
+	
+	Green_SaveAllLastPages( rtd );
+	SDL_RemoveTimer( timer );
+	if (controller) SDL_GameControllerClose( controller );
+	DestroyFramebuffer();
+	if (g_renderer)
+		SDL_DestroyRenderer( g_renderer );
+	if (g_window)
+		SDL_DestroyWindow( g_window );
+	SDL_Quit();
+	
+	/* Flush any remaining SDL events */
+	SDL_Event dummy;
+	while (SDL_PollEvent(&dummy));
+	
+	return 0;
+}

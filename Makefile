@@ -24,6 +24,7 @@ endif
 
 MUPDF ?= mupdf/$(ARCH)
 PREFIX ?= /usr/local
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo unknown)
 SDL2_CONFIG ?= sdl2-config
 
 CC := $(CROSS_COMPILE)gcc
@@ -40,7 +41,7 @@ SYSROOT_FLAG := $(if $(strip $(SYSROOT)),--sysroot=$(SYSROOT),)
 SYSROOT_LIBDIR := $(if $(strip $(SYSROOT)),-L$(SYSROOT)/usr/lib,)
 SDL2_CFLAGS ?= $(shell $(SDL2_CONFIG) --cflags)
 SDL2_LIBS ?= $(shell $(SDL2_CONFIG) --libs)
-CFLAGS := -O2 -Wall $(ARCHFLAGS) -flto -ffunction-sections -fdata-sections -D_REENTRANT -I. -I$(MUPDF)/include $(SDL2_CFLAGS)
+CFLAGS := -O2 -Wall -DMUGREEN2_VERSION=\\\"$(VERSION)\\\" $(ARCHFLAGS) -flto -ffunction-sections -fdata-sections -D_REENTRANT -I. -I$(MUPDF)/include $(SDL2_CFLAGS)
 LDFLAGS := $(ARCHFLAGS) -flto -Wl,--gc-sections -L$(MUPDF)/lib $(SYSROOT_LIBDIR)
 LIBS := -lmupdf -lmupdf-third $(SDL2_LIBS) -lm
 OBJS := main.o green.o sdl.o pdf_backend.o

@@ -86,6 +86,29 @@ double	ReadFraction( char *str )
 	return res;
 }
 
+/* Parse a window dimension without allowing strtol overflow or a
+ * narrowing conversion to wrap. Zero retains SDL's automatic-size meaning. */
+static int ReadDimension( const char *str, unsigned short *value )
+{
+	unsigned int parsed = 0;
+	const unsigned char *p = (const unsigned char *)str;
+
+	if (!p || !*p || !value)
+		return 0;
+	for (; *p; p++)
+	{
+		unsigned int digit;
+		if (*p < '0' || *p > '9')
+			return 0;
+		digit = *p - '0';
+		if (parsed > (65535u - digit) / 10u)
+			return 0;
+		parsed = parsed * 10u + digit;
+	}
+	*value = (unsigned short)parsed;
+	return 1;
+}
+
 int	main( int argc, char *argv[] )
 {
 	Green_RTD	rtd;
@@ -160,15 +183,13 @@ int	main( int argc, char *argv[] )
 		else if (!strncmp( opt, "width=", 6 ))
 		{
 			opt += 6;
-			rtd.width = strtol( opt, &opt, 10 );
-			if (*opt)
+			if (!ReadDimension( opt, &rtd.width ))
 				err = -1;
 		}
 		else if (!strncmp( opt, "height=", 7 ))
 		{
 			opt += 7;
-			rtd.height = strtol( opt, &opt, 10 );
-			if (*opt)
+			if (!ReadDimension( opt, &rtd.height ))
 				err = -1;
 		}
 		else if (!strncmp( opt, "cache=", 6 ))

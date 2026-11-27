@@ -37,7 +37,7 @@ mugreen2: $(OBJS)
 	$(STRIP) $@
 
 main.o: main.c green.h pdf_backend.h
-	$(CC) $(CONFIG) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -c $< -o $@
 
 %.o: %.c green.h pdf_backend.h
 	$(CC) $(CFLAGS) -c $< -o $@

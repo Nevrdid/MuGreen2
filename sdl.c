@@ -1056,8 +1056,12 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
 			return 0;
 
-		/* Start at the leading corner: top-left normally, top-right for manga. */
-		SetPageStart( doc, rtd->right_to_left, w, h );
+		/* Re-entering a facing-page pair starts at the spread origin; a
+		 * single-page view keeps the traditional document-space leading edge. */
+		if (rtd->side_by_side && doc->page_count > 1) {
+			doc->xoffset = doc->yoffset = 0;
+			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
+		} else SetPageStart(doc, rtd->right_to_left, w, h);
 		return 1;
 	}
 

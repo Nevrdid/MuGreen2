@@ -33,9 +33,9 @@ The on-screen help panel lists the current bindings. The default Nintendo-labell
 | Select + B | Toggle night mode |
 | Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
+| Select + R1 | Toggle right-to-left manga reading |
 
 Holding a D-pad direction repeats navigation after a 300 ms initial delay, then every 100 ms. Normal reading scrolls by 90% of the viewport by default, leaving a 10% overlap; use `-step=<fraction>` to override this. After the visible page or spread changes, a small page-number overlay appears for about 1.2 seconds.
-| Select + R1 | Toggle right-to-left manga reading |
 
 Some controls are optional and depend on the controller exposing the corresponding SDL input.
 

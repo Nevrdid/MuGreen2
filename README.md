@@ -170,9 +170,12 @@ MuGreen2 uses stable non-zero exit codes so launchers can distinguish common fai
 
 Document-opening failures print a diagnostic to standard error and append a message to `<datadir>/mugreen2.log` when the application data directory is writable. A page that fails after the reader has displayed a valid frame is replaced with an on-screen error placeholder; navigation remains available. Render failures and recoverable content warnings are also appended to the same log file. If the first frame cannot be rendered, the reader exits with code 9 and advances the saved position past the failed page where possible.
 
-## Display environment
+## Startup orientation
 
-Set `GREEN_ROTATE180=1` to rotate the final presented image by 180 degrees. This is intended for handheld panels mounted upside down; it does not alter PDF page orientation or saved document rotation. The default is `0` (disabled).
+Use `-rotation=0|90|180|270` to override the saved reader rotation for this launch.
+Use `-display-rotation=0|90|180|270` to rotate the complete presented frame for
+the physical display mounting; this is independent of PDF rotation and controller
+navigation. Use `-rtl` or `-ltr` to override the saved initial reading direction.
 
 A sample shell launcher is provided at `examples/launch-mugreen2.sh`.
 

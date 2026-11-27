@@ -1104,6 +1104,63 @@ static void RenderLogicalPipelineTestFrame(SDL_Surface *display)
  * presentation transform supplies reader rotation, so MuPDF must not rotate
  * the page here. This probe intentionally keeps navigation and overlays out
  * of scope. */
+/* Pan the single logical PDF page using physical D-pad directions.
+ * Convert the screen vector back through the final reader rotation, then
+ * undo the source flip used to preserve the legacy mirror result. This probe
+ * clamps at page edges; page transitions remain deliberately disabled. */
+static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
+{
+	Green_Document *doc = rtd->doc;
+	Green_Document fit_doc = *doc;
+	double scale;
+	int page_w, page_h, dx = 0, dy = 0, logical_dx, logical_dy;
+	int old_x = doc->xoffset, old_y = doc->yoffset;
+	int step;
+
+	switch (button) {
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: dx = -1; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: dx = 1; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP: dy = -1; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: dy = 1; break;
+		default: return 0;
+	}
+
+	fit_doc.rotation = 0;
+	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0, &page_w, &page_h))
+		return 0;
+
+	/* Inverse of the clockwise whole-frame presentation rotation. */
+	switch (doc->rotation & 3) {
+		case 1: logical_dx = dy;  logical_dy = -dx; break;
+		case 2: logical_dx = -dx; logical_dy = -dy; break;
+		case 3: logical_dx = -dy; logical_dy = dx;  break;
+		default: logical_dx = dx; logical_dy = dy; break;
+	}
+
+	/* The logical source is flipped vertically for even turns and
+	 * horizontally for odd turns when document mirroring is enabled. */
+	if (doc->mirrored) {
+		if (doc->rotation & 1) logical_dx = -logical_dx;
+		else logical_dy = -logical_dy;
+	}
+
+	step = logical_dx ? (int)(display->w * rtd->step)
+		: (int)(display->h * rtd->step);
+	if (step < 1) step = 1;
+	doc->xoffset += logical_dx * step;
+	doc->yoffset += logical_dy * step;
+
+	if (doc->xoffset < 0) doc->xoffset = 0;
+	else if (doc->xoffset > page_w - display->w)
+		doc->xoffset = page_w > display->w ? page_w - display->w : 0;
+	if (doc->yoffset < 0) doc->yoffset = 0;
+	else if (doc->yoffset > page_h - display->h)
+		doc->yoffset = page_h > display->h ? page_h - display->h : 0;
+
+	return doc->xoffset != old_x || doc->yoffset != old_y;
+}
+
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)
 {
 	Green_Document *doc = rtd->doc;
@@ -1661,6 +1718,12 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	int vw = ViewWidth( rtd ), hstep = (int)(vw * rtd->step);
 	if (g_logical_pdf_test && doc) {
 		switch (button) {
+			case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+			case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+				if (ScrollLogicalPDFPage(rtd, display, button)) *flags |= FLAG_RENDER;
+				break;
 			case SDL_CONTROLLER_BUTTON_B:
 				Green_RotateRight(doc);
 				doc->xoffset = doc->yoffset = 0;

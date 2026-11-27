@@ -1247,13 +1247,13 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			
 			if (SDL_GetDesktopDisplayMode( 0, &dm ) == 0)
 			{
-				ww = dm.w;
-				wh = dm.h;
+				if (ww <= 0) ww = dm.w;
+				if (wh <= 0) wh = dm.h;
 			}
 			else
 			{
-				ww = 640;
-				wh = 480;
+				if (ww <= 0) ww = 640;
+				if (wh <= 0) wh = 480;
 			}
 		}
 		

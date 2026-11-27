@@ -100,6 +100,17 @@ The logical-PDF test now renders facing-page pairs in one continuous logical-coo
 - D-pad input pans the combined spread in logical coordinates; once the relevant axis reaches its edge (or fits entirely in the viewport), another press changes to the adjacent page pair. L1/R1 also navigate by pairs.
 - An unpaired first/last page falls back to the single-page logical renderer.
 
-**Build/device verification pending.** The user tested the initial implementation and found the visible stack axis changed with reader rotation (horizontal at 0°/180°, vertical at 90°/270°). A source-level correction now keeps the selected axis unchanged across rotations. The automatic rotation-dependent page-order mapping has now been removed; this correction also needs device retesting. Verify the visible axis at all four rotations in both modes, Select+Up, persistence, page order in LTR/RTL and manual Select+Down reversal, mixed-size pages, zoom anchoring while focused on one page, D-pad pan/edge transitions, and unpaired pages. This stage has not yet been compiled or tested on the handheld.
+**User verification:** the user built and tested the corrected spread implementation. Horizontal/vertical stacking now remains stable from the user's viewing orientation at all reader rotations; the corrected page order works in LTR/RTL with the explicit Select+Down override. The user reports that all tested behaviour is now correct, including spread navigation and zoom/pan. This stage is treated as device-verified.
 
-The logical-PDF test still does not migrate TOC/help/page-indicator overlays. The normal renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset. Select+Up's new stack toggle is intentionally active only in the logical-PDF experiment.
+Select+Up's stack-axis preference is persisted in global settings and is active only in the logical-PDF experiment. The normal renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
+
+## Stage 7 — logical UI overlay presentation
+
+The first overlay migration slice is implemented on this branch:
+- The logical-PDF test now owns a transparent ARGB overlay surface and streaming texture, separate from the PDF framebuffer.
+- The page indicator, TOC and help panel draw directly in logical framebuffer coordinates; they no longer create and CPU-rotate a temporary surface in this test path.
+- PDF mirroring is applied only to the PDF texture. The UI overlay receives the same final reader rotation but is not mirrored with document content.
+- Help-panel scroll limits use the logical overlay height in the logical-PDF path.
+- The existing renderer's overlay implementation is unchanged.
+
+**Build/device verification pending.** Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with GREEN_ROTATE180=1 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.

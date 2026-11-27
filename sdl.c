@@ -1070,7 +1070,12 @@ static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, in
 	if (page == doc->page_cur)
 		return;
 	
-	if (GotoPageKeepView( doc, page, w, h, rtd->right_to_left ))
+	if (rtd->side_by_side && doc->page_count > 1) {
+		if (Green_GotoPage(doc, page, false)) {
+			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
+			*flags |= FLAG_RENDER;
+		}
+	} else if (GotoPageKeepView(doc, page, w, h, rtd->right_to_left))
 		*flags |= FLAG_RENDER;
 	return;
 }

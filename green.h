@@ -63,7 +63,7 @@ typedef struct {
 	bool right_to_left;
 	bool spread_vertical;
 	/* Controller face-button convention; false = Nintendo, true = Xbox. */
-	bool nintendo_layout;
+	bool xbox_layout;
 	/* Rotate controller directions/buttons with the reader rotation. */
 	bool controls_rotate;
 	/* Explicit command-line startup overrides; applied after restoring document state. */

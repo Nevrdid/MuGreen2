@@ -109,8 +109,10 @@ Select+Up's stack-axis preference is persisted in global settings and is active 
 The first overlay migration slice is implemented on this branch:
 - The logical-PDF test now owns a transparent ARGB overlay surface and streaming texture, separate from the PDF framebuffer.
 - The page indicator, TOC and help panel draw directly in logical framebuffer coordinates; they no longer create and CPU-rotate a temporary surface in this test path.
+- The TOC is anchored to the logical left edge, so final reader rotation moves it around the handheld's edges instead of pinning it to the physical screen's left side.
 - PDF mirroring is applied only to the PDF texture. The UI overlay receives the same final reader rotation but is not mirrored with document content.
 - Help-panel scroll limits use the logical overlay height in the logical-PDF path.
+- L2/R2 ten-page skip bindings are active in the logical-PDF path as well as the legacy path; logical offsets are clamped against the current single-page or spread geometry.
 - The existing renderer's overlay implementation is unchanged.
 
-**Build/device verification pending.** Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with GREEN_ROTATE180=1 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
+**User verification:** page indicator and help panel passed all tested orientations; mirroring and the remaining overlay checks were reported correct. The TOC edge-following adjustment and restored L2/R2 handling need a rebuild/device check. Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with GREEN_ROTATE180=1 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.

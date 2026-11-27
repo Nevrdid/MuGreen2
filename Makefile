@@ -41,7 +41,7 @@ SYSROOT_FLAG := $(if $(strip $(SYSROOT)),--sysroot=$(SYSROOT),)
 SYSROOT_LIBDIR := $(if $(strip $(SYSROOT)),-L$(SYSROOT)/usr/lib,)
 SDL2_CFLAGS ?= $(shell $(SDL2_CONFIG) --cflags)
 SDL2_LIBS ?= $(shell $(SDL2_CONFIG) --libs)
-CFLAGS := -O2 -Wall -DMUGREEN2_VERSION=\\\"$(VERSION)\\\" $(ARCHFLAGS) -flto -ffunction-sections -fdata-sections -D_REENTRANT -I. -I$(MUPDF)/include $(SDL2_CFLAGS)
+CFLAGS := -O2 -Wall -DMUGREEN2_VERSION='"$(VERSION)"' $(ARCHFLAGS) -flto -ffunction-sections -fdata-sections -D_REENTRANT -I. -I$(MUPDF)/include $(SDL2_CFLAGS)
 LDFLAGS := $(ARCHFLAGS) -flto -Wl,--gc-sections -L$(MUPDF)/lib $(SYSROOT_LIBDIR)
 LIBS := -lmupdf -lmupdf-third $(SDL2_LIBS) -lm
 OBJS := main.o green.o sdl.o pdf_backend.o

@@ -1114,7 +1114,6 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	Green_Document fit_doc = *doc;
 	double scale;
 	int page_w, page_h, dx = 0, dy = 0, logical_dx, logical_dy;
-	int old_x = doc->xoffset, old_y = doc->yoffset;
 	int step;
 
 	switch (button) {
@@ -1199,7 +1198,7 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	if (doc->yoffset < 0) doc->yoffset = 0;
 	else if (doc->yoffset > new_page_h - display->h) doc->yoffset = new_page_h - display->h;
 
-	return doc->finescale != new_fs || doc->xoffset != old_x || doc->yoffset != old_y;
+	return 1;
 }
 
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)

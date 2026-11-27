@@ -16,7 +16,7 @@ This is a single-document reader for Linux devices. The build supports AArch64, 
 
 ### Controller layout
 
-The on-screen help panel lists the current bindings. The default is the Nintendo-labelled face-button layout; `-controller-layout=xbox` swaps A/B and X/Y. Face buttons and the D-pad rotate with the reader so their logical actions remain aligned with the displayed page. Use `-no-control-rotation` to keep physical controls fixed regardless of reader rotation. Use `-controller-layout=nintendo` to select the default explicitly.
+The on-screen help panel lists the current bindings. The default is the Nintendo-labelled face-button layout; `-controller-layout=xbox` swaps A/B and X/Y. The selected layout is saved in the global settings file as `xbox_layout=0` (Nintendo) or `xbox_layout=1` (Xbox); a `-controller-layout=...` command-line option overrides the saved preference for that launch. Face buttons and the D-pad rotate with the reader so their logical actions remain aligned with the displayed page. Use `-no-control-rotation` to keep physical controls fixed regardless of reader rotation. Use `-controller-layout=nintendo` to select Nintendo explicitly.
 
 | Input | Action |
 | --- | --- |
@@ -186,7 +186,7 @@ Both dependency build scripts verify pinned SHA-256 checksums before extracting 
 
 ## Saved settings and document state
 
-Global preferences (night mode, right-to-left reading, and dual-page mode) are stored in `<datadir>/settings`. Per-document reading state is stored in `<datadir>/documents/`.
+Global preferences (night mode, right-to-left reading, dual-page mode, spread orientation, and controller face-button layout) are stored in `<datadir>/settings`. Per-document reading state is stored in `<datadir>/documents/`.
 
 The data directory is selected in this order:
 

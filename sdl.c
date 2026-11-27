@@ -962,6 +962,8 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 		double scale;
 		if (GetSpreadMetrics(rtd, DrawSurface()->w, DrawSurface()->h, &scale, &lp, &rp, &lw, &lh, &rw, &rh))
 		{
+			int spread_h = lh > rh ? lh : rh;
+			int max_scroll_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
 			doc->xoffset += sx; doc->yoffset += sy;
 			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
 			if (doc->xoffset != old_x || doc->yoffset != old_y) return 1;
@@ -969,6 +971,24 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 				next_page = sx < 0 ? ((rotation == 1 || rotation == 2) ? 1 : -1)
 					: ((rotation == 1 || rotation == 2) ? -1 : 1);
 				if (rtd->right_to_left) next_page = -next_page;
+			} else if (rotation & 1) {
+				int top_border, bottom_border;
+				if (rotation == 1) {
+					top_border = doc->mirrored ? doc->yoffset == max_scroll_y : doc->yoffset == 0;
+					bottom_border = doc->mirrored ? doc->yoffset == 0 : doc->yoffset == max_scroll_y;
+				} else {
+					top_border = doc->mirrored ? doc->yoffset == 0 : doc->yoffset == max_scroll_y;
+					bottom_border = doc->mirrored ? doc->yoffset == max_scroll_y : doc->yoffset == 0;
+				}
+				if (sy < 0 && top_border) next_page = rotation == 1 ? -1 : 1;
+				else if (sy > 0 && bottom_border) next_page = rotation == 1 ? 1 : -1;
+			} else {
+				int doc_dy = rotation == 2 ? (doc->mirrored ? sy : -sy)
+					: (doc->mirrored ? -sy : sy);
+				if (doc_dy > 0 && doc->yoffset >= max_scroll_y) next_page = 1;
+				else if (doc_dy < 0 && doc->yoffset <= 0) next_page = -1;
+			}
+			if (next_page) {
 				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + next_page * 2, false)) return 0;
 				doc->xoffset = doc->yoffset = 0;
 				return 1;

@@ -85,9 +85,13 @@ static int	g_rotate180 = 0;
 
 /* Hold D-pad Up/Down to scroll TOC / help. */
 static int	g_list_nav_dir = 0;
+static int	g_list_nav_button = -1;
 static Uint32	g_list_nav_next = 0;
-#define LIST_NAV_DELAY_MS	280
-#define LIST_NAV_RATE_MS	50
+#define LIST_NAV_DELAY_MS	300
+#define LIST_NAV_RATE_MS	100
+#define PAGE_INDICATOR_DURATION_MS	1200
+static int	g_page_indicator_page = -1;
+static Uint32	g_page_indicator_until = 0;
 
 static bool	g_help_active = false;
 /* Manual override for devices whose physical rotation direction differs. */
@@ -837,13 +841,26 @@ static int	TOCGoToPage( Green_RTD *rtd, TOCNode *node, unsigned short *flags )
 static void	ListNavStop( void )
 {
 	g_list_nav_dir = 0;
+	g_list_nav_button = -1;
 	g_list_nav_next = 0;
 }
 
-static void	ListNavStart( int dir )
+static void	ListNavStart( Uint8 button )
 {
-	g_list_nav_dir = dir;
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_UP || button == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+		g_list_nav_dir = -1;
+	else if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)
+		g_list_nav_dir = 1;
+	else
+		return;
+	g_list_nav_button = button;
 	g_list_nav_next = SDL_GetTicks() + LIST_NAV_DELAY_MS;
+}
+
+static int IsDpadButton(Uint8 button)
+{
+	return button == SDL_CONTROLLER_BUTTON_DPAD_UP || button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
+		|| button == SDL_CONTROLLER_BUTTON_DPAD_LEFT || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
 }
 
 static void	TOCStepSel( int dir )
@@ -865,9 +882,9 @@ static RState	TOCInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_START:
 			ListNavStop(); g_toc_active = false; *flags |= FLAG_RENDER; return NORMAL;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			TOCStepSel( 1 ); ListNavStart( 1 ); *flags |= FLAG_RENDER; break;
+			TOCStepSel( 1 ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			TOCStepSel( -1 ); ListNavStart( -1 ); *flags |= FLAG_RENDER; break;
+			TOCStepSel( -1 ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
 			if (g_toc_count > 0) { TOCNode *n = g_toc_entries[g_toc_sel].node; if (n->n_children > 0 && !n->open) { n->open = true; RebuildTOCFlat(); } }
 			*flags |= FLAG_RENDER; break;
@@ -924,7 +941,30 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 		rect.y = (display->h - rect.h) / 2;
 		RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 	}
-	RenderTOC(display, rtd); RenderHelp(display); Present();
+	RenderTOC(display, rtd); RenderHelp(display);
+	if (g_state == NORMAL && g_page_indicator_until
+		&& !SDL_TICKS_PASSED(SDL_GetTicks(), g_page_indicator_until))
+	{
+		char label[64];
+		int first = doc->page_cur, last = first, box_w;
+		SDL_Rect box;
+		Uint32 bg = SDL_MapRGB(display->format, 0x18, 0x18, 0x20);
+		Uint32 fg = SDL_MapRGB(display->format, 0xF0, 0xF0, 0xF0);
+		if (rtd->side_by_side && doc->page_count > 1)
+		{
+			first = (doc->page_cur / 2) * 2;
+			last = first + 1;
+		}
+		if (last < doc->page_count && last != first)
+			snprintf(label, sizeof(label), "%d-%d / %d", first + 1, last + 1, doc->page_count);
+		else
+			snprintf(label, sizeof(label), "%d / %d", first + 1, doc->page_count);
+		box_w = (int)strlen(label) * 6 + 16;
+		box.x = (display->w - box_w) / 2; box.y = 8; box.w = box_w; box.h = 22;
+		SDL_FillRect(display, &box, bg);
+		DrawString(display, box.x + 8, box.y + 7, label, fg);
+	}
+	Present();
 	return *failed_page >= 0 ? -1 : 0;
 }
 
@@ -1237,9 +1277,9 @@ static RState	HelpInput( Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_B:
 			ListNavStop(); g_help_active = false; *flags |= FLAG_RENDER; return NORMAL;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			HelpStepScroll( 1, max_scroll ); ListNavStart( 1 ); *flags |= FLAG_RENDER; break;
+			HelpStepScroll( 1, max_scroll ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			HelpStepScroll( -1, max_scroll ); ListNavStart( -1 ); *flags |= FLAG_RENDER; break;
+			HelpStepScroll( -1, max_scroll ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
 		default: break;
 	}
 	return HELP;
@@ -1247,6 +1287,7 @@ static RState	HelpInput( Uint8 button, unsigned short *flags )
 
 static RState	OpenTOCPanel( Green_RTD *rtd, unsigned short *flags )
 {
+	ListNavStop();
 	/* Start / o: toggle TOC */
 	if (g_toc_active)
 	{
@@ -1476,7 +1517,11 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		else Green_ValidateOffset(rtd->doc, display->w, display->h);
 	}
 	if (Green_IsDocValid( rtd))
+	{
 		state_snapshot = *rtd->doc;
+		g_page_indicator_page = rtd->doc->page_cur;
+	}
+	else
 	else
 		memset( &state_snapshot, 0, sizeof( state_snapshot ) );
 	
@@ -1490,16 +1535,38 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			state_dirty = true;
 			state_save_at = SDL_GetTicks() + 750;
 		}
-				/* Check the save deadline on every loop, not only when the event
-		 * queue becomes idle. A steady stream of SDL events must not starve
-		 * persistence indefinitely. */
+				/* Check deadlines on every loop, not only when the event queue becomes
+		 * idle. Continuous SDL input must not starve state saving or navigation. */
 		if (state_dirty && SDL_TICKS_PASSED( SDL_GetTicks(), state_save_at ))
 		{
 			if (Green_IsDocValid( rtd))
 				Green_SaveDocumentState( rtd->doc );
 			state_dirty = false;
 		}
-if (flags & FLAG_RENDER)
+		if (g_list_nav_dir && SDL_TICKS_PASSED(SDL_GetTicks(), g_list_nav_next))
+		{
+			if (g_state == NORMAL)
+			{
+				g_state = NormalInput(rtd, (Uint8)g_list_nav_button, &flags);
+			}
+			else if (g_state == TOC)
+				TOCStepSel(g_list_nav_dir);
+			else if (g_state == HELP)
+				HelpStepScroll(g_list_nav_dir, HelpMaxScroll(display));
+			g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
+			flags |= FLAG_RENDER;
+		}
+		if (g_page_indicator_until && SDL_TICKS_PASSED(SDL_GetTicks(), g_page_indicator_until))
+		{
+			g_page_indicator_until = 0;
+			if (g_state == NORMAL) flags |= FLAG_RENDER;
+		}
+		if (Green_IsDocValid(rtd) && rtd->doc->page_cur != g_page_indicator_page)
+		{
+			g_page_indicator_page = rtd->doc->page_cur;
+			g_page_indicator_until = SDL_GetTicks() + PAGE_INDICATOR_DURATION_MS;
+		}
+		if (flags & FLAG_RENDER)
 		{
 			int failed_page = rtd->doc ? rtd->doc->page_cur : 0;
 			if (Render( rtd, &failed_page ))
@@ -1526,29 +1593,26 @@ if (flags & FLAG_RENDER)
 		}
 		
 		event_count = 0;
-		if (g_list_nav_dir && (g_state == TOC || g_state == HELP))
 		{
 			Uint32 now = SDL_GetTicks();
-			int timeout = g_list_nav_next <= now ? 0 : (int)(g_list_nav_next - now);
-			if (!SDL_WaitEventTimeout( &event, timeout ))
+			int timeout = -1;
+			if (g_list_nav_dir)
+				timeout = SDL_TICKS_PASSED(now, g_list_nav_next) ? 0 : (int)(g_list_nav_next - now);
+			if (state_dirty)
 			{
-				if (g_state == TOC)
-					TOCStepSel( g_list_nav_dir );
-				else
-					HelpStepScroll( g_list_nav_dir, HelpMaxScroll( display ) );
-				g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
-				flags |= FLAG_RENDER;
-				continue;
+				int remaining = SDL_TICKS_PASSED(now, state_save_at) ? 0 : (int)(state_save_at - now);
+				if (timeout < 0 || remaining < timeout) timeout = remaining;
 			}
-		}
-		else if (state_dirty)
-		{
-			Uint32 now = SDL_GetTicks();
-			int timeout = SDL_TICKS_PASSED( now, state_save_at ) ? 0 : (int)(state_save_at - now);
-			if (!SDL_WaitEventTimeout( &event, timeout ))
-				continue;
-		}
-		else if (!SDL_WaitEvent( &event ))
+			if (g_page_indicator_until)
+			{
+				int remaining = SDL_TICKS_PASSED(now, g_page_indicator_until) ? 0 : (int)(g_page_indicator_until - now);
+				if (timeout < 0 || remaining < timeout) timeout = remaining;
+			}
+			if (timeout >= 0)
+			{
+				if (!SDL_WaitEventTimeout(&event, timeout)) continue;
+			}
+			else if (!SDL_WaitEvent(&event))
 		{
 			fprintf( stderr, "MuGreen2: SDL event wait failed: %s\n", SDL_GetError() );
 			exit_status = GREEN_EXIT_EVENT;
@@ -1608,7 +1672,11 @@ if (flags & FLAG_RENDER)
 					else if (button == SDL_CONTROLLER_BUTTON_Y && g_state == NORMAL) g_x_held = true;
 					else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
 					else if (g_state == HELP) g_state = HelpInput( button, &flags );
-					else if (g_state == NORMAL) g_state = NormalInput( rtd, button, &flags );
+					else if (g_state == NORMAL)
+					{
+						g_state = NormalInput( rtd, button, &flags );
+						if (IsDpadButton(button)) ListNavStart(button);
+					}
 					break;
 				}
 				case SDL_CONTROLLERBUTTONUP:
@@ -1627,7 +1695,7 @@ if (flags & FLAG_RENDER)
 					}
 					else if (button == SDL_CONTROLLER_BUTTON_START)
 					{ g_start_button_held = false; if (!g_select_button_held) g_exit_chord = false; }
-					else if (button == SDL_CONTROLLER_BUTTON_DPAD_UP || button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
+					else if (button == g_list_nav_button)
 						ListNavStop();
 					else if (button == SDL_CONTROLLER_BUTTON_X && g_y_held)
 					{

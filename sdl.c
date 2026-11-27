@@ -1161,6 +1161,47 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	return doc->xoffset != old_x || doc->yoffset != old_y;
 }
 
+/* Zoom the logical single-page probe around the viewport centre. */
+static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double factor)
+{
+	Green_Document *doc = rtd->doc;
+	Green_Document fit_doc = *doc;
+	double base_scale, old_scale, new_scale, center_x, center_y;
+	double old_page_x, old_page_y, new_fs = doc->finescale * factor;
+	int old_page_w, old_page_h, new_page_w, new_page_h;
+	int old_x = doc->xoffset, old_y = doc->yoffset;
+
+	if (new_fs < 0.05) new_fs = 0.05;
+	if (new_fs > 20.0) new_fs = 20.0;
+	if (new_fs == doc->finescale) return 0;
+
+	fit_doc.rotation = 0;
+	base_scale = Green_Fit(&fit_doc, display->w, display->h);
+	old_scale = base_scale * doc->finescale;
+	new_scale = base_scale * new_fs;
+	if (old_scale <= 0.0 || new_scale <= 0.0
+		|| pb_device_size(doc->doc, doc->page_cur, (float)old_scale, 0, &old_page_w, &old_page_h)
+		|| pb_device_size(doc->doc, doc->page_cur, (float)new_scale, 0, &new_page_w, &new_page_h))
+		return 0;
+
+	old_page_x = old_page_w < display->w ? (display->w - old_page_w) / 2.0 : -old_x;
+	old_page_y = old_page_h < display->h ? (display->h - old_page_h) / 2.0 : -old_y;
+	center_x = (display->w / 2.0 - old_page_x) / old_scale;
+	center_y = (display->h / 2.0 - old_page_y) / old_scale;
+
+	doc->finescale = new_fs;
+	doc->xoffset = new_page_w <= display->w ? 0
+		: (int)(center_x * new_scale - display->w / 2.0 + 0.5);
+	doc->yoffset = new_page_h <= display->h ? 0
+		: (int)(center_y * new_scale - display->h / 2.0 + 0.5);
+	if (doc->xoffset < 0) doc->xoffset = 0;
+	else if (doc->xoffset > new_page_w - display->w) doc->xoffset = new_page_w - display->w;
+	if (doc->yoffset < 0) doc->yoffset = 0;
+	else if (doc->yoffset > new_page_h - display->h) doc->yoffset = new_page_h - display->h;
+
+	return doc->finescale != rtd->doc->finescale || doc->xoffset != old_x || doc->yoffset != old_y;
+}
+
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)
 {
 	Green_Document *doc = rtd->doc;
@@ -2148,14 +2189,22 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						ListNavStop();
 					else if (button == SDL_CONTROLLER_BUTTON_X && g_y_held)
 					{
-						if (g_state == NORMAL && Green_IsDocValid( rtd ) && !g_logical_pdf_test)
-						{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
+						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+						{
+							Green_Document *doc = rtd->doc;
+							if (g_logical_pdf_test) { if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER; }
+							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
+						}
 						g_y_held = false;
 					}
 					else if (button == SDL_CONTROLLER_BUTTON_Y && g_x_held)
 					{
-						if (g_state == NORMAL && Green_IsDocValid( rtd ) && !g_logical_pdf_test)
-					{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
+						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+						{
+							Green_Document *doc = rtd->doc;
+							if (g_logical_pdf_test) { if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER; }
+							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
+						}
 						g_x_held = false;
 					}
 					break;

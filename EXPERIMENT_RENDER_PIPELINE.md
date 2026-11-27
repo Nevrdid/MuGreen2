@@ -43,9 +43,9 @@ Controller shortcuts display a brief message near the bottom of the logical UI o
 
 Current notifications include:
 - Reader rotation clockwise/anti-clockwise.
-- Manga/regular reading mode.
+- Manga mode / Regular mode.
 - Night mode on/off.
-- Horizontal/vertical mirror action.
+- Horizontal/vertical mirror.
 - View reset.
 - Horizontal/vertical spread selection.
 - Facing-page order swapped/restored.

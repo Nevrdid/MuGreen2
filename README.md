@@ -16,7 +16,7 @@ This is a single-document reader for Linux devices. The build supports AArch64, 
 
 ### Controller layout
 
-The on-screen help panel lists the current bindings. The default is the Nintendo-labelled face-button layout; `-controller-layout=xbox` swaps A/B and X/Y. Face buttons and the D-pad rotate with the reader so their logical actions remain aligned with the displayed page. Use `-controller-layout=nintendo` to select the default explicitly.
+The on-screen help panel lists the current bindings. The default is the Nintendo-labelled face-button layout; `-controller-layout=xbox` swaps A/B and X/Y. Face buttons and the D-pad rotate with the reader so their logical actions remain aligned with the displayed page. Use `-no-control-rotation` to keep physical controls fixed regardless of reader rotation. Use `-controller-layout=nintendo` to select the default explicitly.
 
 | Input | Action |
 | --- | --- |

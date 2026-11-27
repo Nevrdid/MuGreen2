@@ -29,6 +29,8 @@ struct pb_doc {
 	fz_document	*doc;
 	int		page_count;
 	char		last_error[256];
+	unsigned char	*page_errors;
+	unsigned char	*page_warning_reported;
 	/* cached page */
 	fz_display_list	*list;
 	int		list_page;
@@ -215,6 +217,10 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 		d->page_count = fz_count_pages(ctx, d->doc);
 		if (d->page_count <= 0)
 			fz_throw(ctx, FZ_ERROR_GENERIC, "document has no pages");
+		d->page_errors = calloc((size_t)d->page_count, 1);
+		d->page_warning_reported = calloc((size_t)d->page_count, 1);
+		if (!d->page_errors || !d->page_warning_reported)
+			fz_throw(ctx, FZ_ERROR_MEMORY, "out of memory tracking page warnings");
 	}
 	fz_catch(ctx)
 	{
@@ -222,6 +228,8 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 		copy_message(message, message_size, fz_caught_message(ctx));
 		if (d->doc)
 			fz_drop_document(ctx, d->doc);
+		free(d->page_errors);
+		free(d->page_warning_reported);
 		free(d);
 		free(p);
 		ctx_release();
@@ -234,6 +242,19 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 	free(p);
 	*out = d;
 	return PB_OPEN_OK;
+}
+
+int pb_page_has_warnings(pb_doc *d, int page)
+{
+	return d && page >= 0 && page < d->page_count && d->page_errors[page];
+}
+
+int pb_take_page_warning(pb_doc *d, int page)
+{
+	if (!pb_page_has_warnings(d, page) || d->page_warning_reported[page])
+		return 0;
+	d->page_warning_reported[page] = 1;
+	return 1;
 }
 
 const char *pb_error_message(pb_doc *d)
@@ -262,6 +283,8 @@ void pb_close(pb_doc *d)
 		return;
 	drop_list(d);
 	fz_drop_document(d->ctx, d->doc);
+	free(d->page_errors);
+	free(d->page_warning_reported);
 	free(d);
 	ctx_release();
 }
@@ -275,6 +298,9 @@ static int ensure_page(pb_doc *d, int pageno)
 {
 	fz_context *ctx = d->ctx;
 	fz_page *page = NULL;
+	fz_display_list *list = NULL;
+	fz_device *dev = NULL;
+	fz_cookie cookie = { 0 };
 	int ok = 1;
 
 	if (pageno < 0 || pageno >= d->page_count)
@@ -286,21 +312,32 @@ static int ensure_page(pb_doc *d, int pageno)
 		return 0;
 	drop_list(d);
 	fz_var(page);
+	fz_var(list);
+	fz_var(dev);
 	fz_try(ctx)
 	{
-		fz_display_list *l;
 		page = fz_load_page(ctx, d->doc, pageno);
 		d->bounds = fz_bound_page(ctx, page);
 		if (!isfinite(d->bounds.x0) || !isfinite(d->bounds.y0)
 			|| !isfinite(d->bounds.x1) || !isfinite(d->bounds.y1)
 			|| d->bounds.x1 <= d->bounds.x0 || d->bounds.y1 <= d->bounds.y0)
 			fz_throw(ctx, FZ_ERROR_GENERIC, "page has an empty or invalid MediaBox");
-		l = fz_new_display_list_from_page(ctx, page);
-		d->list = l;
+		list = fz_new_display_list(ctx, d->bounds);
+		dev = fz_new_list_device(ctx, list);
+		fz_run_page(ctx, page, dev, fz_identity, &cookie);
+		fz_close_device(ctx, dev);
+		d->list = list;
+		list = NULL;
 		d->list_page = pageno;
+		if (cookie.errors > 0)
+			d->page_errors[pageno] = 1;
 	}
 	fz_always(ctx)
+	{
+		fz_drop_device(ctx, dev);
+		fz_drop_display_list(ctx, list);
 		fz_drop_page(ctx, page);
+	}
 	fz_catch(ctx)
 	{
 		set_error(d, fz_caught_message(ctx));
@@ -378,6 +415,7 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 	fz_device *dev = NULL;
 	uint8_t *buf;
 	int bpitch, W, H, ok = 1;
+	fz_cookie cookie = { 0 };
 
 	if (!d)
 		return -1;
@@ -439,7 +477,8 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 		pix = fz_new_pixmap_with_data(ctx, fz_device_bgr(ctx), w, h, NULL, 1, bpitch, buf);
 		fz_clear_pixmap_with_value(ctx, pix, 0xff);	/* opaque white paper */
 		dev = fz_new_draw_device(ctx, fz_identity, pix);
-		fz_run_display_list(ctx, d->list, dev, ctm, fz_make_rect(0, 0, (float)w, (float)h), NULL);
+		fz_run_display_list(ctx, d->list, dev, ctm, fz_make_rect(0, 0, (float)w, (float)h), &cookie);
+		if (cookie.errors > 0) d->page_errors[page] = 1;
 		fz_close_device(ctx, dev);
 		if (night)
 			fz_invert_pixmap(ctx, pix);

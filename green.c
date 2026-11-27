@@ -303,6 +303,8 @@ void	Green_LoadSettings( Green_RTD *rtd )
 	{
 		if (!strncmp( line, "night=", 6 ))
 			rtd->night = (line[6] != '0');
+		else if (!strncmp( line, "right_to_left=", 14 ))
+			rtd->right_to_left = (line[14] != '0');
 	}
 	
 	fclose( file );
@@ -321,7 +323,7 @@ void	Green_SaveSettings( Green_RTD *rtd )
 	if (!file)
 		return;
 	
-	fprintf( file, "night=%d\n", rtd->night ? 1 : 0 );
+	fprintf( file, "night=%d\nright_to_left=%d\n", rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0 );
 	fclose( file );
 	return;
 }

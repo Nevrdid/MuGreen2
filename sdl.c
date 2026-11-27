@@ -840,41 +840,27 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 
 	if (sx)
 	{
-		bool at_edge = false;
+		int old_x = doc->xoffset, old_y = doc->yoffset;
 
-		/* Physical left/right edges map to different document axes after rotation. */
-		switch (rotation)
-		{
-			case 1:
-				at_edge = sx < 0 ? doc->yoffset >= max_x : doc->yoffset <= 0;
-				break;
-			case 2:
-				at_edge = sx < 0 ? doc->xoffset >= max_x : doc->xoffset <= 0;
-				break;
-			case 3:
-				at_edge = sx < 0 ? doc->yoffset <= 0 : doc->yoffset >= max_x;
-				break;
-			default:
-				at_edge = sx < 0 ? doc->xoffset <= 0 : doc->xoffset >= max_x;
-				break;
-		}
-
-		if (at_edge)
-		{
-			/* Left goes backward at 0/270 degrees, forward at 90/180. */
-			next_page = sx < 0
-				? ((rotation == 1 || rotation == 2) ? 1 : -1)
-				: ((rotation == 1 || rotation == 2) ? -1 : 1);
-			page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
-			if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
-				return 0;
-
-			/* The beginning of a page is always its unrotated top-left corner. */
-			doc->xoffset = 0;
-			doc->yoffset = 0;
-			Green_ValidateOffset( doc, w, h );
+		/* Let Green apply the rotated/mirrored scroll transform and clamp the
+		 * offsets. A horizontal edge is reached when that scroll cannot move. */
+		Green_ScrollRelative( doc, sx, 0, w, h, 0 );
+		if (doc->xoffset != old_x || doc->yoffset != old_y)
 			return 1;
-		}
+
+		/* Left goes backward at 0/270 degrees, forward at 90/180. */
+		next_page = sx < 0
+			? ((rotation == 1 || rotation == 2) ? 1 : -1)
+			: ((rotation == 1 || rotation == 2) ? -1 : 1);
+		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
+			return 0;
+
+		/* The beginning of a page is always its unrotated top-left corner. */
+		doc->xoffset = 0;
+		doc->yoffset = 0;
+		Green_ValidateOffset( doc, w, h );
+		return 1;
 	}
 	else
 	{

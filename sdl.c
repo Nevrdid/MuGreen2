@@ -940,7 +940,10 @@ static void RenderTOC(SDL_Surface *display, Green_RTD *rtd)
 	(void)rtd;
 	if (!g_toc_active) return;
 	if (g_logical_pdf_test) {
-		RenderTOCContent(display, g_overlay_rotation);
+		/* Anchor the TOC to the logical left edge. The final presentation
+		 * rotation moves that edge with the handheld, rather than pinning
+		 * the panel to the physical screen's left side. */
+		RenderTOCContent(display, 0);
 		return;
 	}
 	overlay = CreateOverlaySurface(display, g_overlay_rotation);
@@ -1958,6 +1961,40 @@ static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, in
 	
 	if (page == doc->page_cur)
 		return;
+
+	if (g_logical_pdf_test) {
+		if (Green_GotoPage(doc, page, false)) {
+			int lp, rp, lw, lh, rw, rh, vertical, max_x, max_y;
+			double scale;
+			if (rtd->side_by_side && doc->page_count > 1
+				&& GetLogicalSpreadMetrics(rtd, DrawSurface(), &scale,
+					&lp, &rp, &lw, &lh, &rw, &rh, &vertical)) {
+				int spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+				int spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+				max_x = spread_w > DrawSurface()->w ? spread_w - DrawSurface()->w : 0;
+				max_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
+			} else {
+				Green_Document fit_doc = *doc;
+				int page_w, page_h;
+				fit_doc.rotation = 0;
+				scale = Green_Fit(&fit_doc, DrawSurface()->w, DrawSurface()->h)
+					* doc->finescale;
+				if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
+					&page_w, &page_h)) {
+					*flags |= FLAG_RENDER;
+					return;
+				}
+				max_x = page_w > DrawSurface()->w ? page_w - DrawSurface()->w : 0;
+				max_y = page_h > DrawSurface()->h ? page_h - DrawSurface()->h : 0;
+			}
+			if (doc->xoffset < 0) doc->xoffset = 0;
+			if (doc->yoffset < 0) doc->yoffset = 0;
+			if (doc->xoffset > max_x) doc->xoffset = max_x;
+			if (doc->yoffset > max_y) doc->yoffset = max_y;
+			*flags |= FLAG_RENDER;
+		}
+		return;
+	}
 	
 	if (rtd->side_by_side && doc->page_count > 1) {
 		if (Green_GotoPage(doc, page, false)) {
@@ -2636,7 +2673,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					break;
 				}
 				case SDL_CONTROLLERAXISMOTION:
-					if (!g_logical_pdf_test && (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
+					if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
 					{
 						bool left = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
 						bool *held = left ? &g_l2_held : &g_r2_held;

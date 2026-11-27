@@ -334,7 +334,12 @@ static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
 			SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
 			DrawString(display, marker.x + 3, marker.y + 1, "!", SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
 			if (pb_take_page_warning(doc->doc, page_num))
-				fprintf(stderr, "MuGreen2: page %d contains content that MuPDF could not fully interpret.\\n", page_num + 1);
+				{
+				char log_message[256];
+				snprintf(log_message, sizeof(log_message), "Page %d contains content that MuPDF could not fully interpret", page_num + 1);
+				Green_LogMessage(log_message);
+				fprintf(stderr, "MuGreen2: %s\\n", log_message);
+			}
 		}
 	}
 	if (error) {

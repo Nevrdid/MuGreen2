@@ -122,7 +122,7 @@ static const char	*g_help_lines[] = {
 	"",
 	"Hotkey shortcuts (hold Select first)",
 	"",
-	"Hotkey+Up      Toggle horizontal / vertical page stacking",
+	"Hotkey+Up      Toggle stack axis (logical-PDF test)",
 	"Hotkey+Down    Toggle facing-page order (dual-page only)",
 	"Hotkey+B       Toggle night mode",
 	"Hotkey+X       Mirror horizontally",

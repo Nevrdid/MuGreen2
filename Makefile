@@ -14,7 +14,9 @@ else ifeq ($(ARCH),armhf)
 CROSS_COMPILE ?= arm-linux-gnueabihf-
 ARCHFLAGS ?= -march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard
 else ifeq ($(ARCH),native)
-CROSS_COMPILE ?=
+# Native builds must use the host toolchain, even if CROSS_COMPILE is
+# inherited from the environment or supplied by a shared build setup.
+override CROSS_COMPILE :=
 ARCHFLAGS ?=
 else
 $(error Unsupported ARCH '$(ARCH)' (choose aarch64, armhf, or native))

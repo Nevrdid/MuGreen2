@@ -40,6 +40,16 @@ Holding a D-pad direction repeats navigation after a 300 ms initial delay, then 
 
 Some controls are optional and depend on the controller exposing the corresponding SDL input.
 
+The selected layout determines which physical button position receives each action:
+
+| Physical position | Nintendo layout | Xbox layout (default) |
+| --- | --- | --- |
+| East | A — fit page / select TOC; Select+A has no extra action | B — Select+B toggles night mode |
+| South | B — Select+B toggles night mode | A — fit page / select TOC; Select+A has no extra action |
+| North | X — zoom in; Select+X mirrors horizontally | Y — zoom out; Select+Y mirrors vertically |
+| West | Y — zoom out; Select+Y mirrors vertically | X — zoom in; Select+X mirrors horizontally |
+
+
 ### Custom SDL2 controller mappings
 
 MuGreen2 uses SDL2's GameController API. If SDL2 does not recognise a controller, or its default button/axis layout is unsuitable, you can provide additional SDL GameController database mappings through either of these environment variables:
@@ -140,7 +150,7 @@ Exactly one PDF path is required. Options may be placed before or after the path
 | `-fit=none\|width\|height\|page` | Initial fit mode (default: `width`) |
 | `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `0.9`, leaving 10% overlap) |
 | `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
-| `-controller-layout=nintendo\|xbox` | Select Nintendo-labelled (default) or Xbox face-button layout; Xbox swaps A/B and X/Y |
+| `-controller-layout=nintendo\|xbox` | Select Nintendo-labelled or Xbox (default) face-button layout; Nintendo swaps A/B and X/Y |
 | `-no-control-rotation` | Keep controller directions and face-button actions fixed when the reader rotates |
 | `-fullscreen` | Start fullscreen |
 | `-no-fullscreen` | Start windowed |

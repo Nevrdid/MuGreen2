@@ -150,6 +150,7 @@ static const char	*g_help_lines[] = {
 	"Optional controls",
 	"",
 	"Layout: -controller-layout=nintendo|xbox",
+	"Fixed controls: -no-control-rotation",
 	"L2 / R2        Page jumps (if supported)",
 	"",
 	"About MuGreen2",

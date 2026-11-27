@@ -25,6 +25,10 @@
 #include <string.h>
 #include "green.h"
 
+#ifndef MUGREEN2_VERSION
+#define MUGREEN2_VERSION "unknown"
+#endif
+
 
 const char	*help_text =
 "Usage:\n"
@@ -54,7 +58,7 @@ void	PrintHelp()
 
 void	PrintVersion()
 {
-	printf( "MuGreen2 - the PDF reader\nversion: %s\nlicense: GNU AGPL version 3\n", "0.2" );
+	printf( "MuGreen2 - the PDF reader\nversion: %s\nlicense: GNU AGPL-3.0-only\nproject: https://github.com/Nevrdid/MuGreen2\n", MUGREEN2_VERSION );
 	return;
 }
 

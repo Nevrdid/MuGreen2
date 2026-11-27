@@ -2,7 +2,7 @@
 
 A lightweight, controller-driven PDF reader based on the Green reader, using **MuPDF** for PDF rendering and **SDL2** for display and game-controller input through SDL's GameController API.
 
-This is a single-document reader for embedded Linux devices. The build supports AArch64 and 32-bit ARM hard-float targets.
+This is a single-document reader for Linux devices. The build supports AArch64, 32-bit ARM hard-float, and native host targets.
 
 ## Features
 

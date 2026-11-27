@@ -68,8 +68,6 @@ Page dimensions are measured unrotated against the logical framebuffer dimension
 
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
 - dual-page/facing-page layout (the current page is shown alone);
-- zoom anchoring beyond the viewport-centre zoom implemented in Stage 4;
-- dual-page/facing-page layout (the current page is shown alone);
 - TOC, help, page indicator, or other overlays;
 - all mirror/rotation combinations, window resizing, or performance.
 

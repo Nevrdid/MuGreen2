@@ -10,7 +10,7 @@ A safety snapshot of the fully tested parallel implementation is preserved on `e
 - Single-page and facing-page layout, fit, zoom, panning and clipping use logical viewport dimensions.
 - A separate transparent ARGB layer holds the TOC, help panel and page indicator. It follows presentation rotation but is not mirrored with PDF content.
 - The complete content and UI layers are rotated once during SDL presentation. Reader rotation and physical display mounting correction remain independent.
-- Document mirroring is represented as a source texture flip before the final presentation transform.
+- Document mirroring is applied to each PDF page's rendered pixels independently, before page placement is composited into the logical framebuffer. It never flips the combined spread, UI overlays, page order, reading direction, controller bindings, or scrolling; the mirror axis is converted for the final reader/display rotation.
 - Controller button-down and button-up events pass through one input-normalisation layer before normal reading, Select chords, help, or TOC handling. D-pad directions and A/B/X/Y are rotated with the reader; Start, Select, Guide, and shoulders remain fixed.
 - The default face-button convention is Xbox. `-controller-layout=nintendo` swaps A/B and X/Y before applying reader rotation; `-controller-layout=xbox` selects Xbox explicitly. The selected convention is persisted in global settings as `xbox_layout=1` (Xbox) or `xbox_layout=0` (Nintendo).
 

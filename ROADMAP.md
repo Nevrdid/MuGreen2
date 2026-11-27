@@ -96,7 +96,9 @@ Review current `main` before implementing any item; some listed functionality ma
 
 ## Phase 4 — Rendering and performance
 
-**Status: Planned.**
+**Status: Planned; a separate experimental logical-framebuffer presentation proof is available on `experiment-render-pipeline` only.**
+
+- The opt-in `GREEN_TEST_LOGICAL_FRAME=1` SDL test renders an orientation-labelled pattern into a logical-size framebuffer and rotates the complete texture during presentation. It bypasses PDF and normal UI rendering; see `EXPERIMENT_RENDER_PIPELINE.md`. This is a feasibility probe, not an implementation of the new PDF pipeline. Build and device verification are pending.
 
 - MuPDF display-list/page rendering cache.
 - Tune MuPDF store/cache sizing and lifecycle.

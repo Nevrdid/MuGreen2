@@ -97,7 +97,6 @@ static char	g_action_message[80] = "";
 static Uint32	g_action_message_until = 0;
 static int	g_overlay_rotation = 0;
 /* SDL presents the logical content framebuffer with one final transform. */
-static SDL_RendererFlip	g_content_flip = SDL_FLIP_NONE;
 static int	g_reader_rotation = 0;
 
 static bool	g_help_active = false;
@@ -281,7 +280,7 @@ static void	Present( void )
 		dst.x = (ow - dst.w) / 2;
 		dst.y = (oh - dst.h) / 2;
 		SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL,
-			g_content_flip);
+			SDL_FLIP_NONE);
 		/* UI follows reader rotation, but is deliberately not mirrored. */
 		if (g_overlay_fb && g_overlay_texture)
 		{
@@ -1379,7 +1378,6 @@ static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
         RenderLogicalSpreadPage(rtd, display, rp, ox + lw, oy + (spread_h - rh) / 2,
             rw, rh, scale, failed_page);
     }
-    g_content_flip = SDL_FLIP_NONE;
     return 1;
 }
 
@@ -1427,7 +1425,6 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 		g_rendered_content_this_frame = true;
 		if (x1 < x2 && y1 < y2)
 			RenderPageWarning(display, doc, doc->page_cur, x1, y1, x2);
-		g_content_flip = SDL_FLIP_NONE;
 		return 0;
 	}
 
@@ -1532,7 +1529,6 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			display = DrawSurface();
 		}
 		g_overlay_rotation = rotation;
-		g_content_flip = SDL_FLIP_NONE;
 		SDL_FillRect(display, NULL, SDL_MapRGB(display->format,
 			rtd->night ? 0x10 : rtd->c_background.r,
 			rtd->night ? 0x10 : rtd->c_background.g,

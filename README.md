@@ -2,7 +2,7 @@
 
 A lightweight, controller-driven PDF reader based on the Green reader, using **MuPDF** for PDF rendering and **SDL2** for display and game-controller input.
 
-This is a single-document reader intended for embedded Linux devices, with an AArch64 / Cortex-A53 cross-build configuration.
+This is a single-document reader for embedded Linux devices. The build supports AArch64 and 32-bit ARM hard-float targets.
 
 ## Features
 
@@ -61,20 +61,23 @@ The original Green-derived files retain Florian Tobias Schandinat's copyright an
 
 ## Build
 
-The supplied build scripts are configured for an AArch64 Cortex-A53 target and expect the ARM GNU toolchain and SDL2 development files at the paths shown in `Makefile` and `build-mupdf.sh`.
+The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-toolchain and SDL2 development files first.
 
-1. Install the AArch64 cross toolchain and SDL2 2.30.8 (or adjust the paths in the build files).
-2. Build the trimmed static MuPDF libraries:
-
-   ```sh
-   PREFIX=/opt/mupdf-aarch64 ./build-mupdf.sh
-   ```
-
-3. Build MuGreen2:
+1. Build the trimmed static MuPDF libraries:
 
    ```sh
-   make MUPDF=/opt/mupdf-aarch64
+   ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- PREFIX=/opt/mupdf-aarch64 ./build-mupdf.sh
    ```
+
+   For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`.
+
+2. Build MuGreen2:
+
+   ```sh
+   make ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- SYSROOT=/path/to/sysroot MUPDF=/opt/mupdf-aarch64 SDL2_CONFIG=/path/to/sdl2-config
+   ```
+
+   Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds.
 
 4. Run it with one PDF:
 
@@ -86,13 +89,17 @@ The MuPDF build script downloads the MuPDF 1.24.11 source release and builds the
 
 ## Saved settings
 
-The night-mode preference is stored in `~/.green.settings`. The reader's per-document navigation state is stored alongside the PDF using the Green state-file mechanism.
+The night-mode preference is stored in `~/.green.settings`. The reader's per-document navigation state currently uses the legacy Green state-file mechanism (`~/.green.pages`).
 
 ## Licensing
 
 MuGreen2 is distributed under the **GNU Affero General Public License, version 3 only (AGPL-3.0-only)**. See [LICENSE](LICENSE).
 
 The project is derived from Green, which originally carried its own GPL-3.0 notices. Those original copyright and license notices are retained in the source files. MuPDF is also available under the AGPL; see [MuPDF](https://mupdf.com/) and the upstream [Artifex MuPDF repository](https://github.com/ArtifexSoftware/mupdf).
+
+MuPDF's store defaults to 32 MiB. Override it per launch with `-cache=MB`, for example `mugreen2 -cache=64 manual.pdf` (accepted range: 1–1024 MiB).
+
+See [THIRD_PARTY.md](THIRD_PARTY.md) for third-party component and licensing details.
 
 ## Acknowledgements
 

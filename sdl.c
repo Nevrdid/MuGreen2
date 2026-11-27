@@ -770,11 +770,12 @@ static int IsDpadButton(Uint8 button)
 		|| button == SDL_CONTROLLER_BUTTON_DPAD_LEFT || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
 }
 
-/* Convert physical GameController labels into the reader's logical controls.
- * The layout convention is normalised first, then the face buttons and D-pad
- * are rotated with the document. Start, Select, Guide and shoulders are fixed. */
+/* Convert SDL GameController button IDs into the reader's logical controls.
+ * Temporary diagnostics report each face-button mapping so the physical
+ * controller mapping, layout normalisation and rotation can be checked. */
 static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 {
+	Uint8 raw_button = button;
 	int rotation = (rtd->controls_rotate && Green_IsDocValid(rtd)) ? (rtd->doc->rotation & 3) : 0;
 
 	if (rtd->xbox_layout)
@@ -785,46 +786,57 @@ static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 		else if (button == SDL_CONTROLLER_BUTTON_Y) button = SDL_CONTROLLER_BUTTON_X;
 	}
 
+	Uint8 layout_button = button;
 	switch (rotation)
 	{
 		case 1:
 			switch (button) {
-				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_X;
-				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_A;
-				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_Y;
-				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_B;
-				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
-				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_UP;
-				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
-				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
+				case SDL_CONTROLLER_BUTTON_A: button = SDL_CONTROLLER_BUTTON_X; break;
+				case SDL_CONTROLLER_BUTTON_B: button = SDL_CONTROLLER_BUTTON_A; break;
+				case SDL_CONTROLLER_BUTTON_X: button = SDL_CONTROLLER_BUTTON_Y; break;
+				case SDL_CONTROLLER_BUTTON_Y: button = SDL_CONTROLLER_BUTTON_B; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: button = SDL_CONTROLLER_BUTTON_DPAD_LEFT; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = SDL_CONTROLLER_BUTTON_DPAD_UP; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = SDL_CONTROLLER_BUTTON_DPAD_RIGHT; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = SDL_CONTROLLER_BUTTON_DPAD_DOWN; break;
 			}
 			break;
 		case 2:
 			switch (button) {
-				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_Y;
-				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_X;
-				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_A;
-				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_B;
-				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
-				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
-				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_UP;
-				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
+				case SDL_CONTROLLER_BUTTON_A: button = SDL_CONTROLLER_BUTTON_Y; break;
+				case SDL_CONTROLLER_BUTTON_B: button = SDL_CONTROLLER_BUTTON_X; break;
+				case SDL_CONTROLLER_BUTTON_X: button = SDL_CONTROLLER_BUTTON_A; break;
+				case SDL_CONTROLLER_BUTTON_Y: button = SDL_CONTROLLER_BUTTON_B; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: button = SDL_CONTROLLER_BUTTON_DPAD_DOWN; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = SDL_CONTROLLER_BUTTON_DPAD_LEFT; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = SDL_CONTROLLER_BUTTON_DPAD_UP; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = SDL_CONTROLLER_BUTTON_DPAD_RIGHT; break;
 			}
 			break;
 		case 3:
 			switch (button) {
-				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_B;
-				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_Y;
-				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_A;
-				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_X;
-				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
-				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
-				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
-				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_UP;
+				case SDL_CONTROLLER_BUTTON_A: button = SDL_CONTROLLER_BUTTON_B; break;
+				case SDL_CONTROLLER_BUTTON_B: button = SDL_CONTROLLER_BUTTON_Y; break;
+				case SDL_CONTROLLER_BUTTON_X: button = SDL_CONTROLLER_BUTTON_A; break;
+				case SDL_CONTROLLER_BUTTON_Y: button = SDL_CONTROLLER_BUTTON_X; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: button = SDL_CONTROLLER_BUTTON_DPAD_RIGHT; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: button = SDL_CONTROLLER_BUTTON_DPAD_DOWN; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: button = SDL_CONTROLLER_BUTTON_DPAD_LEFT; break;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: button = SDL_CONTROLLER_BUTTON_DPAD_UP; break;
 			}
 			break;
 		default:
 			break;
+	}
+
+	if (raw_button == SDL_CONTROLLER_BUTTON_A || raw_button == SDL_CONTROLLER_BUTTON_B
+		|| raw_button == SDL_CONTROLLER_BUTTON_X || raw_button == SDL_CONTROLLER_BUTTON_Y)
+	{
+		SDL_Log("MuGreen2 button map: raw=%s(%u), layout=%s(%u), rotation=%d, logical=%s(%u)",
+			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)raw_button), raw_button,
+			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)layout_button), layout_button,
+			rotation,
+			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)button), button);
 	}
 	return button;
 }

@@ -1276,7 +1276,7 @@ static int RenderLogicalPageRegion(Green_RTD *rtd, SDL_Surface *display,
     int local_x, int local_y, int width, int height, int dst_x, int dst_y)
 {
     Green_Document *doc = rtd->doc;
-    int mirror_horizontal = (!doc->mirror_vertical) ^ (doc->rotation & 1);
+    int mirror_horizontal = (!doc->mirror_vertical) ^ ((doc->rotation + g_display_rotation) & 1);
     int mirror_vertical = !mirror_horizontal;
     int source_x = local_x, source_y = local_y;
     SDL_Surface *temporary;

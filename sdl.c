@@ -1534,7 +1534,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			state_dirty = true;
 			state_save_at = SDL_GetTicks() + 750;
 		}
-				/* Check deadlines on every loop, not only when the event queue becomes
+		/* Check deadlines on every loop, not only when the event queue becomes
 		 * idle. Continuous SDL input must not starve state saving or navigation. */
 		if (state_dirty && SDL_TICKS_PASSED( SDL_GetTicks(), state_save_at ))
 		{
@@ -1613,9 +1613,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			}
 			else if (!SDL_WaitEvent(&event))
 		{
-			fprintf( stderr, "MuGreen2: SDL event wait failed: %s\n", SDL_GetError() );
-			exit_status = GREEN_EXIT_EVENT;
-			flags |= FLAG_QUIT;
+				fprintf( stderr, "MuGreen2: SDL event wait failed: %s\n", SDL_GetError() );
+				exit_status = GREEN_EXIT_EVENT;
+				flags |= FLAG_QUIT;
 				continue;
 			}
 		}

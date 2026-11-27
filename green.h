@@ -50,7 +50,6 @@ typedef struct {
 	int rotation;
 	Green_FitMethod fit_method;
 	double finescale;
-	unsigned char bb;
 } Green_Document;
 typedef struct {
 	unsigned short flags, width, height;
@@ -58,7 +57,7 @@ typedef struct {
 	Green_RGBA c_background;
 	Green_FitMethod fit_method;
 	double step, zoomstep;
-	unsigned char bb, side_by_side;
+	unsigned char side_by_side;
 	bool night;
 	bool right_to_left;
 	bool spread_vertical;
@@ -82,9 +81,6 @@ void Green_SaveSettings(Green_RTD *rtd);
 void Green_LogMessage(const char *message);
 double Green_Fit(Green_Document *doc, int width, int height);
 double Green_FitLogical(Green_Document *doc, int width, int height);
-void Green_ScrollRelative(Green_Document *doc, int x, int y, int w, int h, int bb_flag);
-void Green_GetScrollRegion(Green_Document *doc, int w, int h, int *scroll_w, int *scroll_h);
-void Green_Zoom(Green_Document *doc, int width, int height, double new_fs);
 
 inline static int Green_IsDocValid(Green_RTD *rtd) { return rtd && rtd->doc; }
 inline static void Green_PageSize(Green_Document *doc, int page, double *w, double *h)
@@ -92,23 +88,6 @@ inline static void Green_PageSize(Green_Document *doc, int page, double *w, doub
 	float fw = 1, fh = 1;
 	if (pb_page_size(doc->doc, page, &fw, &fh)) { fw = 612; fh = 792; }
 	*w = fw; *h = fh;
-}
-inline static void Green_GetDimension(Green_Document *doc, int page, int *w, int *h, double tscale, bool rotated)
-{
-	double pwidth, pheight;
-	Green_PageSize(doc, page, &pwidth, &pheight);
-	if (rotated) { *w = pheight * tscale; *h = pwidth * tscale; }
-	else { *w = pwidth * tscale; *h = pheight * tscale; }
-}
-inline static void Green_ValidateOffset(Green_Document *doc, int width, int height)
-{
-	int doc_max_x, doc_max_y;
-	if (doc->rotation % 2) Green_GetScrollRegion(doc, width, height, &doc_max_y, &doc_max_x);
-	else Green_GetScrollRegion(doc, width, height, &doc_max_x, &doc_max_y);
-	if (doc->xoffset < 0) doc->xoffset = 0;
-	else if (doc->xoffset > doc_max_x) doc->xoffset = doc_max_x;
-	if (doc->yoffset < 0) doc->yoffset = 0;
-	else if (doc->yoffset > doc_max_y) doc->yoffset = doc_max_y;
 }
 inline static int Green_GotoPage(Green_Document *doc, int page, bool set_offset)
 {

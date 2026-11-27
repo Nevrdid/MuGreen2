@@ -107,6 +107,33 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    ./mugreen2 /path/to/document.pdf
    ```
 
+The build embeds `git describe --tags --always --dirty` in the executable. When building from a source archive without Git metadata, the version is reported as `unknown`; override it with `make VERSION=...`.
+
+## Command-line options
+
+Exactly one PDF path is required. Options may be placed before or after the path:
+
+| Option | Description |
+| --- | --- |
+| `-fit=none\|width\|height\|page` | Initial fit mode (default: `width`) |
+| `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `1`) |
+| `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
+| `-fullscreen` | Start fullscreen |
+| `-no-fullscreen` | Start windowed |
+| `-width=<pixels>` | Initial window width; `0` uses the display width |
+| `-height=<pixels>` | Initial window height; `0` uses the display height |
+| `-cache=<MB>` | MuPDF store size in MiB (1–1024; default: `32`) |
+| `-help` / `-h` | Show command-line help |
+| `-version` / `-v` | Show version, license and project URL |
+
+For example: `mugreen2 -fullscreen -fit=page -cache=64 manual.pdf`.
+
+## Display environment
+
+Set `GREEN_ROTATE180=1` to rotate the final presented image by 180 degrees. This is intended for handheld panels mounted upside down; it does not alter PDF page orientation or saved document rotation. The default is `0` (disabled).
+
+A sample shell launcher is provided at `examples/launch-mugreen2.sh`.
+
 Both dependency build scripts verify pinned SHA-256 checksums before extracting their default source releases: MuPDF 1.24.11 and SDL2 2.30.8. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download. Checksum verification is performed when the archive is extracted; if the corresponding source directory already exists, the script reuses it without re-verifying the extracted tree. Remove that directory to force a fresh, verified extraction.
 
 ## Saved settings
@@ -117,11 +144,9 @@ Document paths are converted to file URIs with reserved characters, percent sign
 
 ## Licensing
 
-MuGreen2 is distributed under the **GNU Affero General Public License, version 3 only (AGPL-3.0-only)**. See [LICENSE](LICENSE).
+MuGreen2 is distributed under the **GNU Affero General Public License, version 3 only (AGPL-3.0-only)**. See [LICENSE](LICENSE). The Green-derived portions retain their original GPL-3.0 notices and copyright attribution; MuGreen2 modifications are identified in the relevant source headers.
 
 The project is derived from Green, which originally carried its own GPL-3.0 notices. Those original copyright and license notices are retained in the source files. MuPDF is also available under the AGPL; see [MuPDF](https://mupdf.com/) and the upstream [Artifex MuPDF repository](https://github.com/ArtifexSoftware/mupdf).
-
-MuPDF's store defaults to 32 MiB. Override it per launch with `-cache=MB`, for example `mugreen2 -cache=64 manual.pdf` (accepted range: 1–1024 MiB).
 
 See [THIRD_PARTY.md](THIRD_PARTY.md) for third-party component and licensing details.
 

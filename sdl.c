@@ -789,96 +789,111 @@ static void	RebuildTOCFlat( void )
 	return;
 }
 
-static void	RenderTOC( SDL_Surface *display, Green_RTD *rtd )
+static void RenderTOCContent(SDL_Surface *display, int rotation)
 {
-	SDL_Rect	panel, hl;
-	Uint32		title_col, entry_col, sel_col, sel_bg;
-	int		panel_w, x0, y0, line_h, max_lines, start, i, indent, text_w;
-	Uint8		er, eg, eb;
-	
-	(void)rtd;
-	if (!g_toc_active)
-		return;
-	
-	panel_w = (display->w * 3) / 4;
-	if (panel_w < 200)
-		panel_w = display->w < 200 ? display->w : 200;
-	
-	panel.x = 0;
-	panel.y = 0;
-	panel.w = panel_w;
-	panel.h = display->h;
-	SDL_FillRect( display, &panel, SDL_MapRGB( display->format, 0x14, 0x14, 0x14 ) );
-	
-	title_col = SDL_MapRGB( display->format, 0xE8, 0xE8, 0xE8 );
-	entry_col = SDL_MapRGB( display->format, 0xB8, 0xB8, 0xB8 );
-	sel_col = SDL_MapRGB( display->format, 0xFF, 0xFF, 0x00 );
-	sel_bg = SDL_MapRGB( display->format, 0x2E, 0x2E, 0x5E );
-	
-	x0 = 8;
-	y0 = 8;
-	DrawString( display, x0, y0, "Table of Contents", title_col );
+	SDL_Rect panel, hl;
+	Uint32 title_col, entry_col, sel_col, sel_bg;
+	int panel_extent, content_w, content_h, origin_x, origin_y;
+	int x0, y0, line_h, max_lines, start, i, indent, text_w;
+	Uint8 er, eg, eb;
+
+	if (!g_toc_active) return;
+
+	/* Keep the TOC on the physical left edge. In logical overlay coordinates,
+	 * that edge moves with rotation: left, top, right, then bottom. */
+	panel_extent = ((rotation & 1) ? display->h : display->w) * 3 / 4;
+	if (panel_extent < 200)
+		panel_extent = ((rotation & 1) ? display->h : display->w) < 200
+			? ((rotation & 1) ? display->h : display->w) : 200;
+
+	origin_x = 0;
+	origin_y = 0;
+	content_w = display->w;
+	content_h = display->h;
+	switch (rotation & 3)
+	{
+		case 1: content_h = panel_extent; break;
+		case 2: origin_x = display->w - panel_extent; content_w = panel_extent; break;
+		case 3: origin_y = display->h - panel_extent; content_h = panel_extent; break;
+		default: content_w = panel_extent; break;
+	}
+
+	panel.x = origin_x;
+	panel.y = origin_y;
+	panel.w = content_w;
+	panel.h = content_h;
+	SDL_FillRect(display, &panel, SDL_MapRGB(display->format, 0x14, 0x14, 0x14));
+
+	title_col = SDL_MapRGB(display->format, 0xE8, 0xE8, 0xE8);
+	entry_col = SDL_MapRGB(display->format, 0xB8, 0xB8, 0xB8);
+	sel_col = SDL_MapRGB(display->format, 0xFF, 0xFF, 0x00);
+	sel_bg = SDL_MapRGB(display->format, 0x2E, 0x2E, 0x5E);
+
+	x0 = origin_x + 8;
+	y0 = origin_y + 8;
+	DrawString(display, x0, y0, "Table of Contents", title_col);
 	y0 += 22;
 	line_h = 18;
-	max_lines = (display->h - y0) / line_h;
-	if (max_lines <= 0)
-		return;
-	
+	max_lines = (origin_y + content_h - y0) / line_h;
+	if (max_lines <= 0) return;
+
 	if (g_toc_count <= 0)
 	{
-		DrawString( display, x0, y0, "No table of contents", entry_col );
+		DrawString(display, x0, y0, "No table of contents", entry_col);
 		return;
 	}
-	
+
 	start = 0;
 	if (g_toc_count > max_lines)
 	{
 		start = g_toc_sel - max_lines + 1;
-		if (start < 0)
-			start = 0;
-		if (start + max_lines > g_toc_count)
-			start = g_toc_count - max_lines;
+		if (start < 0) start = 0;
+		if (start + max_lines > g_toc_count) start = g_toc_count - max_lines;
 	}
-	
+
 	for (i = start; i < g_toc_count && i < start + max_lines; i++)
 	{
-		TOCNode	*n = g_toc_entries[i].node;
-		int	y = y0 + (i - start) * line_h;
-		
+		TOCNode *n = g_toc_entries[i].node;
+		int y = y0 + (i - start) * line_h;
+
 		if (i == g_toc_sel)
 		{
-			hl.x = 0;
+			hl.x = origin_x;
 			hl.y = y;
-			hl.w = panel_w;
+			hl.w = content_w;
 			hl.h = line_h;
-			SDL_FillRect( display, &hl, sel_bg );
-			er = 0xFF;
-			eg = 0xFF;
+			SDL_FillRect(display, &hl, sel_bg);
+			er = eg = 0xFF;
 			eb = 0x00;
 		}
-		else
-		{
-			er = 0xB8;
-			eg = 0xB8;
-			eb = 0xB8;
-		}
-		
+		else er = eg = eb = 0xB8;
+
 		indent = x0 + g_toc_entries[i].depth * 14;
 		if (n->n_children > 0)
-		{
-			if (n->open)
-				DrawString( display, indent, y, "-", i == g_toc_sel ? sel_col : entry_col );
-			else
-				DrawString( display, indent, y, "+", i == g_toc_sel ? sel_col : entry_col );
-		}
-		
-		text_w = panel_w - indent - 28;
-		if (text_w < 8)
-			text_w = 8;
-		DrawUtf8( display, indent + 26, y, text_w, line_h, n->title ? n->title : "", er, eg, eb );
+			DrawString(display, indent, y, n->open ? "-" : "+",
+				i == g_toc_sel ? sel_col : entry_col);
+
+		text_w = origin_x + content_w - indent - 28;
+		if (text_w < 8) text_w = 8;
+		DrawUtf8(display, indent + 26, y, text_w, line_h,
+			n->title ? n->title : "", er, eg, eb);
 	}
-	
-	return;
+}
+
+static void RenderTOC(SDL_Surface *display, Green_RTD *rtd)
+{
+	SDL_Surface *overlay;
+	(void)rtd;
+	if (!g_toc_active) return;
+	overlay = CreateOverlaySurface(display, g_overlay_rotation);
+	if (!overlay)
+	{
+		RenderTOCContent(display, 0);
+		return;
+	}
+	RenderTOCContent(overlay, g_overlay_rotation);
+	CompositeOverlay(display, overlay, g_overlay_rotation);
+	SDL_FreeSurface(overlay);
 }
 
 static int	FindParentIndex( TOCNode *target )
@@ -945,27 +960,100 @@ static void	TOCStepSel( int dir )
 }
 
 
-static RState	TOCInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
+static int TOCSelectDirection(Uint8 button)
 {
+	switch (g_overlay_rotation & 3)
+	{
+		case 1:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
+			break;
+		case 2:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
+			break;
+		case 3:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
+			break;
+		default:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
+			break;
+	}
+	return 0;
+}
+
+static int TOCHierarchyDirection(Uint8 button)
+{
+	switch (g_overlay_rotation & 3)
+	{
+		case 1:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
+			break;
+		case 2:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
+			break;
+		case 3:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
+			break;
+		default:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
+			break;
+	}
+	return 0;
+}
+
+static void TOCListNavStart(Uint8 button, int dir)
+{
+	if (!dir) return;
+	g_list_nav_dir = dir;
+	g_list_nav_button = button;
+	g_list_nav_next = SDL_GetTicks() + LIST_NAV_DELAY_MS;
+}
+
+static RState TOCInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
+{
+	int dir;
+	TOCNode *n;
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
 		case SDL_CONTROLLER_BUTTON_START:
 			ListNavStop(); g_toc_active = false; *flags |= FLAG_RENDER; return NORMAL;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			TOCStepSel( 1 ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
-		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			TOCStepSel( -1 ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
-		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-			if (g_toc_count > 0) { TOCNode *n = g_toc_entries[g_toc_sel].node; if (n->n_children > 0 && !n->open) { n->open = true; RebuildTOCFlat(); } }
-			*flags |= FLAG_RENDER; break;
-		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-			if (g_toc_count > 0) { TOCNode *n = g_toc_entries[g_toc_sel].node; if (n->n_children > 0 && n->open) { n->open = false; RebuildTOCFlat(); } else { int idx = FindParentIndex( n ); if (idx >= 0) g_toc_sel = idx; } }
-			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_A:
-			if (g_toc_count > 0 && TOCGoToPage( rtd, g_toc_entries[g_toc_sel].node, flags )) { ListNavStop(); g_toc_active = false; return NORMAL; }
+			if (g_toc_count > 0 && TOCGoToPage(rtd, g_toc_entries[g_toc_sel].node, flags))
+			{ ListNavStop(); g_toc_active = false; return NORMAL; }
 			break;
-		default: break;
+		default:
+			dir = TOCSelectDirection(button);
+			if (dir)
+			{
+				TOCStepSel(dir);
+				TOCListNavStart(button, dir);
+				*flags |= FLAG_RENDER;
+				break;
+			}
+			dir = TOCHierarchyDirection(button);
+			if (dir && g_toc_count > 0)
+			{
+				n = g_toc_entries[g_toc_sel].node;
+				if (dir > 0 && n->n_children > 0 && !n->open)
+				{ n->open = true; RebuildTOCFlat(); }
+				else if (dir < 0)
+				{
+					if (n->n_children > 0 && n->open)
+					{ n->open = false; RebuildTOCFlat(); }
+					else
+					{ int idx = FindParentIndex(n); if (idx >= 0) g_toc_sel = idx; }
+				}
+				*flags |= FLAG_RENDER;
+			}
+			break;
 	}
 	return TOC;
 }

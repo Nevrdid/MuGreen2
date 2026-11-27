@@ -81,7 +81,7 @@ The normal renderer remains the default when neither test variable is enabled. T
 4. Turn pages with L1/R1 at 0°, 90°, 180° and 270°. L1/R1 should reverse at 90° and 180°; also check the expected reversal in RTL mode, and confirm the page remains correctly positioned.
 5. Zoom in and out with X/Y. Confirm the zoom stays centred around the middle of the visible area and that zooming creates enough overflow to test both D-pad axes.
 6. Pan with each D-pad direction at all four rotations. Movement should follow the physical direction pressed, including when holding a direction to repeat. The first press that reaches an edge should only clamp; a further press should change page if that axis has real overflow.
-7. On a page change, verify that next pages start at logical top-left and previous pages at logical top-right. Confirm Left/Up match L1 and Right/Down match R1 at all rotations, including RTL.
+7. On a page change, verify that next pages start at logical top-left and previous pages at logical top-right. Confirm Left/Right follow L1/R1, and Up/Down follow their documented vertical mapping (previous/next at 0° and 90°, next/previous at 180° and 270°), including RTL.
 8. Repeat the panning and page-edge checks with mirroring enabled, if desired, to check that the direction mapping follows the mirrored content.
 9. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
 10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.

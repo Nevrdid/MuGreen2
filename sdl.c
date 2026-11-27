@@ -1199,8 +1199,13 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 		g_logical_frame_flip = SDL_FLIP_NONE;
 		if (g_logical_frame_test)
 			RenderLogicalPipelineTestFrame(display);
-		else
+		else {
+			SDL_FillRect(display, NULL, SDL_MapRGB(display->format,
+				rtd->night ? 0x10 : rtd->c_background.r,
+				rtd->night ? 0x10 : rtd->c_background.g,
+				rtd->night ? 0x10 : rtd->c_background.b));
 			(void)RenderLogicalPDFPage(rtd, display, failed_page);
+		}
 		Present();
 		return *failed_page >= 0 ? -1 : 0;
 	}

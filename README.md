@@ -16,7 +16,7 @@ This is a single-document reader for Linux devices. The build supports AArch64, 
 
 ### Controller layout
 
-The on-screen help panel lists the current bindings. The default Nintendo-labelled layout is:
+The on-screen help panel lists the current bindings. The default is the Nintendo-labelled face-button layout; `-controller-layout=xbox` swaps A/B and X/Y. Face buttons and the D-pad rotate with the reader so their logical actions remain aligned with the displayed page. Use `-controller-layout=nintendo` to select the default explicitly.
 
 | Input | Action |
 | --- | --- |
@@ -140,6 +140,7 @@ Exactly one PDF path is required. Options may be placed before or after the path
 | `-fit=none\|width\|height\|page` | Initial fit mode (default: `width`) |
 | `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `0.9`, leaving 10% overlap) |
 | `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
+| `-controller-layout=nintendo\|xbox` | Select Nintendo-labelled (default) or Xbox face-button layout; Xbox swaps A/B and X/Y |
 | `-fullscreen` | Start fullscreen |
 | `-no-fullscreen` | Start windowed |
 | `-width=<pixels>` | Initial window width (`0`–`65535`); `0` uses the display width |

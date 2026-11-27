@@ -648,6 +648,7 @@ void	Green_LoadSettings( Green_RTD *rtd )
 		(void)ParseBooleanSetting( line, "right_to_left=", &rtd->right_to_left );
 		(void)ParseBooleanSetting( line, "side_by_side=", &side_by_side );
 		(void)ParseBooleanSetting( line, "spread_vertical=", &spread_vertical );
+		(void)ParseBooleanSetting( line, "xbox_layout=", &rtd->xbox_layout );
 	}
 	
 	fclose( file );
@@ -659,14 +660,15 @@ void	Green_LoadSettings( Green_RTD *rtd )
 void	Green_SaveSettings( Green_RTD *rtd )
 {
 	char	*path = SettingsPath();
-	char	content[96];
+	char	content[128];
 	
 	if (!rtd || !path)
 		return;
 	
-	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\nside_by_side=%d\nspread_vertical=%d\n",
+	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\nside_by_side=%d\nspread_vertical=%d\nxbox_layout=%d\n",
 		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0,
-		rtd->side_by_side ? 1 : 0, rtd->spread_vertical ? 1 : 0 );
+		rtd->side_by_side ? 1 : 0, rtd->spread_vertical ? 1 : 0,
+		rtd->xbox_layout ? 1 : 0 );
 	AtomicWriteText( path, content );
 	return;
 }

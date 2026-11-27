@@ -1306,8 +1306,8 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     {
         int rotation = doc->rotation & 3;
         bool reverse_slots = rtd->spread_vertical
-            ? (rotation == 2 || rotation == 3)
-            : (rotation == 1 || rotation == 2);
+            ? (rotation == 1 || rotation == 2)
+            : (rotation == 2 || rotation == 3);
         if (reverse_slots != g_spread_order_reversed) {
             int page = *lp; *lp = *rp; *rp = page;
         }

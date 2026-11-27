@@ -1281,10 +1281,9 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	return 1;
 }
 
-/* Logical-coordinate facing-page geometry. The preference describes the
- * physical screen: horizontal means left/right and vertical means top/bottom.
- * Odd reader rotations exchange the logical stacking axis so the final
- * presentation rotation preserves that physical arrangement. */
+/* Logical-coordinate facing-page geometry. The stack preference is kept
+ * unchanged across reader rotations: horizontal remains side-by-side and
+ * vertical remains top-and-bottom from the user's viewing orientation. */
 static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     double *scale, int *lp, int *rp, int *lw, int *lh, int *rw, int *rh,
     int *vertical)
@@ -1302,7 +1301,7 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     }
     if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
         return 0;
-    *vertical = rtd->spread_vertical != ((doc->rotation & 1) != 0);
+    *vertical = rtd->spread_vertical;
     {
         int rotation = doc->rotation & 3;
         bool reverse_slots = rtd->spread_vertical

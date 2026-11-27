@@ -161,7 +161,12 @@ static void ClampSpreadOffset(Green_RTD *rtd, int vw, int vh)
 	int lp, rp, lw, lh, rw, rh, sw, sh;
 	double scale;
 	Green_Document *doc = rtd->doc;
-	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) return;
+	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
+		/* A lone first/last page uses the ordinary full-width page viewport. */
+		doc->xoffset = doc->yoffset = 0;
+		Green_ValidateOffset(doc, vw, vh);
+		return;
+	}
 	sw = lw + rw; sh = lh > rh ? lh : rh;
 	if (doc->xoffset < 0) doc->xoffset = 0;
 	if (doc->yoffset < 0) doc->yoffset = 0;

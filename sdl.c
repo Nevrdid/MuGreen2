@@ -1116,7 +1116,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) != 0
 				|| CreateFramebuffer((rotation & 1) ? oh : ow, (rotation & 1) ? ow : oh) != 0)
 			{
-				fprintf(stderr, "MuGreen2: logical framebuffer resize failed: %s\\n", SDL_GetError());
+				fprintf(stderr, "MuGreen2: logical framebuffer resize failed: %s\n", SDL_GetError());
 				*failed_page = rtd->doc->page_cur;
 				return -1;
 			}
@@ -1742,7 +1742,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			g_logical_frame_test = test && atoi(test) != 0;
 			g_reader_rotation = Green_IsDocValid(rtd) ? (rtd->doc->rotation & 3) : 0;
 			if (g_logical_frame_test)
-				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\\n");
+				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\n");
 		}
 		if (rtd->flags & GREEN_FULLSCREEN)
 			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;

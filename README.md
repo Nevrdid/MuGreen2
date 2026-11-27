@@ -37,6 +37,25 @@ The on-screen help panel lists the current bindings. The default Nintendo-labell
 
 Some controls are optional and depend on the controller exposing the corresponding SDL input.
 
+### Custom SDL2 controller mappings
+
+MuGreen2 uses SDL2's GameController API. If SDL2 does not recognise a controller, or its default button/axis layout is unsuitable, you can provide additional SDL GameController database mappings through either of these environment variables:
+
+- `SDL_GAMECONTROLLERCONFIG`: one or more mapping entries, separated by newlines.
+- `SDL_GAMECONTROLLERCONFIG_FILE`: path to a text file containing mapping entries, one per line.
+
+Set the variable in the environment **before launching MuGreen2**, because SDL reads these hints during `SDL_Init(SDL_INIT_GAMECONTROLLER)`.
+
+For example, to load a mapping database from a file:
+
+```sh
+SDL_GAMECONTROLLERCONFIG_FILE=/path/to/gamecontrollerdb.txt ./mugreen2 /path/to/document.pdf
+```
+
+A mapping entry follows SDL's GameController database format: controller GUID, controller name, then comma-separated logical button/axis bindings (for example, `a:b0` or `leftx:a0`). Use a mapping generated for the exact controller and connection mode; GUIDs and physical input indices can differ between USB and Bluetooth modes. The SDL mapping database and SDL's `controllermap` utility are useful references when creating entries.
+
+These variables supply mappings to SDL; they do not change MuGreen2's own button assignments. The reader still requires a device recognised by SDL as a GameController. Controller-presence and missing-mapping on-screen feedback are tracked separately in Phase 3.
+
 ## Differences from the original Green
 
 MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://github.com/schandinat/green), not a from-scratch replacement. It keeps the Green reader's SDL-based application structure while changing the PDF engine and tailoring the reading workflow.
@@ -120,8 +139,8 @@ Exactly one PDF path is required. Options may be placed before or after the path
 | `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
 | `-fullscreen` | Start fullscreen |
 | `-no-fullscreen` | Start windowed |
-| `-width=<pixels>` | Initial window width; `0` uses the display width |
-| `-height=<pixels>` | Initial window height; `0` uses the display height |
+| `-width=<pixels>` | Initial window width (`0`–`65535`); `0` uses the display width |
+| `-height=<pixels>` | Initial window height (`0`–`65535`); `0` uses the display height |
 | `-cache=<MB>` | MuPDF store size in MiB (1–1024; default: `32`) |
 | `-help` / `-h` | Show command-line help |
 | `-version` / `-v` | Show version, license and project URL |

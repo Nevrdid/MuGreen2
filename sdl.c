@@ -879,11 +879,12 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 				? doc->xoffset == doc_max_x : doc->xoffset == 0;
 		}
 
-		/* Match Green's rotated top/bottom reading edges. */
+		/* Match the document reading direction at the rotated top/bottom
+		 * edges. Rotation 270 reverses the page order relative to 90. */
 		if (sy < 0 && top_border)
-			next_page = -1;
+			next_page = rotation == 1 ? -1 : 1;
 		else if (sy > 0 && bottom_border)
-			next_page = 1;
+			next_page = rotation == 1 ? 1 : -1;
 	}
 	else
 	{

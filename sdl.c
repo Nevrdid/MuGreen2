@@ -157,11 +157,10 @@ static int GetSpreadMetrics(Green_RTD *rtd, int vw, int vh, double *scale,
 		else { *lp = doc->page_cur - 1; *rp = doc->page_cur; }
 	}
 	if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count) return 0;
-	/* A 180-degree reader rotation is normally paired with turning the
-	 * handheld upside down to keep the page content upright. In that physical
-	 * orientation, screen-space left and right are reversed relative to the
-	 * reader. Swap the spread slots so the logical reading order remains
-	 * left-to-right (or right-to-left) when viewed by the reader. */
+	/* Reader rotations of 90° and 180° are commonly paired with matching
+	 * physical turns of the handheld. These orientations reverse the spread
+	 * slot order in the physical reading frame. The manual override lets the
+	 * user compensate for devices with a different physical rotation direction. */
 	if ((((doc->rotation & 3) == 1) || ((doc->rotation & 3) == 2))
 		!= g_spread_order_reversed) {
 		int page = *lp;

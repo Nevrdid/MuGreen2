@@ -2,7 +2,13 @@
 ARCH ?= aarch64
 
 ifeq ($(ARCH),aarch64)
-CROSS_COMPILE ?= /opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+ifeq ($(origin CROSS_COMPILE),undefined)
+ifneq ($(wildcard /opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-gcc),)
+CROSS_COMPILE := /opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+else
+CROSS_COMPILE := aarch64-linux-gnu-
+endif
+endif
 ARCHFLAGS ?= -mcpu=cortex-a53+crc -mtune=cortex-a53
 else ifeq ($(ARCH),armhf)
 CROSS_COMPILE ?= arm-linux-gnueabihf-
@@ -19,7 +25,7 @@ PREFIX ?= /usr/local
 SDL2_CONFIG ?= sdl2-config
 
 CC := $(CROSS_COMPILE)gcc
-STRIP := $(CROSS_COMPILE)strip
+STRIP ?= $(CROSS_COMPILE)strip
 # Let the selected compiler report its own sysroot. GCC prints "/" for a
 # native compiler with no separate sysroot; treat that as an empty value.
 SYSROOT ?= $(shell $(CC) -print-sysroot 2>/dev/null | sed 's@^/$$@@')
@@ -44,7 +50,11 @@ main.o: main.c green.h pdf_backend.h
 %.o: %.c green.h pdf_backend.h
 	$(CC) $(SYSROOT_FLAG) $(CFLAGS) -c $< -o $@
 
+install: mugreen2
+	install -d "$(DESTDIR)$(PREFIX)/bin"
+	install -m 755 mugreen2 "$(DESTDIR)$(PREFIX)/bin/mugreen2"
+
 clean:
 	rm -f mugreen2 $(OBJS)
 
-.PHONY: all clean
+.PHONY: all install clean

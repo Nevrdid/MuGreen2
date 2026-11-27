@@ -42,6 +42,7 @@ In this probe:
 - **B** rotates the reader clockwise (the existing implementation's rotation binding).
 - **L1 / R1** move to the previous / next page.
 - **A** resets the page to the width-fit view.
+- Zoom shortcuts are disabled in this probe because the existing zoom-anchor calculations still assume the physical/rotated viewport.
 - Mirroring is translated to a pre-presentation SDL flip so its existing post-rotation vertical-mirror result can be retained.
 
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:

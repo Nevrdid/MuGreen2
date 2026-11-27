@@ -83,7 +83,7 @@ static bool	g_r2_held = false;
 /* Panel mounted upside down: rotate the finished frame by 180° when presenting (GREEN_ROTATE180=1) */
 static int	g_rotate180 = 0;
 
-/* Hold D-pad Up/Down to scroll TOC / help. */
+/* Hold D-pad to repeat reading scroll or TOC/help navigation. */
 static int	g_list_nav_dir = 0;
 static int	g_list_nav_button = -1;
 static Uint32	g_list_nav_next = 0;

@@ -706,86 +706,30 @@ static void	TOCStepSel( int dir )
 }
 
 
-static RState	TOCInput( Green_RTD *rtd, SDL_Event *event, unsigned short *flags )
+static RState	TOCInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 {
-	switch (event->key.keysym.sym)
+	switch (button)
 	{
-		case SDLK_ESCAPE:
-		case SDLK_LCTRL:
-			/* A: close TOC. */
-			ListNavStop();
-			g_toc_active = false;
-			*flags |= FLAG_RENDER;
-			return NORMAL;
-		case SDLK_DOWN:
-			TOCStepSel( 1 );
-			ListNavStart( 1 );
-			*flags |= FLAG_RENDER;
+		case SDL_CONTROLLER_BUTTON_B:
+		case SDL_CONTROLLER_BUTTON_START:
+			ListNavStop(); g_toc_active = false; *flags |= FLAG_RENDER; return NORMAL;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			TOCStepSel( 1 ); ListNavStart( 1 ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			TOCStepSel( -1 ); ListNavStart( -1 ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			if (g_toc_count > 0) { TOCNode *n = g_toc_entries[g_toc_sel].node; if (n->n_children > 0 && !n->open) { n->open = true; RebuildTOCFlat(); } }
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+			if (g_toc_count > 0) { TOCNode *n = g_toc_entries[g_toc_sel].node; if (n->n_children > 0 && n->open) { n->open = false; RebuildTOCFlat(); } else { int idx = FindParentIndex( n ); if (idx >= 0) g_toc_sel = idx; } }
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_A:
+			if (g_toc_count > 0 && TOCGoToPage( rtd, g_toc_entries[g_toc_sel].node, flags )) { ListNavStop(); g_toc_active = false; return NORMAL; }
 			break;
-		case SDLK_UP:
-			TOCStepSel( -1 );
-			ListNavStart( -1 );
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_RIGHT:
-			/* Expand hierarchical section */
-			if (g_toc_count > 0)
-			{
-				TOCNode	*n = g_toc_entries[g_toc_sel].node;
-				
-				if (n->n_children > 0 && !n->open)
-				{
-					n->open = true;
-					RebuildTOCFlat();
-					*flags |= FLAG_RENDER;
-				}
-			}
-			break;
-		case SDLK_LEFT:
-			/* Collapse section, or move to parent if already closed */
-			if (g_toc_count > 0)
-			{
-				TOCNode	*n = g_toc_entries[g_toc_sel].node;
-				
-				if (n->n_children > 0 && n->open)
-				{
-					n->open = false;
-					RebuildTOCFlat();
-				}
-				else
-				{
-					int	idx = FindParentIndex( n );
-					if (idx >= 0)
-						g_toc_sel = idx;
-				}
-			}
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_RETURN:
-			/* Start toggles TOC closed */
-			ListNavStop();
-			g_toc_active = false;
-			*flags |= FLAG_RENDER;
-			return NORMAL;
-		case SDLK_SPACE:
-			/* A: jump to selection. */
-			if (g_toc_count > 0)
-			{
-				if (TOCGoToPage( rtd, g_toc_entries[g_toc_sel].node, flags ))
-				{
-					ListNavStop();
-					g_toc_active = false;
-					return NORMAL;
-				}
-			}
-			break;
-		default:
-			break;
+		default: break;
 	}
-	
 	return TOC;
 }
-
 
 void	Render( Green_RTD *rtd )
 {
@@ -1012,34 +956,20 @@ static void	RenderHelp( SDL_Surface *display )
 		DrawString( display, display->w - 50, display->h - 18, "more", dim_col );
 }
 
-static RState	HelpInput( SDL_Event *event, unsigned short *flags )
+static RState	HelpInput( Uint8 button, unsigned short *flags )
 {
-	SDL_Surface	*display = DrawSurface();
-	int		max_scroll = HelpMaxScroll( display );
-	SDL_Keycode		sym = event->key.keysym.sym;
-	
-	switch (sym)
+	SDL_Surface *display = DrawSurface();
+	int max_scroll = HelpMaxScroll( display );
+	switch (button)
 	{
-		case SDLK_ESCAPE:
-		case SDLK_LCTRL:
-			ListNavStop();
-			g_help_active = false;
-			*flags |= FLAG_RENDER;
-			return NORMAL;
-		case SDLK_DOWN:
-			HelpStepScroll( 1, max_scroll );
-			ListNavStart( 1 );
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_UP:
-			HelpStepScroll( -1, max_scroll );
-			ListNavStart( -1 );
-			*flags |= FLAG_RENDER;
-			break;
-		default:
-			break;
+		case SDL_CONTROLLER_BUTTON_B:
+			ListNavStop(); g_help_active = false; *flags |= FLAG_RENDER; return NORMAL;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			HelpStepScroll( 1, max_scroll ); ListNavStart( 1 ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			HelpStepScroll( -1, max_scroll ); ListNavStart( -1 ); *flags |= FLAG_RENDER; break;
+		default: break;
 	}
-	
 	return HELP;
 }
 
@@ -1073,194 +1003,67 @@ static int	HPanStep( int vw )
 	return s;
 }
 
-RState	NormalInput( Green_RTD *rtd, SDL_Event *event, unsigned short *flags )
+static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 {
-	Green_Document	*doc = NULL;
-	SDL_Surface	*display = DrawSurface();
-	int	vw = ViewWidth( rtd ), hstep = HPanStep( vw );
-	SDL_Keycode	sym = event->key.keysym.sym;
-	
-	if (Green_IsDocValid( rtd))
-		doc = rtd->doc;
-	
-	/* Holding Select turns the following button into a secondary action. */
-	if (g_select_button_held)
+	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
+	SDL_Surface *display = DrawSurface();
+	int vw = ViewWidth( rtd ), hstep = HPanStep( vw );
+	switch (button)
 	{
-		switch (sym)
-		{
-			case SDLK_SPACE: /* Select+B: night mode */
-				rtd->night = !rtd->night;
-				Green_SaveSettings( rtd );
-				*flags |= FLAG_RENDER;
-				return NORMAL;
-			case SDLK_LSHIFT: /* Select+X: horizontal mirror */
-				if (doc) Green_MirrorH( doc );
-				*flags |= FLAG_RENDER;
-				return NORMAL;
-			case SDLK_LALT: /* Select+Y: vertical mirror */
-				if (doc) Green_MirrorV( doc );
-				*flags |= FLAG_RENDER;
-				return NORMAL;
-			case 'e': /* Select+L1: dual-page mode */
-				rtd->side_by_side = !rtd->side_by_side;
-				*flags |= FLAG_RENDER;
-				return NORMAL;
-			default:
-				break;
-		}
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			if (!doc) break;
+			if (rtd->side_by_side && doc->yoffset == 0) { if (!Green_GotoPage( doc, doc->page_cur - 2, true )) break; }
+			else Green_ScrollRelative( doc, 0, -display->h * rtd->step, vw, display->h, 1 );
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			if (!doc) break;
+			if (rtd->side_by_side) { int max_x, max_y; Green_GetScrollRegion( doc, vw, display->h, &max_x, &max_y ); if (doc->yoffset >= max_y) { if (!Green_GotoPage( doc, doc->page_cur + 2, true )) break; } else Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 ); }
+			else Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+			if (!doc) break; Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			if (!doc) break; Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_A:
+			if (!doc) break; doc->fit_method = WIDTH; doc->finescale = 1; doc->xoffset = doc->yoffset = 0; *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_B:
+			if (!doc) break; Green_RotateRight( doc ); Green_ValidateOffset( doc, display->w, display->h ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+			if (!doc) break;
+			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur - 2, vw, display->h )) break; }
+			else if (!GotoPageKeepView( doc, doc->page_cur - 1, vw, display->h )) break;
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+			if (!doc) break;
+			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + 2, vw, display->h )) break; }
+			else if (!GotoPageKeepView( doc, doc->page_cur + 1, vw, display->h )) break;
+			*flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_START: return OpenTOCPanel( rtd, flags );
+		default: break;
 	}
-
-	switch (sym)
-	{
-		case SDLK_UP:
-			if (!doc)
-				break;
-			
-			// In side-by-side mode, check if we're at the top and need to go to previous page pair
-			if (rtd->side_by_side && doc->yoffset == 0) {
-				if (!Green_GotoPage( doc, doc->page_cur - 2, true ))
-					break;
-			} else {
-				Green_ScrollRelative( doc, 0, - display->h * rtd->step, vw, display->h, 1 );
-			}
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_DOWN:
-			if (!doc)
-				break;
-			
-			// In side-by-side mode, check if we're at the bottom and need to go to next page pair
-			if (rtd->side_by_side) {
-				int max_x, max_y;
-				Green_GetScrollRegion( doc, vw, display->h, &max_x, &max_y );
-				if (doc->yoffset >= max_y) {
-					if (!Green_GotoPage( doc, doc->page_cur + 2, true ))
-						break;
-				} else {
-					Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
-				}
-			} else {
-				Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
-			}
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_LEFT:
-			if (!doc)
-				break;
-			
-			Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 );
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_RIGHT:
-			if (!doc)
-				break;
-			
-			Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 );
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_SPACE:
-			/* Nintendo B: fit width. */
-			if (!doc)
-				break;
-			
-			doc->fit_method = WIDTH;
-			doc->finescale = 1;
-			doc->xoffset = 0;
-			doc->yoffset = 0;
-			*flags |= FLAG_RENDER;
-			break;
-		case SDLK_LCTRL:
-			/* Nintendo A: rotate right by 90 degrees. */
-			if (!doc)
-				break;
-			
-			Green_RotateRight( doc );
-			Green_ValidateOffset( doc, display->w, display->h );
-			*flags |= FLAG_RENDER;
-			break;
-		case 'e':
-			/* L1: previous page (keep zoom + pan). */
-			if (!doc)
-				break;
-			
-			if (rtd->side_by_side)
-			{
-				if (!GotoPageKeepView( doc, doc->page_cur - 2, vw, display->h ))
-					break;
-			}
-			else if (!GotoPageKeepView( doc, doc->page_cur - 1, vw, display->h ))
-				break;
-			
-			*flags |= FLAG_RENDER;
-			break;
-		case 't':
-			/* R1: next page (keep zoom + pan). */
-			if (!doc)
-				break;
-			
-			if (rtd->side_by_side)
-			{
-				if (!GotoPageKeepView( doc, doc->page_cur + 2, vw, display->h ))
-					break;
-			}
-			else if (!GotoPageKeepView( doc, doc->page_cur + 1, vw, display->h ))
-				break;
-			
-			*flags |= FLAG_RENDER;
-			break;
-		case 'q':
-			/* L2: back 10 pages (optional trigger). */
-			SkipPages( doc, rtd, -10, vw, display->h, flags );
-			break;
-		case 'w':
-			/* R2: forward 10 pages (optional trigger). */
-			SkipPages( doc, rtd, 10, vw, display->h, flags );
-			break;
-		case SDLK_RETURN:
-			/* Start: table of contents. */
-			return OpenTOCPanel( rtd, flags );
-		default:
-			break;
-	}
-	
 	return NORMAL;
 }
 
-/* Controller-only input adapter. Unsupported actions deliberately have no binding. */
-static SDL_GameController *OpenFirstController( void )
+/* Apply Select+button shortcuts directly, without synthesizing keyboard events. */
+static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 {
-	int device;
-	for (device = 0; device < SDL_NumJoysticks(); device++)
-		if (SDL_IsGameController( device ))
-		{
-			SDL_GameController *controller = SDL_GameControllerOpen( device );
-			if (controller) return controller;
-		}
-	return NULL;
-}
-
-static SDL_Keycode ControllerButtonKey( Uint8 button )
-{
+	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
+	SDL_Surface *display = DrawSurface();
 	switch (button)
 	{
-		/* SDL's standard A/B and X/Y positions are Xbox-oriented.
-		 * On Nintendo-labelled pads these physical positions read B/A and Y/X. */
-		case SDL_CONTROLLER_BUTTON_A: return SDLK_SPACE;       /* Nintendo B: fit width */
-		case SDL_CONTROLLER_BUTTON_B: return SDLK_LCTRL;       /* Nintendo A: rotate right */
-		case SDL_CONTROLLER_BUTTON_X: return SDLK_LALT;        /* Nintendo Y: zoom out */
-		case SDL_CONTROLLER_BUTTON_Y: return SDLK_LSHIFT;      /* Nintendo X: zoom in */
-		case SDL_CONTROLLER_BUTTON_START: return SDLK_RETURN;  /* Start: TOC */
-		case SDL_CONTROLLER_BUTTON_GUIDE: return SDLK_ESCAPE;  /* Optional Guide: exit */
-		case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDLK_UP;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDLK_DOWN;
-		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDLK_LEFT;
-		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDLK_RIGHT;
-		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER: return 'e';   /* L1: previous page */
-		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return 't';  /* R1: next page */
-		default: return SDLK_UNKNOWN; /* NULL binding */
+		case SDL_CONTROLLER_BUTTON_A:
+			rtd->night = !rtd->night; Green_SaveSettings( rtd ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_Y:
+			if (doc) Green_MirrorH( doc ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_X:
+			if (doc) Green_MirrorV( doc ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+			rtd->side_by_side = !rtd->side_by_side;
+			if (doc) Green_ValidateOffset( doc, ViewWidth( rtd ), display->h );
+			*flags |= FLAG_RENDER; break;
+		default: break;
 	}
 }
-
 int	Green_SDL_Main( Green_RTD *rtd )
 {
 	SDL_GameController	*controller = NULL;
@@ -1321,7 +1124,6 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	if (Green_IsDocValid( rtd))
 		Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
 	
-	SDL_ShowCursor( SDL_DISABLE );
 	
 	do
 	{
@@ -1357,253 +1159,122 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		
 		do
 		{
-			bool mapped_controller_event = false;
-			/* Select is a tap-for-help / hold-for-modifier button. Select+Start exits. */
-			if (event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP)
+			switch (event.type)
 			{
-				bool down = event.type == SDL_CONTROLLERBUTTONDOWN;
-				Uint8 button = event.cbutton.button;
-				if (button == SDL_CONTROLLER_BUTTON_BACK)
+				case SDL_QUIT: flags |= FLAG_QUIT; break;
+				case SDL_CONTROLLERBUTTONDOWN:
 				{
-					if (down)
+					Uint8 button = event.cbutton.button;
+					if (button == SDL_CONTROLLER_BUTTON_BACK)
 					{
-						g_select_button_held = true;
-						g_select_chord_used = false;
-						if (g_start_button_held)
-						{
-							g_exit_chord = true;
-							flags |= FLAG_QUIT;
-						}
-						event.type = SDL_USEREVENT;
+						g_select_button_held = true; g_select_chord_used = false;
+						if (g_start_button_held) { g_exit_chord = true; flags |= FLAG_QUIT; }
+						break;
 					}
-					else
+					if (button == SDL_CONTROLLER_BUTTON_START)
+					{
+						g_start_button_held = true;
+						if (g_select_button_held) { g_exit_chord = true; flags |= FLAG_QUIT; }
+						else if (!g_exit_chord && g_state == NORMAL) g_state = OpenTOCPanel( rtd, &flags );
+						break;
+					}
+					if (button == SDL_CONTROLLER_BUTTON_GUIDE)
+					{
+						g_x_held = g_y_held = false;
+						if (g_state != NORMAL || g_toc_active || g_help_active)
+						{ ListNavStop(); g_state = NORMAL; g_toc_active = g_help_active = false; flags |= FLAG_RENDER; }
+						else CloseCurrentFile( rtd, &flags );
+						break;
+					}
+					if (g_select_button_held)
+					{
+						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
+							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+						{ g_select_chord_used = true; SelectChord( rtd, button, &flags ); }
+						break;
+					}
+					if (button == SDL_CONTROLLER_BUTTON_X && g_state == NORMAL) g_y_held = true;
+					else if (button == SDL_CONTROLLER_BUTTON_Y && g_state == NORMAL) g_x_held = true;
+					else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
+					else if (g_state == HELP) g_state = HelpInput( button, &flags );
+					else if (g_state == NORMAL) g_state = NormalInput( rtd, button, &flags );
+					break;
+				}
+				case SDL_CONTROLLERBUTTONUP:
+				{
+					Uint8 button = event.cbutton.button;
+					if (button == SDL_CONTROLLER_BUTTON_BACK)
 					{
 						g_select_button_held = false;
 						if (!g_select_chord_used && !g_exit_chord)
 						{
-							event.type = SDL_KEYDOWN;
-							event.key.keysym.sym = SDLK_TAB;
-							event.key.repeat = 0;
-							mapped_controller_event = true;
+							if (g_state == HELP) { ListNavStop(); g_help_active = false; g_state = NORMAL; flags |= FLAG_RENDER; }
+							else g_state = OpenHelpPanel( &flags );
 						}
-						else event.type = SDL_USEREVENT;
 						if (!g_start_button_held) g_exit_chord = false;
 						g_select_chord_used = false;
 					}
-				}
-				else if (button == SDL_CONTROLLER_BUTTON_START)
-				{
-					if (down)
-					{
-						g_start_button_held = true;
-						if (g_select_button_held) g_exit_chord = true;
-					}
-					else g_start_button_held = false;
-					if (g_exit_chord)
-					{
-						if (down) flags |= FLAG_QUIT;
-						event.type = SDL_USEREVENT;
-						if (!g_select_button_held && !g_start_button_held) g_exit_chord = false;
-					}
-				}
-				else if (down && g_select_button_held
-					&& (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
-					|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER))
-					g_select_chord_used = true;
-			}
-			/* L2/R2 are SDL trigger axes, not controller-button events. They are optional. */
-			if (event.type == SDL_CONTROLLERAXISMOTION
-				&& (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT
-				|| event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
-			{
-				bool *held = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? &g_l2_held : &g_r2_held;
-				SDL_Keycode key = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ? 'q' : 'w';
-				bool down = event.caxis.value > 16000;
-				if (down != *held)
-				{
-					*held = down;
-					event.type = down ? SDL_KEYDOWN : SDL_KEYUP;
-					event.key.keysym.sym = key;
-					event.key.repeat = 0;
-					mapped_controller_event = true;
-				}
-				else event.type = SDL_USEREVENT;
-			}
-			/* Convert only SDL GameController events; discard keyboard and mouse input. */
-			if (event.type == SDL_CONTROLLERBUTTONDOWN || event.type == SDL_CONTROLLERBUTTONUP)
-			{
-				SDL_Keycode key = ControllerButtonKey( event.cbutton.button );
-				if (key == SDLK_UNKNOWN) event.type = SDL_USEREVENT;
-				else
-				{
-					Uint32 controller_type = event.type;
-					event.type = controller_type == SDL_CONTROLLERBUTTONDOWN ? SDL_KEYDOWN : SDL_KEYUP;
-					event.key.keysym.sym = key;
-					event.key.repeat = 0;
-					mapped_controller_event = true;
-				}
-			}
-			else if (!mapped_controller_event && (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP
-				|| event.type == SDL_MOUSEMOTION || event.type == SDL_MOUSEBUTTONDOWN
-				|| event.type == SDL_MOUSEBUTTONUP || event.type == SDL_MOUSEWHEEL
-				|| event.type == SDL_CONTROLLERAXISMOTION || event.type == SDL_JOYBUTTONDOWN
-				|| event.type == SDL_JOYBUTTONUP || event.type == SDL_JOYAXISMOTION))
-				event.type = SDL_USEREVENT;
-
-			switch (event.type)
-			{
-				case SDL_QUIT:
-					flags |= FLAG_QUIT;
-					break;
-				case SDL_KEYUP:
-					if (event.key.keysym.sym == SDLK_UP
-						|| event.key.keysym.sym == SDLK_DOWN)
+					else if (button == SDL_CONTROLLER_BUTTON_START)
+					{ g_start_button_held = false; if (!g_select_button_held) g_exit_chord = false; }
+					else if (button == SDL_CONTROLLER_BUTTON_DPAD_UP || button == SDL_CONTROLLER_BUTTON_DPAD_DOWN)
 						ListNavStop();
-					
-					if (event.key.keysym.sym == SDLK_LSHIFT)
+					else if (button == SDL_CONTROLLER_BUTTON_X && g_y_held)
 					{
-						/* Nintendo X: zoom in. */
-						if (g_x_held && g_state == NORMAL
-							&& Green_IsDocValid( rtd))
-						{
-							Green_Document	*d = rtd->doc;
-							
-							Green_Zoom( d, ViewWidth( rtd ), display->h,
-								d->finescale * rtd->zoomstep );
-							flags |= FLAG_RENDER;
-						}
-						g_x_held = false;
-					}
-					else if (event.key.keysym.sym == SDLK_LALT)
-					{
-						/* Nintendo Y: zoom out. */
-						if (g_y_held && g_state == NORMAL
-							&& Green_IsDocValid( rtd))
-						{
-							Green_Document	*d = rtd->doc;
-							
-							Green_Zoom( d, ViewWidth( rtd ), display->h,
-								d->finescale / rtd->zoomstep );
-							flags |= FLAG_RENDER;
-						}
+						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+						{ Green_Document *doc = rtd->doc; Green_Zoom( doc, ViewWidth( rtd ), display->h, doc->finescale / rtd->zoomstep ); flags |= FLAG_RENDER; }
 						g_y_held = false;
+					}
+					else if (button == SDL_CONTROLLER_BUTTON_Y && g_x_held)
+					{
+						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+					{ Green_Document *doc = rtd->doc; Green_Zoom( doc, ViewWidth( rtd ), display->h, doc->finescale * rtd->zoomstep ); flags |= FLAG_RENDER; }
+						g_x_held = false;
 					}
 					break;
-				case SDL_KEYDOWN:
-					if (event.key.repeat)
-						break;
-					if (event.key.keysym.sym == SDLK_LSHIFT && g_state == NORMAL)
+				}
+				case SDL_CONTROLLERAXISMOTION:
+					if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
 					{
-						g_x_held = true;
-						break;
+						bool left = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
+						bool *held = left ? &g_l2_held : &g_r2_held;
+					bool down = event.caxis.value > 16000;
+					if (down && !*held && !g_select_button_held && g_state == NORMAL && Green_IsDocValid( rtd ))
+						SkipPages( rtd->doc, rtd, left ? -10 : 10, ViewWidth( rtd ), display->h, &flags );
+						*held = down;
 					}
-					
-					if (event.key.keysym.sym == SDLK_LALT && g_state == NORMAL)
-					{
-						g_y_held = true;
-						break;
-					}
-					
-					if (event.key.keysym.sym == SDLK_ESCAPE)
-					{
-						g_x_held = false;
-						g_y_held = false;
-						/* Guide: leave overlays, otherwise close the only document. */
-						if (g_state != NORMAL || g_toc_active || g_help_active)
-						{
-							ListNavStop();
-							g_state = NORMAL;
-							if (g_toc_active)
-							{
-								g_toc_active = false;
-								flags |= FLAG_RENDER;
-							}
-							if (g_help_active)
-							{
-								g_help_active = false;
-								flags |= FLAG_RENDER;
-							}
-						}
-						else
-							CloseCurrentFile( rtd, &flags );
-					}
-					else if (event.key.keysym.sym == SDLK_TAB)
-					{
-						if (g_state == HELP)
-						{
-							ListNavStop();
-							g_help_active = false;
-							g_state = NORMAL;
-							flags |= FLAG_RENDER;
-						}
-						else
-							g_state = OpenHelpPanel( &flags );
-					}
-					else if (g_state == HELP)
-						g_state = HelpInput( &event, &flags );
-					else if (g_state == TOC)
-						g_state = TOCInput( rtd, &event, &flags );
-					else if (g_state == NORMAL)
-						g_state = NormalInput( rtd, &event, &flags );
 					break;
 				case SDL_CONTROLLERDEVICEADDED:
-					if (!controller && SDL_IsGameController( event.cdevice.which ))
-						controller = SDL_GameControllerOpen( event.cdevice.which );
+					if (!controller && SDL_IsGameController( event.cdevice.which )) controller = SDL_GameControllerOpen( event.cdevice.which );
 					break;
 				case SDL_CONTROLLERDEVICEREMOVED:
 					if (controller && SDL_JoystickInstanceID( SDL_GameControllerGetJoystick( controller ) ) == event.cdevice.which)
 					{
-						SDL_GameControllerClose( controller );
-						controller = OpenFirstController();
+						SDL_GameControllerClose( controller ); controller = OpenFirstController();
 						g_select_button_held = g_select_chord_used = g_start_button_held = g_exit_chord = false;
-						g_x_held = g_y_held = false;
-						g_l2_held = g_r2_held = false;
+						g_x_held = g_y_held = g_l2_held = g_r2_held = false; ListNavStop();
 					}
 					break;
 				case SDL_WINDOWEVENT:
 					if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 					{
-						int	ow, oh;
-						
-						SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
+						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
 							if (CreateFramebuffer( ow, oh ))
-							{
-								SDL_Quit();
-								fprintf( stderr, "Resize failed: %s\n", SDL_GetError() );
-													return -5;
-							}
-							
+							{ SDL_Quit(); fprintf( stderr, "Resize failed: %s\n", SDL_GetError() ); return -5; }
 							display = DrawSurface();
-							if (Green_IsDocValid( rtd))
-								Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
+							if (Green_IsDocValid( rtd )) Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
 						}
-						
 						flags |= FLAG_RENDER;
 					}
-					else if (event.window.event == SDL_WINDOWEVENT_EXPOSED
-						|| event.window.event == SDL_WINDOWEVENT_RESTORED)
+					else if (event.window.event == SDL_WINDOWEVENT_EXPOSED || event.window.event == SDL_WINDOWEVENT_RESTORED)
 						flags |= FLAG_RENDER;
-					
 					break;
-				case SDL_USEREVENT:
-					/* Held D-pad Up/Down: keep scrolling TOC / help */
-					if (g_list_nav_dir
-						&& (g_state == TOC || g_state == HELP)
-						&& SDL_GetTicks() >= g_list_nav_next)
-					{
-						if (g_state == TOC)
-							TOCStepSel( g_list_nav_dir );
-						else
-							HelpStepScroll( g_list_nav_dir, HelpMaxScroll( display ) );
-						g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
-						flags |= FLAG_RENDER;
-					}
-					
+				default:
+					/* Keyboard, mouse, and unrelated joystick events are intentionally ignored. */
 					break;
 			}
-			
+
 			event_count++;
 			
 		}	while (event_count && SDL_PollEvent( &event ));
@@ -1619,9 +1290,6 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		SDL_DestroyWindow( g_window );
 	SDL_Quit();
 	
-	/* Flush any remaining SDL events */
-	SDL_Event dummy;
-	while (SDL_PollEvent(&dummy));
 	
 	return 0;
 }

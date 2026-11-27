@@ -1268,6 +1268,54 @@ static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double fac
     return 1;
 }
 
+/* Render a page crop with its mirror applied to that page alone. The
+ * requested mirror axis is in the final reader view; odd reader rotations
+ * exchange the corresponding logical source axis. */
+static int RenderLogicalPageRegion(Green_RTD *rtd, SDL_Surface *display,
+    int page, int page_w, int page_h, double scale,
+    int local_x, int local_y, int width, int height, int dst_x, int dst_y)
+{
+    Green_Document *doc = rtd->doc;
+    int mirror_horizontal = (!doc->mirror_vertical) ^ (doc->rotation & 1);
+    int mirror_vertical = !mirror_horizontal;
+    int source_x = local_x, source_y = local_y;
+    SDL_Surface *temporary;
+    int x, y;
+
+    if (!doc->mirrored)
+        return pb_render(doc->doc, page, (float)scale, rtd->night,
+            source_x, source_y, width, height, PB_FMT_XRGB8888,
+            DstPixel(display, dst_x, dst_y), display->pitch);
+
+    if (mirror_horizontal)
+        source_x = page_w - local_x - width;
+    else
+        source_y = page_h - local_y - height;
+
+    temporary = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32,
+        SDL_PIXELFORMAT_XRGB8888);
+    if (!temporary)
+        return -2;
+
+    if (pb_render(doc->doc, page, (float)scale, rtd->night,
+        source_x, source_y, width, height, PB_FMT_XRGB8888,
+        temporary->pixels, temporary->pitch)) {
+        SDL_FreeSurface(temporary);
+        return -1;
+    }
+
+    for (y = 0; y < height; y++) {
+        const Uint32 *src = (const Uint32 *)((const Uint8 *)temporary->pixels
+            + (mirror_vertical ? height - 1 - y : y) * temporary->pitch);
+        Uint32 *dst = (Uint32 *)((Uint8 *)display->pixels
+            + (dst_y + y) * display->pitch) + dst_x;
+        for (x = 0; x < width; x++)
+            dst[x] = src[mirror_horizontal ? width - 1 - x : x];
+    }
+    SDL_FreeSurface(temporary);
+    return 0;
+}
+
 static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
     int page, int px, int py, int pw, int ph, double scale, int *failed_page)
 {
@@ -1276,14 +1324,16 @@ static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
     int y2 = py + ph > display->h ? display->h : py + ph;
     const char *error;
     if (x1 >= x2 || y1 >= y2) return;
-    if (!pb_render(rtd->doc->doc, page, (float)scale,  rtd->night,
-        x1 - px, y1 - py, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
-        DstPixel(display, x1, y1), display->pitch)) {
-        g_rendered_content_this_frame = true;
-        RenderPageWarning(display, rtd->doc, page, x1, y1, x2);
-        return;
+    {
+        int result = RenderLogicalPageRegion(rtd, display, page, pw, ph, scale,
+            x1 - px, y1 - py, x2 - x1, y2 - y1, x1, y1);
+        if (result == 0) {
+            g_rendered_content_this_frame = true;
+            RenderPageWarning(display, rtd->doc, page, x1, y1, x2);
+            return;
+        }
+        error = result == -2 ? SDL_GetError() : pb_error_message(rtd->doc->doc);
     }
-    error = pb_error_message(rtd->doc->doc);
     if (error) {
         SDL_Rect failed = { x1, y1, x2 - x1, y2 - y1 };
         SDL_FillRect(display, &failed, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
@@ -1329,9 +1379,7 @@ static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
         RenderLogicalSpreadPage(rtd, display, rp, ox + lw, oy + (spread_h - rh) / 2,
             rw, rh, scale, failed_page);
     }
-    g_content_flip = doc->mirrored
-        ? ((doc->mirror_vertical ^ (doc->rotation & 1)) ? SDL_FLIP_VERTICAL : SDL_FLIP_HORIZONTAL)
-        : SDL_FLIP_NONE;
+    g_content_flip = SDL_FLIP_NONE;
     return 1;
 }
 
@@ -1366,22 +1414,20 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 	y1 = page_y < 0 ? 0 : page_y;
 	x2 = page_x + page_w > display->w ? display->w : page_x + page_w;
 	y2 = page_y + page_h > display->h ? display->h : page_y + page_h;
-	if (x1 < x2 && y1 < y2
-		&& pb_render(doc->doc, doc->page_cur, (float)scale,  rtd->night,
-			x1 - page_x, y1 - page_y, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
-			DstPixel(display, x1, y1), display->pitch))
-		error = pb_error_message(doc->doc);
+	if (x1 < x2 && y1 < y2) {
+        int result = RenderLogicalPageRegion(rtd, display, doc->page_cur,
+            page_w, page_h, scale, x1 - page_x, y1 - page_y,
+            x2 - x1, y2 - y1, x1, y1);
+        if (result == -2)
+            error = SDL_GetError();
+        else if (result != 0)
+            error = pb_error_message(doc->doc);
+    }
 	if (!error) {
 		g_rendered_content_this_frame = true;
 		if (x1 < x2 && y1 < y2)
 			RenderPageWarning(display, doc, doc->page_cur, x1, y1, x2);
-		/* The old backend mirrored vertically after document rotation. To
-		 * preserve that result while rotation happens at presentation, mirror
-		 * the logical source vertically for even turns and horizontally for
-		 * odd turns. SDL applies this flip before rotating the texture. */
-		g_content_flip = doc->mirrored
-			? ((doc->mirror_vertical ^ (doc->rotation & 1)) ? SDL_FLIP_VERTICAL : SDL_FLIP_HORIZONTAL)
-			: SDL_FLIP_NONE;
+		g_content_flip = SDL_FLIP_NONE;
 		return 0;
 	}
 

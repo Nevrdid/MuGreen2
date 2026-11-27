@@ -864,7 +864,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	SDL_Surface *display = DrawSurface();
 	SDL_Rect rect;
 	double tscale;
-	int w, h, w2, h2;
+	int w, h;
 	*failed_page = -1;
 	g_rendered_content_this_frame = false;
 	rect.x = rect.y = 0; rect.w = display->w; rect.h = display->h;
@@ -882,32 +882,22 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			oy = (sh < display->h ? (display->h - sh) / 2 : 0) - doc->yoffset;
 			RenderSpreadPage(rtd, lp, ox, oy + (sh - lh) / 2, lw, lh, tscale, failed_page);
 			RenderSpreadPage(rtd, rp, ox + lw, oy + (sh - rh) / 2, rw, rh, tscale, failed_page);
-		} else { {
-			if (rtd->right_to_left) { left_page = doc->page_cur; right_page = doc->page_cur - 1; }
-			else { left_page = doc->page_cur - 1; right_page = doc->page_cur; }
-		}
-		if (left_page >= 0 && right_page < doc->page_count) {
-			tscale = Green_Fit(doc, display->w / 2, display->h) * doc->finescale;
-			Green_GetDimension(doc, left_page, &w, &h, tscale, doc->rotation % 2);
-			Green_GetDimension(doc, right_page, &w2, &h2, tscale, doc->rotation % 2);
-			rect.w = w > display->w / 2 ? display->w / 2 : w; rect.h = h > display->h ? display->h : h;
-			rect.x = (display->w / 2 - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
-			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale, failed_page);
-			rect.w = w2 > display->w / 2 ? display->w / 2 : w2; rect.h = h2 > display->h ? display->h : h2;
-			rect.x = display->w / 2 + (display->w / 2 - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
-			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale, failed_page);
 		} else {
 			tscale = Green_Fit(doc, display->w, display->h) * doc->finescale;
 			Green_GetDimension(doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2);
-			rect.w = w > display->w ? display->w : w; rect.h = h > display->h ? display->h : h;
-			rect.x = (display->w - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+			rect.w = w > display->w ? display->w : w;
+			rect.h = h > display->h ? display->h : h;
+			rect.x = (display->w - rect.w) / 2;
+			rect.y = (display->h - rect.h) / 2;
 			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 		}
 	} else {
 		tscale = Green_Fit(doc, display->w, display->h) * doc->finescale;
 		Green_GetDimension(doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2);
-		rect.w = w > display->w ? display->w : w; rect.h = h > display->h ? display->h : h;
-		rect.x = (display->w - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+		rect.w = w > display->w ? display->w : w;
+		rect.h = h > display->h ? display->h : h;
+		rect.x = (display->w - rect.w) / 2;
+		rect.y = (display->h - rect.h) / 2;
 		RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 	}
 	RenderTOC(display, rtd); RenderHelp(display); Present();

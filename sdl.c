@@ -644,17 +644,6 @@ static void	RenderTOC( SDL_Surface *display, Green_RTD *rtd )
 	return;
 }
 
-static int	FindTOCIndex( TOCNode *target )
-{
-	int	i;
-	
-	for (i = 0; i < g_toc_count; i++)
-		if (g_toc_entries[i].node == target)
-			return i;
-	
-	return -1;
-}
-
 static int	FindParentIndex( TOCNode *target )
 {
 	int	i, j;
@@ -1021,13 +1010,32 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			else Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-			if (!doc) break; Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 ); *flags |= FLAG_RENDER; break;
+			if (!doc)
+				break;
+			Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 );
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-			if (!doc) break; Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 ); *flags |= FLAG_RENDER; break;
+			if (!doc)
+				break;
+			Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 );
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_A:
-			if (!doc) break; doc->fit_method = WIDTH; doc->finescale = 1; doc->xoffset = doc->yoffset = 0; *flags |= FLAG_RENDER; break;
+			if (!doc)
+				break;
+			doc->fit_method = WIDTH;
+			doc->finescale = 1;
+			doc->xoffset = doc->yoffset = 0;
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_B:
-			if (!doc) break; Green_RotateRight( doc ); Green_ValidateOffset( doc, display->w, display->h ); *flags |= FLAG_RENDER; break;
+			if (!doc)
+				break;
+			Green_RotateRight( doc );
+			Green_ValidateOffset( doc, display->w, display->h );
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			if (!doc) break;
 			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur - 2, vw, display->h )) break; }
@@ -1068,6 +1076,25 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		default: break;
 	}
 }
+static SDL_GameController *OpenFirstController( void )
+{
+	int i;
+
+	for (i = 0; i < SDL_NumJoysticks(); i++)
+	{
+		SDL_GameController *controller;
+
+		if (!SDL_IsGameController( i ))
+			continue;
+
+		controller = SDL_GameControllerOpen( i );
+		if (controller)
+			return controller;
+	}
+
+	return NULL;
+}
+
 int	Green_SDL_Main( Green_RTD *rtd )
 {
 	SDL_GameController	*controller = NULL;

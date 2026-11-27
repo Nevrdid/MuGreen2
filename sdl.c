@@ -774,7 +774,7 @@ static int IsDpadButton(Uint8 button)
  * are rotated with the document. Start, Select, Guide and shoulders are fixed. */
 static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 {
-	int rotation = Green_IsDocValid(rtd) ? (rtd->doc->rotation & 3) : 0;
+	int rotation = (rtd->controls_rotate && Green_IsDocValid(rtd)) ? (rtd->doc->rotation & 3) : 0;
 
 	if (rtd->xbox_layout)
 	{
@@ -968,7 +968,8 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 
 	/* Undo the source flip used to preserve the legacy mirror result. */
 	if (doc->mirrored) {
-		if (doc->rotation & 1) logical_dx = -logical_dx;
+		bool flip_horizontal = doc->mirror_vertical ^ (doc->rotation & 1);
+		if (flip_horizontal) logical_dx = -logical_dx;
 		else logical_dy = -logical_dy;
 	}
 
@@ -1204,7 +1205,8 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
     logical_dx = dx;
     logical_dy = dy;
     if (doc->mirrored) {
-        if (doc->rotation & 1) logical_dx = -logical_dx;
+        bool flip_horizontal = doc->mirror_vertical ^ (doc->rotation & 1);
+        if (flip_horizontal) logical_dx = -logical_dx;
         else logical_dy = -logical_dy;
     }
     max_x = spread_w > display->w ? spread_w - display->w : 0;
@@ -1324,7 +1326,7 @@ static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
             rw, rh, scale, failed_page);
     }
     g_content_flip = doc->mirrored
-        ? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
+        ? ((doc->mirror_vertical ^ (doc->rotation & 1)) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
         : SDL_FLIP_NONE;
     return 1;
 }
@@ -1374,7 +1376,7 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 		 * the logical source vertically for even turns and horizontally for
 		 * odd turns. SDL applies this flip before rotating the texture. */
 		g_content_flip = doc->mirrored
-			? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
+			? ((doc->mirror_vertical ^ (doc->rotation & 1)) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
 			: SDL_FLIP_NONE;
 		return 0;
 	}

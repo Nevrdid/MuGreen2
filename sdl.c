@@ -95,6 +95,8 @@ static Uint32	g_page_indicator_until = 0;
 static int	g_overlay_rotation = 0;
 /* Opt-in SDL-only proof of a rotation-aware logical framebuffer. */
 static bool	g_logical_frame_test = false;
+static bool	g_logical_pdf_test = false;
+static SDL_RendererFlip	g_logical_frame_flip = SDL_FLIP_NONE;
 static int	g_reader_rotation = 0;
 
 static bool	g_help_active = false;
@@ -401,7 +403,7 @@ static void	Present( void )
 		return;
 	SDL_UpdateTexture( g_texture, NULL, g_fb->pixels, g_fb->pitch );
 	SDL_RenderClear( g_renderer );
-	if (g_logical_frame_test)
+	if (g_logical_frame_test || g_logical_pdf_test)
 	{
 		int ow, oh;
 		SDL_Rect dst;
@@ -412,7 +414,7 @@ static void	Present( void )
 			 * around its centre, so its bounding box fills the physical output. */
 			dst.w = g_fb->w; dst.h = g_fb->h;
 			dst.x = (ow - dst.w) / 2; dst.y = (oh - dst.h) / 2;
-			SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);
+			SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL, g_logical_frame_flip);
 		}
 	}
 	else
@@ -1098,6 +1100,77 @@ static void RenderLogicalPipelineTestFrame(SDL_Surface *display)
 		"LOGICAL FRAME TEST", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
 }
 
+/* Render one unrotated PDF page into the logical framebuffer. The final
+ * presentation transform supplies reader rotation, so MuPDF must not rotate
+ * the page here. This probe intentionally keeps navigation and overlays out
+ * of scope. */
+static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)
+{
+	Green_Document *doc = rtd->doc;
+	Green_Document fit_doc = *doc;
+	double scale;
+	int page_w, page_h, page_x, page_y, x1, y1, x2, y2, offset_x, offset_y;
+	const char *error = NULL;
+
+	fit_doc.rotation = 0;
+	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0, &page_w, &page_h))
+		error = pb_error_message(doc->doc);
+	if (error)
+		goto render_error;
+
+	/* Stored offsets are in unrotated document space. In this single-page
+	 * probe, spread offsets are deliberately ignored rather than misapplied. */
+	offset_x = rtd->side_by_side ? 0 : doc->xoffset;
+	offset_y = rtd->side_by_side ? 0 : doc->yoffset;
+	if (offset_x < 0) offset_x = 0;
+	if (offset_y < 0) offset_y = 0;
+	if (page_w <= display->w) offset_x = 0;
+	else if (offset_x > page_w - display->w) offset_x = page_w - display->w;
+	if (page_h <= display->h) offset_y = 0;
+	else if (offset_y > page_h - display->h) offset_y = page_h - display->h;
+
+	page_x = page_w < display->w ? (display->w - page_w) / 2 : -offset_x;
+	page_y = page_h < display->h ? (display->h - page_h) / 2 : -offset_y;
+	x1 = page_x < 0 ? 0 : page_x;
+	y1 = page_y < 0 ? 0 : page_y;
+	x2 = page_x + page_w > display->w ? display->w : page_x + page_w;
+	y2 = page_y + page_h > display->h ? display->h : page_y + page_h;
+	if (x1 < x2 && y1 < y2
+		&& pb_render(doc->doc, doc->page_cur, (float)scale, 0, 0, rtd->night,
+			x1 - page_x, y1 - page_y, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
+			DstPixel(display, x1, y1), display->pitch))
+		error = pb_error_message(doc->doc);
+	if (!error) {
+		g_rendered_content_this_frame = true;
+		/* The old backend mirrored vertically after document rotation. To
+		 * preserve that result while rotation happens at presentation, mirror
+		 * the logical source vertically for even turns and horizontally for
+		 * odd turns. SDL applies this flip before rotating the texture. */
+		g_logical_frame_flip = doc->mirrored
+			? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
+			: SDL_FLIP_NONE;
+		return 0;
+	}
+
+render_error:
+	{
+		SDL_Rect failed = { 0, 0, display->w, display->h };
+		SDL_FillRect(display, &failed, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
+		DrawString(display, 8, 8, "Page cannot be rendered",
+			SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
+		if (error) {
+			SDL_SetClipRect(display, &failed);
+			DrawString(display, 8, 30, error, SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
+			SDL_SetClipRect(display, NULL);
+			fprintf(stderr, "MuGreen2: logical PDF test failed on page %d: %s\n",
+				doc->page_cur + 1, error);
+		}
+		if (*failed_page < 0) *failed_page = doc->page_cur;
+	}
+	return -1;
+}
+
 static int	Render( Green_RTD *rtd, int *failed_page )
 {
 	Green_Document *doc;
@@ -1107,7 +1180,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	int w, h;
 	*failed_page = -1;
 	g_rendered_content_this_frame = false;
-	if (g_logical_frame_test && Green_IsDocValid(rtd))
+	if ((g_logical_frame_test || g_logical_pdf_test) && Green_IsDocValid(rtd))
 	{
 		int rotation = rtd->doc->rotation & 3;
 		if (rotation != g_reader_rotation)
@@ -1123,9 +1196,13 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			g_reader_rotation = rotation;
 		}
 		display = DrawSurface();
-		RenderLogicalPipelineTestFrame(display);
+		g_logical_frame_flip = SDL_FLIP_NONE;
+		if (g_logical_frame_test)
+			RenderLogicalPipelineTestFrame(display);
+		else
+			(void)RenderLogicalPDFPage(rtd, display, failed_page);
 		Present();
-		return 0;
+		return *failed_page >= 0 ? -1 : 0;
 	}
 	display = DrawSurface();
 	rect.x = rect.y = 0; rect.w = display->w; rect.h = display->h;
@@ -1577,6 +1654,30 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
 	SDL_Surface *display = DrawSurface();
 	int vw = ViewWidth( rtd ), hstep = (int)(vw * rtd->step);
+	if (g_logical_pdf_test && doc) {
+		switch (button) {
+			case SDL_CONTROLLER_BUTTON_B:
+				Green_RotateRight(doc);
+				doc->xoffset = doc->yoffset = 0;
+				*flags |= FLAG_RENDER;
+				break;
+			case SDL_CONTROLLER_BUTTON_A:
+				doc->fit_method = WIDTH;
+				doc->finescale = 1;
+				doc->xoffset = doc->yoffset = 0;
+				*flags |= FLAG_RENDER;
+				break;
+			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+				if (Green_GotoPage(doc, doc->page_cur - 1, true)) *flags |= FLAG_RENDER;
+				break;
+			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+				if (Green_GotoPage(doc, doc->page_cur + 1, true)) *flags |= FLAG_RENDER;
+				break;
+			default:
+				break;
+		}
+		return NORMAL;
+	}
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
@@ -1739,10 +1840,14 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		g_rotate180 = rot && atoi( rot );
 		{
 			const char *test = getenv("GREEN_TEST_LOGICAL_FRAME");
+			const char *pdf_test = getenv("GREEN_TEST_LOGICAL_PDF");
 			g_logical_frame_test = test && atoi(test) != 0;
+			g_logical_pdf_test = pdf_test && atoi(pdf_test) != 0;
 			g_reader_rotation = Green_IsDocValid(rtd) ? (rtd->doc->rotation & 3) : 0;
 			if (g_logical_frame_test)
 				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\n");
+			else if (g_logical_pdf_test)
+				fprintf(stderr, "MuGreen2: logical PDF page test enabled (scrolling, dual-page mode and overlays bypassed)\n");
 		}
 		if (rtd->flags & GREEN_FULLSCREEN)
 			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -1777,8 +1882,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) ||
-			CreateFramebuffer(g_logical_frame_test && (g_reader_rotation & 1) ? oh : ow,
-				g_logical_frame_test && (g_reader_rotation & 1) ? ow : oh))
+			CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? oh : ow,
+				(g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? ow : oh))
 		{
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
@@ -1787,7 +1892,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		}
 		display = DrawSurface();
 	}
-	if (Green_IsDocValid(rtd)) {
+	if (Green_IsDocValid(rtd) && !g_logical_pdf_test) {
 		if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
 		else Green_ValidateOffset(rtd->doc, display->w, display->h);
 	}
@@ -2015,8 +2120,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
-							if (CreateFramebuffer(g_logical_frame_test && (g_reader_rotation & 1) ? oh : ow,
-								g_logical_frame_test && (g_reader_rotation & 1) ? ow : oh))
+							if (CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? oh : ow,
+								(g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? ow : oh))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;
@@ -2024,7 +2129,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 								break;
 							}
 							display = DrawSurface();
-							if (Green_IsDocValid(rtd)) {
+							if (Green_IsDocValid(rtd) && !g_logical_pdf_test) {
 								if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
 								else Green_ValidateOffset(rtd->doc, display->w, display->h);
 							}

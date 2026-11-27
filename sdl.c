@@ -2098,7 +2098,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					break;
 				}
 				case SDL_CONTROLLERAXISMOTION:
-					if (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT)
+					if (!g_logical_pdf_test && (event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT || event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT))
 					{
 						bool left = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
 						bool *held = left ? &g_l2_held : &g_r2_held;

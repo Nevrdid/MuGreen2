@@ -39,8 +39,8 @@ int pb_take_page_warning(pb_doc *d, int page);
 void pb_close(pb_doc *d);
 int pb_page_count(pb_doc *d);
 int pb_page_size(pb_doc *d, int page, float *w, float *h);
-int pb_device_size(pb_doc *d, int page, float scale, int rotation, int *w, int *h);
-int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int night,
+int pb_device_size(pb_doc *d, int page, float scale, int *w, int *h);
+int pb_render(pb_doc *d, int page, float scale, int night,
               int x, int y, int w, int h, pb_format fmt, void *dst, int pitch);
 int pb_search(pb_doc *d, int page, const char *needle, pb_rect *out, int max);
 int pb_outline_load(pb_doc *d, pb_outline_item **items);

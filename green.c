@@ -23,6 +23,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "green.h"
 
 
@@ -172,71 +175,148 @@ static int	FindLastPageEntry( const char *uri )
 	return -1;
 }
 
-static void	StoreLastPage( Green_Document *doc, bool flush )
+/* Per-document state lives below XDG_DATA_HOME (or ~/.local/share).
+ * Two independent 64-bit hashes keep filenames short; the URI is stored
+ * inside each file and checked on load to detect the vanishingly unlikely
+ * event of a hash collision.
+ */
+static uint64_t StateHash( const char *text, uint64_t basis, uint64_t prime )
 {
-	LastPageEntry	*tmp;
-	char		*uri;
-	int		idx;
-	
-	if (!doc || !doc->uri)
-		return;
-	
-	LoadLastPagesFile();
-	idx = FindLastPageEntry( doc->uri );
-	if (idx >= 0)
+	uint64_t hash = basis;
+	while (*text)
 	{
-		g_last_pages[idx].page = doc->page_cur;
-		g_last_pages[idx].finescale = doc->finescale > 0 ? doc->finescale : 1.0;
-		g_last_pages[idx].xoffset = doc->xoffset;
-		g_last_pages[idx].yoffset = doc->yoffset;
-		g_last_pages[idx].rotation = doc->rotation;
-		g_last_pages[idx].mirrored = doc->mirrored;
-		g_last_pages[idx].fit_method = doc->fit_method;
-		g_last_pages[idx].extended_state = true;
+		hash ^= (unsigned char)*text++;
+		hash *= prime;
+	}
+	return hash;
+}
+
+static int EnsureDirectory( char *path )
+{
+	char *p;
+	for (p = path + 1; *p; p++)
+		if (*p == '/')
+		{
+			*p = 0;
+			if (mkdir( path, 0700 ) && errno != EEXIST) { *p = '/'; return -1; }
+			*p = '/';
+		}
+	if (mkdir( path, 0700 ) && errno != EEXIST)
+		return -1;
+	return 0;
+}
+
+static char *DocumentStatePath( const char *uri, char *path, size_t size )
+{
+	const char *base = getenv( "XDG_DATA_HOME" );
+	const char *home = getenv( "HOME" );
+	char directory[1024];
+	uint64_t h1, h2;
+
+	if (!uri || !*uri) return NULL;
+	if (base && *base)
+	{
+		if (snprintf( directory, sizeof( directory ), "%s/mugreen2/documents", base ) >= (int)sizeof( directory ))
+			return NULL;
+		/* Create the XDG data root as well if it does not exist yet. */
+		{
+			char root[1024];
+			if (snprintf( root, sizeof( root ), "%s", base ) >= (int)sizeof( root) || EnsureDirectory( root ))
+				return NULL;
+		}
 	}
 	else
 	{
-		uri = strdup( doc->uri );
-		if (!uri)
-			return;
-		
-		tmp = realloc( g_last_pages, (g_last_page_count + 1) * sizeof( *g_last_pages ) );
-		if (!tmp)
-		{
-			free( uri );
-			return;
-		}
-		
-		g_last_pages = tmp;
-		g_last_pages[g_last_page_count].uri = uri;
-		g_last_pages[g_last_page_count].page = doc->page_cur;
-		g_last_pages[g_last_page_count].finescale = doc->finescale > 0 ? doc->finescale : 1.0;
-		g_last_pages[g_last_page_count].xoffset = doc->xoffset;
-		g_last_pages[g_last_page_count].yoffset = doc->yoffset;
-		g_last_pages[g_last_page_count].rotation = doc->rotation;
-		g_last_pages[g_last_page_count].mirrored = doc->mirrored;
-		g_last_pages[g_last_page_count].fit_method = doc->fit_method;
-		g_last_pages[g_last_page_count].extended_state = true;
-		g_last_page_count++;
+		if (!home || !*home ||
+			snprintf( directory, sizeof( directory ), "%s/.local/share/mugreen2/documents", home ) >= (int)sizeof( directory ))
+			return NULL;
 	}
-	
-	if (flush)
-		SaveLastPagesFile();
-	return;
+	if (EnsureDirectory( directory ))
+		return NULL;
+
+	h1 = StateHash( uri, UINT64_C(14695981039346656037), UINT64_C(1099511628211) );
+	h2 = StateHash( uri, UINT64_C(7809847782465536322), UINT64_C(14029467366897019727) );
+	if (snprintf( path, size, "%s/%016llx%016llx.state", directory,
+		(unsigned long long)h1, (unsigned long long)h2 ) >= (int)size)
+		return NULL;
+	return path;
+}
+
+static bool LoadDocumentState( Green_Document *doc )
+{
+	char path[1200], saved_uri[4096], line[256];
+	FILE *file;
+	int page, x, y, rotation, mirrored, fit;
+
+	if (!DocumentStatePath( doc->uri, path, sizeof( path )) || !(file = fopen( path, "r" )))
+		return false;
+	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\\n" )
+		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
+	{
+		fclose( file);
+		return false;
+	}
+	saved_uri[strcspn( saved_uri, "\\r\\n" )] = 0;
+	if (strcmp( saved_uri, doc->uri ) || fscanf( file, "%d %lf %d %d %d %d %d",
+		&page, &doc->finescale, &x, &y, &rotation, &mirrored, &fit ) != 7)
+	{
+		fclose( file );
+		return false;
+	}
+	fclose( file );
+	if (page < 1 || page > doc->page_count || doc->finescale <= 0)
+		return false;
+	doc->page_cur = page - 1;
+	doc->xoffset = x;
+	doc->yoffset = y;
+	doc->rotation = ((rotation % 4) + 4) % 4;
+	doc->mirrored = mirrored != 0;
+	doc->fit_method = fit >= NATURAL && fit <= PAGE ? (Green_FitMethod)fit : WIDTH;
+	return true;
+}
+
+static void SaveDocumentState( Green_Document *doc )
+{
+	char path[1200], temporary[1240];
+	FILE *file;
+	if (!doc || !DocumentStatePath( doc->uri, path, sizeof( path )))
+		return;
+	if (snprintf( temporary, sizeof( temporary ), "%s.tmp.%ld", path, (long)getpid() ) >= (int)sizeof( temporary ))
+		return;
+	file = fopen( temporary, "w" );
+	if (!file) return;
+	fprintf( file, "MUGREEN2 1\\n%s\\n%d %.6f %d %d %d %d %d\\n",
+		doc->uri, doc->page_cur + 1,
+		doc->finescale > 0 ? doc->finescale : 1.0,
+		doc->xoffset, doc->yoffset, doc->rotation,
+		doc->mirrored ? 1 : 0, (int)doc->fit_method );
+	if (fclose( file ) || rename( temporary, path ))
+		remove( temporary );
+}
+
+static void	StoreLastPage( Green_Document *doc, bool flush )
+{
+	(void)flush;
+	SaveDocumentState( doc );
 }
 
 static void	RestoreLastPage( Green_Document *doc )
 {
-	int	idx;
-	
+	int idx;
 	if (!doc || !doc->uri)
 		return;
-	
+
+	/* New per-document state takes precedence. */
+	if (LoadDocumentState( doc ))
+		return;
+
+	/* One-time compatibility path: import the matching entry from the
+	 * legacy ~/.green.pages index. Keep that file untouched as a backup.
+	 */
 	LoadLastPagesFile();
 	idx = FindLastPageEntry( doc->uri );
 	if (idx < 0)
 		return;
-	
 	if (g_last_pages[idx].page >= 0 && g_last_pages[idx].page < doc->page_count)
 		doc->page_cur = g_last_pages[idx].page;
 	if (g_last_pages[idx].finescale > 0)
@@ -249,6 +329,7 @@ static void	RestoreLastPage( Green_Document *doc )
 		doc->mirrored = g_last_pages[idx].mirrored;
 		doc->fit_method = g_last_pages[idx].fit_method;
 	}
+	SaveDocumentState( doc );
 	return;
 }
 

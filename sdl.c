@@ -1105,9 +1105,9 @@ static void RenderLogicalPipelineTestFrame(SDL_Surface *display)
  * the page here. This probe intentionally keeps overlays and spreads out of
  * scope. */
 
-/* Return the page direction associated with a physical controller direction.
- * Left/Up share L1; Right/Down share R1. Keeping this in one helper ensures
- * edge navigation and shoulder navigation always agree. */
+/* Return the page direction associated with a physical controller input.
+ * Horizontal D-pad directions share L1/R1 mapping; vertical directions use
+ * their own rotation-aware mapping. */
 static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 {
 	Green_Document *doc = rtd->doc;

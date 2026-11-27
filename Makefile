@@ -22,7 +22,6 @@ endif
 
 CC := $(CROSS_COMPILE)gcc --sysroot=$(SYSROOT)
 STRIP := $(CROSS_COMPILE)strip
-CONFIG := -D GREEN_SYSCONFIG_FILE='"$(PREFIX)/etc/green.conf"' -D GREEN_USERCONFIG_FILE='".green.conf"'
 SDL2_CFLAGS ?= $(shell $(SDL2_CONFIG) --cflags)
 SDL2_LIBS ?= $(shell $(SDL2_CONFIG) --libs)
 CFLAGS := -O2 -Wall $(ARCHFLAGS) -flto -ffunction-sections -fdata-sections -D_REENTRANT -I. -I$(MUPDF)/include $(SDL2_CFLAGS)

@@ -94,7 +94,6 @@ static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
 static int	g_overlay_rotation = 0;
 /* Opt-in SDL-only proof of a rotation-aware logical framebuffer. */
-static const bool	g_logical_pipeline = true;
 static SDL_RendererFlip	g_logical_frame_flip = SDL_FLIP_NONE;
 static int	g_reader_rotation = 0;
 
@@ -2280,12 +2279,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) ||
-			CreateFramebuffer((g_logical_pipeline
-				? (g_reader_rotation + g_display_rotation)
-				: g_display_rotation) & 1 ? oh : ow,
-				(g_logical_pipeline
-				? (g_reader_rotation + g_display_rotation)
-				: g_display_rotation) & 1 ? ow : oh))
+			CreateFramebuffer(((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
+			((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
 		{
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
@@ -2294,10 +2289,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		}
 		display = DrawSurface();
 	}
-	if (Green_IsDocValid(rtd) && !g_logical_pipeline) {
-		if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
-		else Green_ValidateOffset(rtd->doc, display->w, display->h);
-	}
+	
 	if (Green_IsDocValid( rtd))
 	{
 		state_snapshot = *rtd->doc;
@@ -2333,8 +2325,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			else if (g_state == TOC)
 				TOCStepSel(g_list_nav_dir);
 			else if (g_state == HELP)
-				HelpStepScroll(g_list_nav_dir, HelpMaxScrollForHeight(g_logical_pipeline
-					? display->h : OrientedDisplayHeight(display, g_overlay_rotation)));
+				HelpStepScroll(g_list_nav_dir, HelpMaxScrollForHeight(display->h));
 			g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
 			flags |= FLAG_RENDER;
 		}
@@ -2490,12 +2481,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
 						{
 							Green_Document *doc = rtd->doc;
-							if (g_logical_pipeline) {
-						if (rtd->side_by_side && doc->page_count > 1) {
-							if (ZoomLogicalPDFSpread(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
-						} else if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
-					}
-							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
+							if (rtd->side_by_side && doc->page_count > 1) {
+								if (ZoomLogicalPDFSpread(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
+							} else if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
 						}
 						g_y_held = false;
 					}
@@ -2504,12 +2492,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
 						{
 							Green_Document *doc = rtd->doc;
-							if (g_logical_pipeline) {
-						if (rtd->side_by_side && doc->page_count > 1) {
-							if (ZoomLogicalPDFSpread(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
-						} else if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
-					}
-							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
+							if (rtd->side_by_side && doc->page_count > 1) {
+								if (ZoomLogicalPDFSpread(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
+							} else if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
 						}
 						g_x_held = false;
 					}
@@ -2543,12 +2528,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
-							if (CreateFramebuffer((g_logical_pipeline
-								? (g_reader_rotation + g_display_rotation)
-								: g_display_rotation) & 1 ? oh : ow,
-								(g_logical_pipeline
-								? (g_reader_rotation + g_display_rotation)
-								: g_display_rotation) & 1 ? ow : oh))
+							if (CreateFramebuffer(((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
+								((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;
@@ -2556,10 +2537,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 								break;
 							}
 							display = DrawSurface();
-							if (Green_IsDocValid(rtd) && !g_logical_pipeline) {
-								if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
-								else Green_ValidateOffset(rtd->doc, display->w, display->h);
-							}
+							
 						}
 						flags |= FLAG_RENDER;
 					}

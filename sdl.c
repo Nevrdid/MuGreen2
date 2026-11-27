@@ -1493,8 +1493,9 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 {
 	Green_Document *doc = rtd->doc;
 	Green_Document fit_doc = *doc;
-	int page_w, page_h;
+	int page_w, page_h, max_x, max_y;
 	double scale;
+	int rotation = doc->rotation & 3;
 
 	fit_doc.rotation = 0;
 	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
@@ -1502,9 +1503,30 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
 		&page_w, &page_h))
 		return;
-	doc->xoffset = rtd->right_to_left && page_w > display->w
-		? page_w - display->w : 0;
-	doc->yoffset = 0;
+	max_x = page_w > display->w ? page_w - display->w : 0;
+	max_y = page_h > display->h ? page_h - display->h : 0;
+
+	/* Select the physical reading edge in logical page coordinates. */
+	if (rtd->right_to_left)
+	{
+		switch (rotation)
+		{
+			case 1: doc->yoffset = 0; break;
+			case 2: doc->xoffset = 0; break;
+			case 3: doc->yoffset = max_y; break;
+			default: doc->xoffset = max_x; break;
+		}
+	}
+	else
+	{
+		switch (rotation)
+		{
+			case 1: doc->yoffset = max_y; break;
+			case 2: doc->xoffset = max_x; break;
+			case 3: doc->yoffset = 0; break;
+			default: doc->xoffset = 0; break;
+		}
+	}
 }
 
 /* Scroll in screen directions and change pages at the corresponding edges. */

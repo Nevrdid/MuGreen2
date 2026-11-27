@@ -1102,20 +1102,52 @@ static void RenderLogicalPipelineTestFrame(SDL_Surface *display)
 
 /* Render one unrotated PDF page into the logical framebuffer. The final
  * presentation transform supplies reader rotation, so MuPDF must not rotate
- * the page here. This probe intentionally keeps navigation and overlays out
- * of scope. */
-/* Pan the single logical PDF page using physical D-pad directions.
- * Convert the screen vector back through the final reader rotation, then
- * undo the source flip used to preserve the legacy mirror result. This probe
- * clamps at page edges; page transitions remain deliberately disabled. */
+ * the page here. This probe intentionally keeps overlays and spreads out of
+ * scope. */
+
+/* Return the page direction associated with a physical controller direction.
+ * Left/Up share L1; Right/Down share R1. Keeping this in one helper ensures
+ * edge navigation and shoulder navigation always agree. */
+static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
+{
+	Green_Document *doc = rtd->doc;
+	int page_delta;
+
+	switch (button) {
+		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			page_delta = -1;
+			break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
+			page_delta = 1;
+			break;
+		default:
+			return 0;
+	}
+
+	/* Match the physical left/right shoulder mapping at every rotation. */
+	if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
+		page_delta = -page_delta;
+	if (rtd->right_to_left)
+		page_delta = -page_delta;
+	return page_delta;
+}
+
+/* Pan in logical page coordinates. Only an additional press beyond an edge
+ * changes page: first reach the edge, then cross it on the next D-pad repeat
+ * or press. Page dimensions and viewport dimensions are both logical, so
+ * their bounds remain correct when the physical display axes are swapped. */
 static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
 {
 	Green_Document *doc = rtd->doc;
 	Green_Document fit_doc = *doc;
 	double scale;
-	int page_w, page_h, dx = 0, dy = 0, logical_dx, logical_dy;
-	int step;
-	int old_x = doc->xoffset, old_y = doc->yoffset;
+	int page_w, page_h, max_x, max_y;
+	int dx = 0, dy = 0, logical_dx, logical_dy, step;
+	int old_x, old_y, proposed_x, proposed_y;
 
 	switch (button) {
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: dx = -1; break;
@@ -1138,25 +1170,56 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 		default: logical_dx = dx; logical_dy = dy; break;
 	}
 
-	/* The logical source is flipped vertically for even turns and
-	 * horizontally for odd turns when document mirroring is enabled. */
+	/* Undo the source flip used to preserve the legacy mirror result. */
 	if (doc->mirrored) {
 		if (doc->rotation & 1) logical_dx = -logical_dx;
 		else logical_dy = -logical_dy;
 	}
 
+	max_x = page_w > display->w ? page_w - display->w : 0;
+	max_y = page_h > display->h ? page_h - display->h : 0;
+	old_x = doc->xoffset;
+	old_y = doc->yoffset;
+	if (old_x < 0) old_x = 0;
+	else if (old_x > max_x) old_x = max_x;
+	if (old_y < 0) old_y = 0;
+	else if (old_y > max_y) old_y = max_y;
+	doc->xoffset = old_x;
+	doc->yoffset = old_y;
+
+	/* Do not turn a non-scrollable axis into an immediate page-change key.
+	 * The current page must have real overflow on the axis being panned. */
+	if ((logical_dx < 0 && max_x > 0 && old_x == 0)
+		|| (logical_dx > 0 && max_x > 0 && old_x == max_x)
+		|| (logical_dy < 0 && max_y > 0 && old_y == 0)
+		|| (logical_dy > 0 && max_y > 0 && old_y == max_y)) {
+		int page_delta = LogicalPDFPageDelta(rtd, button);
+		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
+			/* A next page starts at its logical top-left. A previous page
+			 * starts at its logical top-right, irrespective of rotation. */
+			fit_doc = *doc;
+			fit_doc.rotation = 0;
+			scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+			doc->xoffset = 0;
+			doc->yoffset = 0;
+			if (page_delta < 0
+				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
+					&page_w, &page_h)
+				&& page_w > display->w)
+				doc->xoffset = page_w - display->w;
+			return 1;
+		}
+		/* At the first/last page, keep the view clamped at this edge. */
+		return 0;
+	}
+
 	step = logical_dx ? (int)(display->w * rtd->step)
 		: (int)(display->h * rtd->step);
 	if (step < 1) step = 1;
-	doc->xoffset += logical_dx * step;
-	doc->yoffset += logical_dy * step;
-
-	if (doc->xoffset < 0) doc->xoffset = 0;
-	else if (doc->xoffset > page_w - display->w)
-		doc->xoffset = page_w > display->w ? page_w - display->w : 0;
-	if (doc->yoffset < 0) doc->yoffset = 0;
-	else if (doc->yoffset > page_h - display->h)
-		doc->yoffset = page_h > display->h ? page_h - display->h : 0;
+	proposed_x = old_x + logical_dx * step;
+	proposed_y = old_y + logical_dy * step;
+	doc->xoffset = proposed_x < 0 ? 0 : (proposed_x > max_x ? max_x : proposed_x);
+	doc->yoffset = proposed_y < 0 ? 0 : (proposed_y > max_y ? max_y : proposed_y);
 
 	return doc->xoffset != old_x || doc->yoffset != old_y;
 }
@@ -1778,13 +1841,8 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 				break;
 			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: {
-				int rotation = doc->rotation & 3;
-				int page_delta = button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER ? -1 : 1;
-				/* Keep shoulder navigation in the physical left/right direction.
-				 * The page order reverses at 90° and 180°. */
-				if (rotation == 1 || rotation == 2) page_delta = -page_delta;
-				if (rtd->right_to_left) page_delta = -page_delta;
-				if (Green_GotoPage(doc, doc->page_cur + page_delta, true))
+				int page_delta = LogicalPDFPageDelta(rtd, button);
+				if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true))
 					*flags |= FLAG_RENDER;
 				break;
 			}

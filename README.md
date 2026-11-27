@@ -71,12 +71,12 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- PREFIX=/opt/mupdf-aarch64 ./build-mupdf.sh
    ```
 
-   For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`. The script selects an ARMHF compiler prefix by default for this target. For a native build, use `ARCH=native`; it uses the host compiler without a sysroot.
+   For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`. The script selects an ARMHF compiler prefix by default for this target. For a native build, run `ARCH=native ./build-mupdf.sh`; it uses the host compiler without a sysroot.
 
 2. Build MuGreen2:
 
    ```sh
-   make ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- SYSROOT=/path/to/sysroot MUPDF=/opt/mupdf-aarch64 SDL2_CONFIG=/path/to/sdl2-config
+   make ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- MUPDF=/opt/mupdf-aarch64 SDL2_CONFIG=/path/to/sdl2-config
    ```
 
    Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. For a native build, use `make ARCH=native MUPDF=/opt/mupdf-native` after building MuPDF with `ARCH=native`.

@@ -37,8 +37,6 @@ typedef enum
 	
 }	RState;
 
-const Uint32	live_interval = 40;
-
 static RState	g_state = NORMAL;
 
 typedef struct TOCNode
@@ -79,8 +77,6 @@ static bool	g_r2_held = false;
 /* Panel mounted upside down: rotate the finished frame by 180° when presenting (GREEN_ROTATE180=1) */
 static int	g_rotate180 = 0;
 
-/* Brief top-right status toast. */
-
 /* Hold D-pad Up/Down to scroll TOC / help. */
 static int	g_list_nav_dir = 0;
 static Uint32	g_list_nav_next = 0;
@@ -118,11 +114,9 @@ static const char	*g_help_lines[] = {
 	"B              Jump to selected section",
 	"A / Start      Close TOC",
 	"",
-	"Optional / unbound (NULL)",
+	"Optional controls",
 	"",
-	"L3 / R3        NULL (not required)",
-	"Stick axes     NULL (not required)",
-	"Other buttons  NULL (unbound)",
+	"L2 / R2        Page jumps (if supported)",
 };
 #define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
 
@@ -173,26 +167,9 @@ static int	CreateFramebuffer( int w, int h )
 	return 0;
 }
 
-/* Kept as no-ops/plain helpers so the drawing code below does not care about rotation (done in Present) */
-static void	FlipRect( SDL_Surface *s, SDL_Rect *r )
-{
-	(void)s;
-	(void)r;
-}
-
-static void	FillRect( SDL_Surface *s, SDL_Rect *r, Uint32 color )
-{
-	SDL_FillRect( s, r, color );
-}
-
 static Uint8	*DstPixel( SDL_Surface *d, int lx, int ly )
 {
 	return (Uint8 *)d->pixels + ly * d->pitch + lx * d->format->BytesPerPixel;
-}
-
-static int	DstXStepBytes( SDL_Surface *d )
-{
-	return d->format->BytesPerPixel;
 }
 
 static void	Present( void )
@@ -306,44 +283,6 @@ static const unsigned char bitmap_font[][7] = {
 };
 
 
-static Uint32	MapDisplayPixel( Uint32 src, SDL_PixelFormat *fmt, bool night )
-{
-	Uint32	r = (src >> 16) & 0xFF,
-		g = (src >> 8) & 0xFF,
-		b = src & 0xFF;
-	
-	if (night)
-	{
-		r = 0xFF - r;
-		g = 0xFF - g;
-		b = 0xFF - b;
-	}
-	
-	return (((r >> fmt->Rloss) << fmt->Rshift)
-		| ((g >> fmt->Gloss) << fmt->Gshift)
-		| ((b >> fmt->Bloss) << fmt->Bshift));
-}
-
-static Uint32	MapBlendPixel( Uint32 src, SDL_PixelFormat *fmt,
-	Uint32 ia, Uint32 ar, Uint32 ag, Uint32 ab, bool night )
-{
-	Uint32	r = (((src >> 16) & 0xFF) * ia + ar) / 256,
-		g = (((src >> 8) & 0xFF) * ia + ag) / 256,
-		b = ((src & 0xFF) * ia + ab) / 256;
-	
-	if (night)
-	{
-		r = 0xFF - (r & 0xFF);
-		g = 0xFF - (g & 0xFF);
-		b = 0xFF - (b & 0xFF);
-	}
-	
-	return (((r >> fmt->Rloss) << fmt->Rshift)
-		| ((g >> fmt->Gloss) << fmt->Gshift)
-		| ((b >> fmt->Bloss) << fmt->Bshift));
-}
-
-
 /* Draw the window [xoff,xoff+dest.w) x [yoff,yoff+dest.h) of page page_num into the display at dest.
  * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
  * so the window origin is converted here. */
@@ -413,7 +352,7 @@ void DrawChar( SDL_Surface *display, int x, int y, char c, Uint32 color )
 			{
 				pixel.x = x + col * 2;
 				pixel.y = y + row * 2;
-				FillRect( display, &pixel, color );
+				SDL_FillRect( display, &pixel, color );
 			}
 		}
 	}
@@ -632,7 +571,7 @@ static void	RenderTOC( SDL_Surface *display, Green_RTD *rtd )
 	panel.y = 0;
 	panel.w = panel_w;
 	panel.h = display->h;
-	FillRect( display, &panel, SDL_MapRGB( display->format, 0x14, 0x14, 0x14 ) );
+	SDL_FillRect( display, &panel, SDL_MapRGB( display->format, 0x14, 0x14, 0x14 ) );
 	
 	title_col = SDL_MapRGB( display->format, 0xE8, 0xE8, 0xE8 );
 	entry_col = SDL_MapRGB( display->format, 0xB8, 0xB8, 0xB8 );
@@ -675,7 +614,7 @@ static void	RenderTOC( SDL_Surface *display, Green_RTD *rtd )
 			hl.y = y;
 			hl.w = panel_w;
 			hl.h = line_h;
-			FillRect( display, &hl, sel_bg );
+			SDL_FillRect( display, &hl, sel_bg );
 			er = 0xFF;
 			eg = 0xFF;
 			eb = 0x00;
@@ -860,9 +799,9 @@ void	Render( Green_RTD *rtd )
 	rect.w = display->w;
 	rect.h = display->h;
 	if (rtd->night)
-		FillRect( display, &rect, SDL_MapRGB( display->format, 0x10, 0x10, 0x10 ) );
+		SDL_FillRect( display, &rect, SDL_MapRGB( display->format, 0x10, 0x10, 0x10 ) );
 	else
-		FillRect( display, &rect, SDL_MapRGB( display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b ));
+		SDL_FillRect( display, &rect, SDL_MapRGB( display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b ));
 	if (!Green_IsDocValid( rtd))
 	{
 		Present();
@@ -1030,7 +969,7 @@ static void	RenderHelp( SDL_Surface *display )
 	panel.y = 0;
 	panel.w = display->w;
 	panel.h = display->h;
-	FillRect( display, &panel, SDL_MapRGB( display->format, 0x10, 0x10, 0x18 ) );
+	SDL_FillRect( display, &panel, SDL_MapRGB( display->format, 0x10, 0x10, 0x18 ) );
 	
 	title_col = SDL_MapRGB( display->format, 0xFF, 0xFF, 0xCC );
 	text_col = SDL_MapRGB( display->format, 0xD0, 0xD0, 0xD0 );
@@ -1287,16 +1226,6 @@ RState	NormalInput( Green_RTD *rtd, SDL_Event *event, unsigned short *flags )
 	return NORMAL;
 }
 
-Uint32	live_timer( Uint32 interval, void *param )
-{
-	SDL_Event	event;
-	
-	SDL_memset( &event, 0, sizeof( event ) );
-	event.type = SDL_USEREVENT;
-	SDL_PushEvent( &event );
-	return interval;
-}
-
 /* Controller-only input adapter. Unsupported actions deliberately have no binding. */
 static SDL_GameController *OpenFirstController( void )
 {
@@ -1334,14 +1263,13 @@ static SDL_Keycode ControllerButtonKey( Uint8 button )
 
 int	Green_SDL_Main( Green_RTD *rtd )
 {
-	SDL_TimerID	timer = 0;
 	SDL_GameController	*controller = NULL;
 	SDL_Surface	*display;
 	SDL_Event	event;
 	unsigned short	flags = FLAG_RENDER;
 	unsigned char	event_count;
 	
-	if (SDL_Init( SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER ))
+	if (SDL_Init( SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER ))
 	{
 		fprintf( stderr, "SDL_Init failed: %s\n", SDL_GetError() );
 		return 1;
@@ -1393,7 +1321,6 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	if (Green_IsDocValid( rtd))
 		Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
 	
-	timer = SDL_AddTimer( live_interval, live_timer, NULL );
 	SDL_ShowCursor( SDL_DISABLE );
 	
 	do
@@ -1407,10 +1334,25 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		}
 		
 		event_count = 0;
-		if (!SDL_WaitEvent( &event ))
+		if (g_list_nav_dir && (g_state == TOC || g_state == HELP))
+		{
+			Uint32 now = SDL_GetTicks();
+			int timeout = g_list_nav_next <= now ? 0 : (int)(g_list_nav_next - now);
+			if (!SDL_WaitEventTimeout( &event, timeout ))
+			{
+				if (g_state == TOC)
+					TOCStepSel( g_list_nav_dir );
+				else
+					HelpStepScroll( g_list_nav_dir, HelpMaxScroll( display ) );
+				g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
+				flags |= FLAG_RENDER;
+				continue;
+			}
+		}
+		else if (!SDL_WaitEvent( &event ))
 		{
 			SDL_Quit();
-				return -1;
+			return -1;
 		}
 		
 		do
@@ -1669,7 +1611,6 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	}	while (!(flags&FLAG_QUIT));
 	
 	Green_SaveAllLastPages( rtd );
-	SDL_RemoveTimer( timer );
 	if (controller) SDL_GameControllerClose( controller );
 	DestroyFramebuffer();
 	if (g_renderer)

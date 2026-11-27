@@ -1893,14 +1893,14 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 		case SDL_CONTROLLER_BUTTON_Y:
 			if (doc) {
 				Green_MirrorH(doc);
-				ShowActionMessage(doc->mirrored ? "Horizontal mirror ON" : "Horizontal mirror OFF");
+				ShowActionMessage("Horizontal mirror toggled");
 			}
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_X:
 			if (doc) {
 				Green_MirrorV(doc);
-				ShowActionMessage(doc->mirrored ? "Vertical mirror ON" : "Vertical mirror OFF");
+				ShowActionMessage("Vertical mirror toggled");
 			}
 			*flags |= FLAG_RENDER;
 			break;

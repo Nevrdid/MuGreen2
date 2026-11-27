@@ -221,7 +221,11 @@ static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
 	int lp, rp, lw, lh, rw, rh, old_sw, old_sh, new_sw, new_sh;
 	double scale, anchor_x, anchor_y, old_fs = doc->finescale;
 	int margin_x, margin_y;
-	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) return;
+	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
+		/* The unpaired first/last page is rendered as a normal full-width page. */
+		Green_Zoom(doc, vw, vh, new_fs);
+		return;
+	}
 	old_sw = lw + rw; old_sh = lh > rh ? lh : rh;
 	anchor_x = doc->xoffset + vw / 2.0 - (old_sw < vw ? (vw - old_sw) / 2.0 : 0);
 	anchor_y = doc->yoffset + vh / 2.0 - (old_sh < vh ? (vh - old_sh) / 2.0 : 0);

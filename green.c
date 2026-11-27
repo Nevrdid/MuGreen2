@@ -35,10 +35,9 @@
 #include "green.h"
 
 
-/* Per-document state lives below XDG_DATA_HOME (or ~/.local/share).
- * Two independent 64-bit hashes keep filenames short; the URI is stored
- * inside each file and checked on load to detect the vanishingly unlikely
- * event of a hash collision.
+/* Per-document state lives below the shared MuGreen2 data directory.
+ * Two independent 64-bit hashes keep filenames short; the canonical URI is
+ * stored inside each file and checked on load to detect hash collisions.
  */
 static uint64_t StateHash( const char *text, uint64_t basis, uint64_t prime )
 {

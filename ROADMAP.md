@@ -67,16 +67,14 @@ No legacy settings/state migration is planned unless a concrete production requi
 - When the reader's rotation is 90° or 180°, swap the two physical spread slots to compensate for the corresponding physical handheld turn. 270° remains in the original slot order.
 - Add a manual session-only override on Select+D-pad Down (dual-page mode only), leaving Select+B available for night mode for devices whose physical rotation direction differs; it resets the spread pan to a valid origin when toggled.
 
-**User verification:** the continuous spread zoom/scroll issue and the 180° spread-slot compensation are reported fixed. The 90° compensation and manual Select+B override are newly implemented and need device testing: rotate the PDF 90° with the reader control, physically turn the handheld 90°, and confirm the first page appears at the physical top; confirm 180° remains correct and 270° remains unchanged. Confirm Select+B still toggles night mode; test Select+D-pad Down in dual-page mode, confirm it reverses the slots and a second press restores them, and confirm it does not affect single-page mode. Also test LTR/RTL, mixed page sizes, first/last single-page cases, dual-page toggling, and restored state.
+**User verification:** the continuous spread zoom/scroll issue and the 180° spread-slot compensation are reported fixed. The 90° compensation and manual Select+D-pad Down override are newly implemented and need device testing: rotate the PDF 90° with the reader control, physically turn the handheld 90°, and confirm the first page appears at the physical top; confirm 180° remains correct and 270° remains unchanged. Confirm Select+B still toggles night mode; test Select+D-pad Down in dual-page mode, confirm it reverses the slots and a second press restores them, and confirm it does not affect single-page mode. Also test LTR/RTL, mixed page sizes, first/last single-page cases, dual-page toggling, and restored state.
 
 ## Phase 3 — Reading and navigation
 
-**Status: Planned / review existing implementation before changing it.**
+**Status: Batch A implemented on `main`; build/runtime verification pending. Remaining Phase 3 batches are planned.**
 
-- Page indicator and page feedback.
-- Scrolling overlap/step behaviour (confirmed default: 90% viewport movement, 10% overlap).
-- Controller repeat behaviour and navigation consistency (confirmed initial delay: 300 ms; repeat interval: 100 ms).
-- Page indicator visibility (confirmed: temporary overlay after navigation).
+- **Batch A — implemented; verification pending:** temporary page/spread indicator for 1.2 seconds after the current page changes; default scroll step changed to 0.9 (10% overlap), retaining `-step` overrides; D-pad hold-repeat unified across normal reading, TOC and help, with a 300 ms initial delay and 100 ms repeat interval. The event loop now waits against the next repeat, state-save, or indicator-expiry deadline.
+- Verify Batch A on a build/device: page indicator for single-page and dual-page navigation (including an odd final page), overlay expiry and readability; 90% scroll movement in all four rotations and dual-page mode; custom `-step` override; short taps versus held D-pad in reading/TOC/help; release stops repeat immediately; state transitions and hot-plug cancel repeat cleanly.
 - Synchronise the current TOC section with the visible page.
 - Fit modes and direct go-to-page workflow.
 - Controller presence and mapping feedback:

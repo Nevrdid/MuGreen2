@@ -15,7 +15,7 @@ GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 /path/to/document.pdf
 For a panel mounted upside down, also test:
 
 ```sh
-GREEN_TEST_LOGICAL_FRAME=1 -display-rotation=180 ./mugreen2 /path/to/document.pdf
+GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 -display-rotation=180 /path/to/document.pdf
 ```
 
 The test pattern bypasses PDF rendering and the normal UI. It still opens the document so the reader's existing rotation control can change the test orientation.

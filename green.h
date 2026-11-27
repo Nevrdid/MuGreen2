@@ -48,6 +48,7 @@ typedef struct {
 } Green_RTD;
 
 int Green_Open(Green_RTD *rtd, char *uri);
+int Green_SDL_Main(Green_RTD *rtd);
 void Green_Close(Green_RTD *rtd);
 void Green_SaveAllLastPages(Green_RTD *rtd);
 void Green_LoadSettings(Green_RTD *rtd);

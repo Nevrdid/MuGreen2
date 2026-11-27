@@ -46,7 +46,8 @@ direction takes precedence over the saved global preference. Display rotation
 is independent and does not change document navigation direction.
 
 In this probe:
-- **B / A (SDL button names)** retain the reader's existing rotate / reset actions. Physical labels depend on the controller's SDL mapping; on the user's Nintendo-layout controller, physical **A** rotates and physical **B** resets the view.
+- **Select + Left** rotates the reader clockwise; **Select + Right** rotates it anti-clockwise. Rotation is no longer bound to the face button.
+- On the user's Nintendo-layout controller, physical **B** still resets the view to width-fit and the top of the page; physical **A** no longer rotates the reader.
 - **L1 / R1** move to the previous / next page. In the logical-PDF probe, their page direction is reversed at 90° and 180° so the physical left/right behaviour stays consistent; RTL reading reverses it again.
 - **L2 / R2** are ignored in this probe; the normal ten-page skip action is intentionally disabled.
 - The reset action returns to width-fit and the top of the page.

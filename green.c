@@ -495,30 +495,43 @@ void	Green_GetScrollRegion( Green_Document *doc, int w, int h, int *scroll_w, in
 	return;
 }
 
-int	Green_Open( Green_RTD *rtd, char *uri )
+pb_open_result Green_Open( Green_RTD *rtd, const char *filename, char *message, size_t message_size )
 {
 	Green_Document	*doc;
+	pb_open_result result;
 
-	if (!rtd || !uri || !*uri || rtd->doc)
-		return -1;
-	doc = malloc( sizeof( *doc ) );
+	if (message && message_size)
+		message[0] = 0;
+	if (!rtd || !filename || !*filename || rtd->doc)
+	{
+		if (message && message_size)
+			snprintf( message, message_size, "invalid document argument" );
+		return PB_OPEN_INVALID_ARGUMENT;
+	}
+	doc = calloc( 1, sizeof( *doc ) );
 	if (!doc)
-		return -1;
+	{
+		if (message && message_size)
+			snprintf( message, message_size, "out of memory allocating document" );
+		return PB_OPEN_NO_MEMORY;
+	}
 	
-	doc->uri = FilenameToURI( uri );
+	doc->uri = FilenameToURI( filename );
 	
 	if (!doc->uri)
 	{
+		if (message && message_size)
+			snprintf( message, message_size, "could not resolve document path" );
 		free( doc );
-		return -1;
+		return PB_OPEN_IO_ERROR;
 	}
 	
-	doc->doc = pb_open( doc->uri );
-	if (!doc->doc)
+	result = pb_open( doc->uri, &doc->doc, message, message_size );
+	if (result != PB_OPEN_OK)
 	{
 		free( doc->uri );
 		free( doc );
-		return -2;
+		return result;
 	}
 	
 	doc->page_count = pb_page_count( doc->doc );
@@ -532,7 +545,7 @@ int	Green_Open( Green_RTD *rtd, char *uri )
 	doc->bb = rtd->bb;
 	RestoreLastPage( doc );
 	rtd->doc = doc;
-	return 0;
+	return PB_OPEN_OK;
 }
 
 void	Green_Close( Green_RTD *rtd )

@@ -1487,12 +1487,8 @@ static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
 
 static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display);
 
-/* Page turn keeps finescale + pan in normal mode; manga mode starts at top-right. */
-
-
-/* Position a newly selected page at the leading corner. Offsets are stored in
- * unrotated document space, so this remains the original top-right corner
- * regardless of the current display rotation. */
+/* Reset the viewport to the physical reading edge after changing reading
+ * direction. The selected logical offset axis depends on reader rotation. */
 static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 {
 	Green_Document *doc = rtd->doc;

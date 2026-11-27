@@ -21,7 +21,7 @@ The on-screen help panel lists the current bindings. The default is the Nintendo
 | Input | Action |
 | --- | --- |
 | D-pad | Scroll / navigate the table of contents |
-| B | Fit page to width / select TOC entry |
+| A | Fit page to width / select TOC entry |
 | Select + Left | Rotate clockwise |
 | Select + Right | Rotate anti-clockwise |
 | X / Y | Zoom in / zoom out |
@@ -31,7 +31,7 @@ The on-screen help panel lists the current bindings. The default is the Nintendo
 | Select | Tap for help; hold as a modifier |
 | Select + Start | Exit |
 | Guide | Exit (optional) |
-| Select + B | Toggle night mode |
+| Select + B | Toggle night mode (after rotation/layout remapping) |
 | Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
 | Select + R1 | Toggle right-to-left manga reading |

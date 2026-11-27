@@ -56,6 +56,17 @@ Remaining hardening batches:
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.
 
+## Corrective rendering fix — continuous dual-page spread
+
+**Status: Implemented on `main`; local build and device verification pending.** This is a focused correction to the existing dual-page view, not the start of Phase 3.
+
+- Treat a facing-page pair as one continuous virtual spread rather than two independently clipped half-screen panes.
+- Render only the visible intersection of each page, allowing either page to move naturally beyond the viewport.
+- Use the full display width for horizontal spread scrolling and preserve the viewport-centre reading position when zooming. With no pan, that point is the centre of the spread; after panning a page to the centre, zoom remains anchored on that page.
+- Keep RTL page ordering and page-pair navigation, and reset/clamp spread offsets when changing layout or rotation.
+
+**Local verification still required:** initial two-page fit, zoom at the untouched spread centre, pan until the left page is centred and zoom there, pan/zoom across the seam in both directions, vertical scrolling, RTL order, rotation, mixed page sizes, first/last single-page cases, and switching dual-page mode on/off. Also confirm restored state behaves correctly after saving in dual-page mode.
+
 ## Phase 3 — Reading and navigation
 
 **Status: Planned / review existing implementation before changing it.**

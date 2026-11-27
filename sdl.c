@@ -95,7 +95,6 @@ static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
 static char	g_action_message[80] = "";
 static Uint32	g_action_message_until = 0;
-static int	g_overlay_rotation = 0;
 /* SDL presents the logical content framebuffer with one final transform. */
 static int	g_reader_rotation = 0;
 
@@ -618,7 +617,7 @@ static void	RebuildTOCFlat( void )
 	return;
 }
 
-static void RenderTOCContent(SDL_Surface *display, int rotation)
+static void RenderTOCContent(SDL_Surface *display)
 {
 	SDL_Rect panel, hl;
 	Uint32 title_col, entry_col, sel_col, sel_bg;
@@ -628,24 +627,16 @@ static void RenderTOCContent(SDL_Surface *display, int rotation)
 
 	if (!g_toc_active) return;
 
-	/* Keep the TOC on the physical left edge. In logical overlay coordinates,
-	 * that edge moves with rotation: left, bottom, right, then top. */
-	panel_extent = ((rotation & 1) ? display->h : display->w) * 3 / 4;
+	/* Draw the TOC along the logical left edge. The final presentation
+	 * transform rotates this overlay with the reader. */
+	panel_extent = display->w * 3 / 4;
 	if (panel_extent < 200)
-		panel_extent = ((rotation & 1) ? display->h : display->w) < 200
-			? ((rotation & 1) ? display->h : display->w) : 200;
+		panel_extent = display->w < 200 ? display->w : 200;
 
 	origin_x = 0;
 	origin_y = 0;
-	content_w = display->w;
+	content_w = panel_extent;
 	content_h = display->h;
-	switch (rotation & 3)
-	{
-		case 1: origin_y = display->h - panel_extent; content_h = panel_extent; break;
-		case 2: origin_x = display->w - panel_extent; content_w = panel_extent; break;
-		case 3: content_h = panel_extent; break;
-		default: content_w = panel_extent; break;
-	}
 
 	panel.x = origin_x;
 	panel.y = origin_y;
@@ -713,7 +704,7 @@ static void RenderTOC(SDL_Surface *display, Green_RTD *rtd)
 {
 	(void)rtd;
 	if (g_toc_active)
-		RenderTOCContent(display, 0);
+		RenderTOCContent(display);
 }
 
 static int	FindParentIndex( TOCNode *target )
@@ -1515,7 +1506,6 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			g_reader_rotation = rotation;
 			display = DrawSurface();
 		}
-		g_overlay_rotation = rotation;
 		SDL_FillRect(display, NULL, SDL_MapRGB(display->format,
 			rtd->night ? 0x10 : rtd->c_background.r,
 			rtd->night ? 0x10 : rtd->c_background.g,
@@ -1526,7 +1516,6 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	}
 	else
 	{
-		g_overlay_rotation = g_reader_rotation;
 		rect.x = rect.y = 0;
 		rect.w = display->w;
 		rect.h = display->h;

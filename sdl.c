@@ -2085,13 +2085,13 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						ListNavStop();
 					else if (button == SDL_CONTROLLER_BUTTON_X && g_y_held)
 					{
-						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+						if (g_state == NORMAL && Green_IsDocValid( rtd ) && !g_logical_pdf_test)
 						{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
 						g_y_held = false;
 					}
 					else if (button == SDL_CONTROLLER_BUTTON_Y && g_x_held)
 					{
-						if (g_state == NORMAL && Green_IsDocValid( rtd ))
+						if (g_state == NORMAL && Green_IsDocValid( rtd ) && !g_logical_pdf_test)
 					{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
 						g_x_held = false;
 					}

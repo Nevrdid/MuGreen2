@@ -982,21 +982,11 @@ static RState	OpenTOCPanel( Green_RTD *rtd, unsigned short *flags )
 	return TOC;
 }
 
-/* Horizontal pan only: ~1/20 of view width per click (min 8px) */
-static int	HPanStep( int vw )
-{
-	int	s = vw / 20;
-	
-	if (s < 8)
-		s = 8;
-	return s;
-}
-
 static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 {
 	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
 	SDL_Surface *display = DrawSurface();
-	int vw = ViewWidth( rtd ), hstep = HPanStep( vw );
+	int vw = ViewWidth( rtd ), hstep = (int)(vw * rtd->step);
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:

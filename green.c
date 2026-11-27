@@ -112,10 +112,10 @@ static char *DocumentStatePath( const char *uri, char *path, size_t size )
 
 static double ClampFineScale( double scale )
 {
-	if (!isfinite( scale ) || scale < GREEN_MIN_FINESCale)
-		return GREEN_MIN_FINESCale;
-	if (scale > GREEN_MAX_FINESCale)
-		return GREEN_MAX_FINESCale;
+	if (!isfinite( scale ) || scale < GREEN_MIN_FINE_SCALE)
+		return GREEN_MIN_FINE_SCALE;
+	if (scale > GREEN_MAX_FINE_SCALE)
+		return GREEN_MAX_FINE_SCALE;
 	return scale;
 }
 

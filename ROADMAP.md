@@ -13,7 +13,7 @@ This roadmap tracks implementation scope and verification status. Items are not 
 
 ## Phase 2 — State, persistence, and failure robustness
 
-**Status: In progress — Batch A verified by the user; Batch B implemented, local verification pending.**
+**Status: In progress — Batch A verified; Batch B partially verified by the user; Batch C pending.**
 
 Already implemented:
 - Strict document-state parsing and validation.
@@ -32,12 +32,25 @@ Already implemented:
 - Document the canonical-path identity limitation: moving/renaming a file or opening it through another mount path starts fresh state.
 
 User verification:
+- **Batch A:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory — verified by the user.
 - Document state survives forced termination after the debounce fix.
 - Dual-page preference persistence still needs local rebuild/runtime confirmation.
+- **Batch B — verified so far:** a normal PDF opens and exits normally; a nonexistent path returns exit code `2`; a text file renamed to `.pdf` returns `4`; normal single-page/dual-page rendering and rotation work; invalid CLI options are recognised; `<datadir>/mugreen2.log` is created and populated.
+- Invalid CLI option diagnostics are reported to stderr and are not currently expected in the application log.
+
+**Batch B tests still outstanding (do not mark Batch B fully verified until these are tested):**
+- Exit code `3` for an unreadable file — not testable on the user's current test device because it only has a root account. Revisit on a non-root system.
+- Exit code `5` for a password-protected PDF — no suitable test document currently available.
+- A deliberately broken middle page: confirm the placeholder appears, navigation continues, and the next launch does not get stuck on that page.
+- A dual-page spread with one broken page and one valid page.
+- Recoverable content/image errors: confirm the warning marker and corresponding log entry.
+- Empty PDFs and malformed/non-positive page dimensions, when suitable test files are available.
+- A render-failing PDF/page to exercise the stable render-failure exit/recovery path, if a suitable sample becomes available.
+- Recheck invalid-path diagnostics in `mugreen2.log` (the user reports the log is populated; this is retained as a distinct check from invalid CLI option handling).
 
 Remaining hardening batches:
 - **Batch A — implemented and verified by the user:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
-- **Batch B — implementation revised from review feedback; local verification pending:** show an on-screen placeholder for page render failures and keep navigation alive; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README.
+- **Batch B — implementation complete; verification partial:** show an on-screen placeholder for page render failures and keep navigation alive; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README. See the outstanding test list above.
 - **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3. MuPDF soft content/image errors are captured through `fz_cookie` during display-list construction and replay, logged once per page, and marked in the page view. Open and render failures are also appended to `<datadir>/mugreen2.log` when the data directory is writable.
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.

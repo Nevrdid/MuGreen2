@@ -1,6 +1,6 @@
 # MuGreen2
 
-A lightweight, controller-driven PDF reader based on the Green reader, using **MuPDF** for PDF rendering and **SDL2** for display and game-controller input.
+A lightweight, controller-driven PDF reader based on the Green reader, using **MuPDF** for PDF rendering and **SDL2** for display and game-controller input through SDL's GameController API.
 
 This is a single-document reader for embedded Linux devices. The build supports AArch64 and 32-bit ARM hard-float targets.
 
@@ -45,7 +45,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 | --- | --- | --- |
 | PDF engine | libpoppler | MuPDF, through the dedicated `pdf_backend` wrapper |
 | Documents | Multiple documents could be opened and switched between in one process | One PDF document is opened per invocation |
-| Input | SDL frontends with keyboard-oriented navigation | SDL2 keyboard input plus an integrated SDL GameController mapping |
+| Input | SDL frontends with keyboard-oriented navigation | SDL2 GameController input with controller hot-plug support |
 | Navigation | Page scrolling, page stepping, direct page entry and text search | Page scrolling and shoulder-button page stepping, plus navigation through the PDF's document outline / table of contents |
 | Display | Single-page viewing, fit modes and zoom | Fit and zoom, rotation, horizontal/vertical mirroring, optional dual-page view and night mode |
 | Reading state | Configuration and display schemes | Per-document reading position and view state are saved, alongside the user's night-mode setting |
@@ -54,7 +54,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 
 - MuPDF replaces libpoppler as the PDF parsing and rendering engine.
 - The reader is deliberately single-document: launch `mugreen2` again for another PDF rather than switching between several open documents.
-- A controller can operate the reader without relying on a keyboard. Keyboard input is still supported by the SDL interface.
+- Input is handled through SDL2's GameController API. MuGreen2 currently uses a controller-first interface; keyboard navigation is not implemented.
 - The PDF outline is exposed as an on-screen, navigable table of contents when the document provides one.
 - The view can be rotated or mirrored, shown in dual-page mode, and switched to night mode. Per-document position and view settings are restored on a later launch.
 - Green's multi-document switching, interactive text-search workflow and direct page-entry workflow are not currently exposed in MuGreen2. The original configuration/scheme mechanism remains available.
@@ -81,7 +81,7 @@ The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-
 
    Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds.
 
-4. Run it with one PDF:
+3. Run it with one PDF:
 
    ```sh
    ./mugreen2 /path/to/document.pdf

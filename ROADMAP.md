@@ -71,10 +71,12 @@ No legacy settings/state migration is planned unless a concrete production requi
 
 ## Phase 3 — Reading and navigation
 
-**Status: Batch A implemented on `main`; build/runtime verification pending. Remaining Phase 3 batches are planned.**
+**Status: Batch A implemented on `main`; first-pass device verification partly complete. Presentation corrections are committed and awaiting retest. Remaining Phase 3 batches are planned.**
 
-- **Batch A — implemented; verification pending:** temporary page/spread indicator for 1.2 seconds after the current page changes; default scroll step changed to 0.9 (10% overlap), retaining `-step` overrides; D-pad hold-repeat unified across normal reading, TOC and help, with a 300 ms initial delay and 100 ms repeat interval. The event loop now waits against the next repeat, state-save, or indicator-expiry deadline.
-- Verify Batch A on a build/device: page indicator for single-page and dual-page navigation (including an odd final page), overlay expiry and readability; 90% scroll movement in all four rotations and dual-page mode; custom `-step` override; short taps versus held D-pad in reading/TOC/help; release stops repeat immediately; state transitions and hot-plug cancel repeat cleanly.
+- **Batch A — implemented:** temporary page/spread indicator for 1.2 seconds after the current page changes; default scroll step changed to 0.9 (10% overlap), retaining `-step` overrides; D-pad hold-repeat unified across normal reading, TOC and help, with a 300 ms initial delay and 100 ms repeat interval. The event loop now waits against the next repeat, state-save, or indicator-expiry deadline.
+- **User-verified:** normal reading hold-repeat and release behaviour; default scrolling; custom `-step` override; unpaired final page indicator behaviour. The first-pass test reports these working correctly.
+- **Presentation corrections awaiting retest:** indicator background width now uses the bitmap font's actual 12-pixel character advance; page indicator and help panel are rendered in reader-rotated coordinates/orientation; help content now includes useful reading guidance and can scroll on shorter logical display heights.
+- **Still to verify:** indicator background/readability on white pages; indicator position and text orientation at 90°, 180° and 270°; help panel orientation at all rotations and its D-pad scrolling where content exceeds the viewport; TOC repeat with a PDF containing an outline; state transitions and controller hot-plug cancel repeat cleanly. Build verification has not yet been performed.
 - Synchronise the current TOC section with the visible page.
 - Fit modes and direct go-to-page workflow.
 - Controller presence and mapping feedback:

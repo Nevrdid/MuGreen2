@@ -46,6 +46,7 @@ typedef struct {
 	char *uri;
 	int page_count, page_cur, xoffset, yoffset;
 	bool mirrored;
+	bool mirror_vertical;
 	int rotation;
 	Green_FitMethod fit_method;
 	double finescale;
@@ -63,6 +64,8 @@ typedef struct {
 	bool spread_vertical;
 	/* Controller face-button convention; false = Nintendo, true = Xbox. */
 	bool xbox_layout;
+	/* Rotate controller directions/buttons with the reader rotation. */
+	bool controls_rotate;
 	/* Explicit command-line startup overrides; applied after restoring document state. */
 	int startup_rotation;
 	bool startup_rotation_set;
@@ -123,10 +126,14 @@ inline static void Green_RotateLeft(Green_Document *doc)
 	if (doc->mirrored) doc->rotation = (doc->rotation + 1) % 4;
 	else doc->rotation = (doc->rotation + 3) % 4;
 }
-inline static void Green_MirrorH(Green_Document *doc) { doc->mirrored = !doc->mirrored; }
+inline static void Green_MirrorH(Green_Document *doc)
+{
+	doc->mirrored = !doc->mirrored;
+	doc->mirror_vertical = false;
+}
 inline static void Green_MirrorV(Green_Document *doc)
 {
 	doc->mirrored = !doc->mirrored;
-	doc->rotation = (doc->rotation + 2) % 4;
+	doc->mirror_vertical = true;
 }
 #endif /* __GREEN_H__ */

@@ -12,6 +12,18 @@
 #include <stddef.h>
 #include <stdint.h>
 typedef struct pb_doc pb_doc;
+typedef enum {
+	PB_OPEN_OK = 0,
+	PB_OPEN_INVALID_ARGUMENT,
+	PB_OPEN_NOT_FOUND,
+	PB_OPEN_NOT_READABLE,
+	PB_OPEN_NOT_REGULAR,
+	PB_OPEN_INVALID_DOCUMENT,
+	PB_OPEN_PASSWORD_REQUIRED,
+	PB_OPEN_NO_MEMORY,
+	PB_OPEN_BACKEND_ERROR,
+	PB_OPEN_IO_ERROR
+} pb_open_result;
 const char *pb_backend_name(void);
 typedef enum { PB_FMT_XRGB8888 = 0, PB_FMT_RGB565 = 1 } pb_format;
 typedef struct { float x0, y0, x1, y1; } pb_rect;
@@ -20,7 +32,8 @@ typedef struct {
 	int page, level, is_open, has_children;
 } pb_outline_item;
 void pb_configure(size_t store_bytes, int aa_bits);
-pb_doc *pb_open(const char *path);
+pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t message_size);
+const char *pb_error_message(pb_doc *d);
 void pb_close(pb_doc *d);
 int pb_page_count(pb_doc *d);
 int pb_page_size(pb_doc *d, int page, float *w, float *h);

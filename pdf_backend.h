@@ -34,6 +34,8 @@ typedef struct {
 void pb_configure(size_t store_bytes, int aa_bits);
 pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t message_size);
 const char *pb_error_message(pb_doc *d);
+int pb_page_has_warnings(pb_doc *d, int page);
+int pb_take_page_warning(pb_doc *d, int page);
 void pb_close(pb_doc *d);
 int pb_page_count(pb_doc *d);
 int pb_page_size(pb_doc *d, int page, float *w, float *h);

@@ -31,7 +31,7 @@ struct pb_doc {
 
 static fz_context *g_ctx;
 static int   g_refs;
-static size_t g_store = 16u << 20;
+static size_t g_store = 32u << 20;
 static int   g_aa = 8;
 static uint8_t *g_scratch;	/* BGRA scratch for the RGB565 path */
 static size_t g_scratch_sz;

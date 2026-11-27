@@ -227,10 +227,10 @@ static char *SkipSpace( char *p )
 /* Parse the complete state record without scanf's undefined behaviour for
  * out-of-range integer conversions, and reject missing or trailing fields. */
 static bool ParseDocumentState( char *line, int *page, double *scale,
-	int *x, int *y, int *rotation, int *mirrored, int *fit )
+	int *x, int *y, int *rotation, int *mirrored, int *mirror_vertical, int *fit, int version )
 {
 	char *p = line, *end;
-	long values[6];
+	long values[7];
 	double d;
 	int i;
 
@@ -245,7 +245,7 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 	if (end == p || errno == ERANGE || !isfinite( d ))
 		return false;
 	p = end;
-	for (i = 1; i < 6; i++)
+	for (i = 1; i < (version == 2 ? 7 : 6); i++)
 	{
 		p = SkipSpace( p );
 		errno = 0;
@@ -263,7 +263,8 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 	*y = (int)values[2];
 	*rotation = (int)values[3];
 	*mirrored = (int)values[4];
-	*fit = (int)values[5];
+	*mirror_vertical = version == 2 ? (int)values[5] : 0;
+	*fit = version == 2 ? (int)values[6] : (int)values[5];
 	return true;
 }
 
@@ -271,7 +272,7 @@ static bool LoadDocumentState( Green_Document *doc )
 {
 	char path[PATH_MAX + 64], saved_uri[8192], line[512];
 	FILE *file;
-	int page, x, y, rotation, mirrored, fit;
+	int page, x, y, rotation, mirrored, mirror_vertical, fit, version;
 	double scale;
 
 	if (!DocumentStatePath( doc->uri, path, sizeof( path )))
@@ -279,12 +280,14 @@ static bool LoadDocumentState( Green_Document *doc )
 	file = fopen( path, "r" );
 	if (!file)
 		return false;
-	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\n" )
+	if (!fgets( line, sizeof( line ), file )
+		|| (strcmp( line, "MUGREEN2 1\n" ) && strcmp( line, "MUGREEN2 2\n" ))
 		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
 	{
 		fclose( file );
 		return false;
 	}
+	version = line[9] - '0';
 	/* A truncated URI must never be accepted as a different document. */
 	if (!strchr( saved_uri, '\n' ) && !feof( file ))
 	{
@@ -294,7 +297,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
 	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
 		|| (!strchr( line, '\n' ) && !feof( file ))
-		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit )
+		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &mirror_vertical, &fit, version )
 		|| fgetc( file ) != EOF || ferror( file ))
 	{
 		fclose( file );
@@ -304,6 +307,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	if (page < 1 || page > doc->page_count
 		|| scale <= 0 || rotation < 0 || rotation > 3
 		|| mirrored < 0 || mirrored > 1
+		|| mirror_vertical < 0 || mirror_vertical > 1
 		|| fit < NATURAL || fit > PAGE)
 		return false;
 
@@ -313,6 +317,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	doc->yoffset = y < 0 ? 0 : y;
 	doc->rotation = ((rotation % 4) + 4) % 4;
 	doc->mirrored = mirrored != 0;
+	doc->mirror_vertical = mirror_vertical != 0;
 	doc->fit_method = (Green_FitMethod)fit;
 	return true;
 }
@@ -388,12 +393,13 @@ static void SaveDocumentState( Green_Document *doc )
 		return;
 	scale = ClampFineScale( doc->finescale );
 	if (snprintf( content, sizeof( content ),
-		"MUGREEN2 1\n%s\n%d %.6f %d %d %d %d %d\n",
+		"MUGREEN2 2\n%s\n%d %.6f %d %d %d %d %d %d\n",
 		doc->uri, doc->page_cur + 1, scale,
 		doc->xoffset < 0 ? 0 : doc->xoffset,
 		doc->yoffset < 0 ? 0 : doc->yoffset,
 		((doc->rotation % 4) + 4) % 4,
 		doc->mirrored ? 1 : 0,
+		doc->mirror_vertical ? 1 : 0,
 		doc->fit_method >= NATURAL && doc->fit_method <= PAGE ? (int)doc->fit_method : WIDTH ) >= (int)sizeof( content ))
 		return;
 	AtomicWriteText( path, content );
@@ -544,6 +550,12 @@ pb_open_result Green_Open( Green_RTD *rtd, const char *filename, char *message, 
 	doc->finescale = 1;
 	doc->bb = rtd->bb;
 	RestoreLastPage( doc );
+	/* Command-line reader rotation takes precedence over saved document state. */
+	if (rtd->startup_rotation_set) {
+		doc->rotation = ((rtd->startup_rotation % 4) + 4) % 4;
+		doc->xoffset = 0;
+		doc->yoffset = 0;
+	}
 	rtd->doc = doc;
 	return PB_OPEN_OK;
 }
@@ -619,12 +631,13 @@ void	Green_LoadSettings( Green_RTD *rtd )
 	FILE	*file;
 	char	*path = SettingsPath();
 	char	line[128];
-	bool side_by_side;
+	bool side_by_side, spread_vertical;
 	
 	if (!rtd || !path)
 		return;
 	
 	side_by_side = rtd->side_by_side != 0;
+	spread_vertical = rtd->spread_vertical;
 	file = fopen( path, "r" );
 	if (!file)
 		return;
@@ -634,23 +647,28 @@ void	Green_LoadSettings( Green_RTD *rtd )
 		(void)ParseBooleanSetting( line, "night=", &rtd->night );
 		(void)ParseBooleanSetting( line, "right_to_left=", &rtd->right_to_left );
 		(void)ParseBooleanSetting( line, "side_by_side=", &side_by_side );
+		(void)ParseBooleanSetting( line, "spread_vertical=", &spread_vertical );
+		(void)ParseBooleanSetting( line, "xbox_layout=", &rtd->xbox_layout );
 	}
 	
 	fclose( file );
 	rtd->side_by_side = side_by_side ? 1 : 0;
+	rtd->spread_vertical = spread_vertical;
 	return;
 }
 
 void	Green_SaveSettings( Green_RTD *rtd )
 {
 	char	*path = SettingsPath();
-	char	content[96];
+	char	content[128];
 	
 	if (!rtd || !path)
 		return;
 	
-	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\nside_by_side=%d\n",
-		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0, rtd->side_by_side ? 1 : 0 );
+	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\nside_by_side=%d\nspread_vertical=%d\nxbox_layout=%d\n",
+		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0,
+		rtd->side_by_side ? 1 : 0, rtd->spread_vertical ? 1 : 0,
+		rtd->xbox_layout ? 1 : 0 );
 	AtomicWriteText( path, content );
 	return;
 }
@@ -703,71 +721,39 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 
 	if (doc->rotation == 1)
 	{
-		doc_dx = doc->mirrored ? -y : y;
+		doc_dx = y;
 		doc_dy = -x;
 		left_border = doc->yoffset == doc_max_y;
 		right_border = doc->yoffset == 0;
-		if (doc->mirrored)
-		{
-			top_border = doc->xoffset == doc_max_x;
-			bottom_border = doc->xoffset == 0;
-		}
-		else
-		{
-			top_border = doc->xoffset == 0;
-			bottom_border = doc->xoffset == doc_max_x;
-		}
+		top_border = doc->xoffset == 0;
+		bottom_border = doc->xoffset == doc_max_x;
 	}
 	else if (doc->rotation == 2)
 	{
 		doc_dx = -x;
-		doc_dy = doc->mirrored ? y : -y;
+		doc_dy = -y;
 		left_border = doc->xoffset == doc_max_x;
 		right_border = doc->xoffset == 0;
-		if (doc->mirrored)
-		{
-			top_border = doc->yoffset == 0;
-			bottom_border = doc->yoffset == doc_max_y;
-		}
-		else
-		{
-			top_border = doc->yoffset == doc_max_y;
-			bottom_border = doc->yoffset == 0;
-		}
+		top_border = doc->yoffset == doc_max_y;
+		bottom_border = doc->yoffset == 0;
 	}
 	else if (doc->rotation == 3)
 	{
-		doc_dx = doc->mirrored ? y : -y;
+		doc_dx = -y;
 		doc_dy = x;
 		left_border = doc->yoffset == 0;
 		right_border = doc->yoffset == doc_max_y;
-		if (doc->mirrored)
-		{
-			top_border = doc->xoffset == 0;
-			bottom_border = doc->xoffset == doc_max_x;
-		}
-		else
-		{
-			top_border = doc->xoffset == doc_max_x;
-			bottom_border = doc->xoffset == 0;
-		}
+		top_border = doc->xoffset == doc_max_x;
+		bottom_border = doc->xoffset == 0;
 	}
 	else
 	{
 		doc_dx = x;
-		doc_dy = doc->mirrored ? -y : y;
+		doc_dy = y;
 		left_border = doc->xoffset == 0;
 		right_border = doc->xoffset == doc_max_x;
-		if (doc->mirrored)
-		{
-			top_border = doc->yoffset == doc_max_y;
-			bottom_border = doc->yoffset == 0;
-		}
-		else
-		{
-			top_border = doc->yoffset == 0;
-			bottom_border = doc->yoffset == doc_max_y;
-		}
+		top_border = doc->yoffset == 0;
+		bottom_border = doc->yoffset == doc_max_y;
 	}
 	
 	if (bb_flag)
@@ -843,13 +829,13 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 				{
 					Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
 					if (doc->rotation == 1)
-						doc->xoffset = doc->mirrored ? max_y : 0;
+						doc->xoffset = 0;
 					else if (doc->rotation == 2)
-						doc->yoffset = doc->mirrored ? 0 : max_y;
+						doc->yoffset = max_y;
 					else if (doc->rotation == 3)
-						doc->xoffset = doc->mirrored ? 0 : max_y;
+						doc->xoffset = max_y;
 					else
-						doc->yoffset = doc->mirrored ? max_y : 0;
+						doc->yoffset = 0;
 					
 					Green_ValidateOffset( doc, w, h );
 				}
@@ -871,13 +857,13 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 				{
 					Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
 					if (doc->rotation == 1)
-						doc->xoffset = doc->mirrored ? 0 : max_y;
+						doc->xoffset = max_y;
 					else if (doc->rotation == 2)
-						doc->yoffset = doc->mirrored ? max_y : 0;
+						doc->yoffset = 0;
 					else if (doc->rotation == 3)
-						doc->xoffset = doc->mirrored ? max_y : 0;
+						doc->xoffset = max_y;
 					else
-						doc->yoffset = doc->mirrored ? 0 : max_y;
+						doc->yoffset = max_y;
 					
 					Green_ValidateOffset( doc, w, h );
 				}

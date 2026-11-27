@@ -46,6 +46,7 @@ typedef struct {
 	char *uri;
 	int page_count, page_cur, xoffset, yoffset;
 	bool mirrored;
+	bool mirror_vertical;
 	int rotation;
 	Green_FitMethod fit_method;
 	double finescale;
@@ -60,6 +61,15 @@ typedef struct {
 	unsigned char bb, side_by_side;
 	bool night;
 	bool right_to_left;
+	bool spread_vertical;
+	/* Controller face-button convention; false = Nintendo, true = Xbox. */
+	bool xbox_layout;
+	/* Rotate controller directions/buttons with the reader rotation. */
+	bool controls_rotate;
+	/* Explicit command-line startup overrides; applied after restoring document state. */
+	int startup_rotation;
+	bool startup_rotation_set;
+	int display_rotation;
 } Green_RTD;
 
 pb_open_result Green_Open(Green_RTD *rtd, const char *filename, char *message, size_t message_size);
@@ -108,18 +118,26 @@ inline static int Green_GotoPage(Green_Document *doc, int page, bool set_offset)
 }
 inline static void Green_RotateRight(Green_Document *doc)
 {
-	if (doc->mirrored) doc->rotation = (doc->rotation + 3) % 4;
-	else doc->rotation = (doc->rotation + 1) % 4;
+	doc->rotation = (doc->rotation + 1) % 4;
 }
 inline static void Green_RotateLeft(Green_Document *doc)
 {
-	if (doc->mirrored) doc->rotation = (doc->rotation + 1) % 4;
-	else doc->rotation = (doc->rotation + 3) % 4;
+	doc->rotation = (doc->rotation + 3) % 4;
 }
-inline static void Green_MirrorH(Green_Document *doc) { doc->mirrored = !doc->mirrored; }
+inline static void Green_MirrorH(Green_Document *doc)
+{
+	if (doc->mirrored && !doc->mirror_vertical)
+		doc->mirrored = false;
+	else
+		doc->mirrored = true;
+	doc->mirror_vertical = false;
+}
 inline static void Green_MirrorV(Green_Document *doc)
 {
-	doc->mirrored = !doc->mirrored;
-	doc->rotation = (doc->rotation + 2) % 4;
+	if (doc->mirrored && doc->mirror_vertical)
+		doc->mirrored = false;
+	else
+		doc->mirrored = true;
+	doc->mirror_vertical = true;
 }
 #endif /* __GREEN_H__ */

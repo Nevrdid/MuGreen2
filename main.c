@@ -40,6 +40,12 @@ const char	*help_text =
 "    -fit=<mode>                 initial fit: none, width, height or page\n"
 "    -step=<fraction>            scroll step as a fraction of the viewport (default: 0.9)\n"
 "    -zoomstep=<fraction>        zoom increment as a fraction (default: 1/5)\n"
+"    -rotation=<degrees>         initial reader rotation: 0, 90, 180 or 270\n"
+"    -display-rotation=<degrees> rotate the complete display: 0, 90, 180 or 270\n"
+"    -rtl                        start in right-to-left reading order\n"
+"    -ltr                        start in left-to-right reading order\n"
+"    -controller-layout=<mode>   face buttons: xbox (default) or nintendo\n"
+"    -no-control-rotation        keep controls fixed when rotating the reader\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
 "    -width=<width>              to specify the window width (in pixels)\n"
@@ -130,8 +136,14 @@ int	main( int argc, char *argv[] )
 	rtd.zoomstep = 1.2;	/* ~20% per zoom click */
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
+	rtd.spread_vertical = false;
+	rtd.xbox_layout = true;
+	rtd.controls_rotate = true;
 	rtd.night = false;
 	rtd.right_to_left = false;
+	rtd.startup_rotation = 0;
+	rtd.startup_rotation_set = false;
+	rtd.display_rotation = 0;
 	Green_LoadSettings( &rtd );
 	
 	for (i = 1; i < argc; i++)
@@ -161,6 +173,52 @@ int	main( int argc, char *argv[] )
 				rtd.fit_method = PAGE;
 			else if (!strcmp( opt, "none" ))
 				rtd.fit_method = NATURAL;
+			else
+				err = -1;
+		}
+		else if (!strncmp( opt, "rotation=", 9 ))
+		{
+			opt += 9;
+			if (!strcmp( opt, "0" ))
+				rtd.startup_rotation = 0;
+			else if (!strcmp( opt, "90" ))
+				rtd.startup_rotation = 1;
+			else if (!strcmp( opt, "180" ))
+				rtd.startup_rotation = 2;
+			else if (!strcmp( opt, "270" ))
+				rtd.startup_rotation = 3;
+			else
+				err = -1;
+			if (!err)
+				rtd.startup_rotation_set = true;
+		}
+		else if (!strncmp( opt, "display-rotation=", 17 ))
+		{
+			opt += 17;
+			if (!strcmp( opt, "0" ))
+				rtd.display_rotation = 0;
+			else if (!strcmp( opt, "90" ))
+				rtd.display_rotation = 1;
+			else if (!strcmp( opt, "180" ))
+				rtd.display_rotation = 2;
+			else if (!strcmp( opt, "270" ))
+				rtd.display_rotation = 3;
+			else
+				err = -1;
+		}
+		else if (!strcmp( opt, "rtl" ))
+			rtd.right_to_left = true;
+		else if (!strcmp( opt, "ltr" ))
+			rtd.right_to_left = false;
+		else if (!strcmp( opt, "no-control-rotation" ))
+			rtd.controls_rotate = false;
+		else if (!strncmp( opt, "controller-layout=", 18 ))
+		{
+			opt += 18;
+			if (!strcmp( opt, "nintendo" ))
+				rtd.xbox_layout = false;
+			else if (!strcmp( opt, "xbox" ))
+				rtd.xbox_layout = true;
 			else
 				err = -1;
 		}

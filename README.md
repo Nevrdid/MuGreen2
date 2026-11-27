@@ -63,15 +63,15 @@ The original Green-derived files retain Florian Tobias Schandinat's copyright an
 
 ## Build
 
-The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and SDL2 development files first. If `SYSROOT` is not supplied, the build scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
+The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and, for cross-builds, a target sysroot containing the platform development files required by SDL2. AArch64/ARMHF builds require libdrm, libgbm, EGL and GLES2 headers and libraries for KMSDRM/OpenGL ES 2. If `SYSROOT` is not supplied, the build scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
 
 1. Build SDL2 for the target architecture:
 
    ```sh
-   ARCH=aarch64 ./build_sdl2.sh
+   ARCH=aarch64 ./build-sdl2.sh
    ```
 
-   SDL2 is installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. For a native build, use `ARCH=native ./build_sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release.
+   SDL2 is built statically and installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. The Makefile uses `sdl2-config --static-libs`, so the SDL2 shared library does not need to be deployed. For a native build, use `ARCH=native ./build-sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release. The default release has a pinned SHA-256; other versions require an explicit `SDL2_SHA256`. Cross-builds fail if KMSDRM, EGL or GLES2 support is not detected.
 
 2. Build the trimmed static MuPDF libraries:
 
@@ -81,7 +81,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`. The script selects an ARMHF compiler prefix by default for this target. For a native build, run `ARCH=native ./build-mupdf.sh`; it uses the host compiler without a sysroot.
 
-   By default, the installed headers and libraries are kept separately in `mupdf/aarch64/`, `mupdf/armhf/`, and `mupdf/native/`. Building one architecture therefore won't overwrite another architecture's installed MuPDF files. Set `PREFIX` to override the install location if needed.
+   By default, the installed headers and libraries are kept separately in `mupdf/aarch64/`, `mupdf/armhf/`, and `mupdf/native/`. Building one architecture therefore won't overwrite another architecture's installed MuPDF files. Set `MUPDF_PREFIX` to override the MuPDF install location. `PREFIX` is reserved for the application install target in the Makefile.
 
 3. Build MuGreen2 against the matching MuPDF and SDL2 builds:
 
@@ -105,7 +105,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    ./mugreen2 /path/to/document.pdf
    ```
 
-The MuPDF build script downloads the MuPDF 1.24.11 source release and verifies its SHA-256 checksum before extraction. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download. Checksum verification is performed when the archive is extracted; if the corresponding source directory already exists, the script reuses it without re-verifying the extracted tree. Remove that directory to force a fresh, verified extraction.
+Both dependency build scripts verify pinned SHA-256 checksums before extracting their default source releases: MuPDF 1.24.11 and SDL2 2.30.8. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download. Checksum verification is performed when the archive is extracted; if the corresponding source directory already exists, the script reuses it without re-verifying the extracted tree. Remove that directory to force a fresh, verified extraction.
 
 ## Saved settings
 

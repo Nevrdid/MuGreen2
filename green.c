@@ -482,18 +482,15 @@ void	Green_LoadSettings( Green_RTD *rtd )
 
 void	Green_SaveSettings( Green_RTD *rtd )
 {
-	FILE	*file;
 	char	*path = SettingsPath();
+	char	content[64];
 	
 	if (!rtd || !path)
 		return;
 	
-	file = fopen( path, "w" );
-	if (!file)
-		return;
-	
-	fprintf( file, "night=%d\nright_to_left=%d\n", rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0 );
-	fclose( file );
+	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\n",
+		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0 );
+	AtomicWriteText( path, content );
 	return;
 }
 

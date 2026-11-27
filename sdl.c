@@ -184,8 +184,9 @@ static void RenderSpreadPage(Green_RTD *rtd, int page, int px, int py,
 	const char *error = NULL;
 	if (x1 >= x2 || y1 >= y2) return;
 	clip.x = x1; clip.y = y1; clip.w = x2 - x1; clip.h = y2 - y1;
+	/* These crop coordinates are already in transformed device space;
+	 * pb_render applies rotation and mirroring to the page itself. */
 	sx = x1 - px; sy = y1 - py;
-	if (doc->mirrored) sy = ph - sy - clip.h;
 	if (pb_render(doc->doc, page, (float)scale, doc->rotation & 3,
 		doc->mirrored, rtd->night, sx, sy, clip.w, clip.h, PB_FMT_XRGB8888,
 		DstPixel(display, clip.x, clip.y), display->pitch))

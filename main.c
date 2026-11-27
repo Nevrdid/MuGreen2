@@ -78,6 +78,7 @@ const char	*help_text =
 "    -no-fullscreen              to startup in window mode\n"
 "    -width=<width>              to specify the window width (in pixels)\n"
 "    -height=<height>            to specify the window height (in pixels)\n"
+"    -cache=<MB>                 MuPDF store size in MiB (default: 32)\n"
 "    -help                       shows this help\n"
 "    -version                    displays version information\n"
 "\n"
@@ -813,6 +814,7 @@ int	main( int argc, char *argv[] )
 	struct SchemeArray	schemes;
 	char	*opt, *config_file = NULL, *default_scheme = NULL, *current_scheme = NULL;
 	int i, err = 0, pdf_count = 0;
+	size_t mupdf_store_bytes = 32u << 20;
 	char *pdf_file = NULL;
 	
 	rtd.flags = 0;
@@ -982,6 +984,17 @@ int	main( int argc, char *argv[] )
 			if (*opt)
 				err = -1;
 		}
+		else if (!strncmp( opt, "cache=", 6 ))
+		{
+			char *end;
+			unsigned long mb;
+			opt += 6;
+			mb = strtoul( opt, &end, 10 );
+			if (*end || mb < 1 || mb > 1024)
+				err = -1;
+			else
+				mupdf_store_bytes = (size_t)mb << 20;
+		}
 		else if (!strcmp( opt, "fullscreen" ))
 			rtd.flags |= GREEN_FULLSCREEN;
 		else if (!strcmp( opt, "no-fullscreen" ))
@@ -1010,6 +1023,7 @@ int	main( int argc, char *argv[] )
 		PrintHelp();
 		return 1;
 	}
+	pb_configure( mupdf_store_bytes, -1 );
 	if (Green_Open( &rtd, pdf_file ) < 0)
 	{
 		fprintf( stderr, "Failed to open: %s\n", pdf_file );

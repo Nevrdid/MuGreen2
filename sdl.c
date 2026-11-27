@@ -919,8 +919,6 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			next_page = rotation == 1 ? -1 : 1;
 		else if (sy > 0 && bottom_border)
 			next_page = rotation == 1 ? 1 : -1;
-		if (rtd->right_to_left)
-			next_page = -next_page;
 	}
 	else
 	{
@@ -940,8 +938,6 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			Green_ScrollRelative( doc, 0, sy, w, h, 0 );
 			return 1;
 		}
-		if (rtd->right_to_left)
-			next_page = -next_page;
 	}
 
 	if (next_page)

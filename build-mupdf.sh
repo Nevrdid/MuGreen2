@@ -1,5 +1,5 @@
 #!/bin/sh
-# Cross-compile a trimmed static MuPDF for ARCH=aarch64 or ARCH=armhf.
+# Build a trimmed static MuPDF for AArch64, ARMHF, or the native host.
 set -eu
 MUPDF_VER=${MUPDF_VER:-1.24.11}
 ARCH=${ARCH:-aarch64}

@@ -75,7 +75,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 - The reader is deliberately single-document: launch `mugreen2` again for another PDF rather than switching between several open documents.
 - Input is handled through SDL2's GameController API. MuGreen2 currently uses a controller-first interface; keyboard navigation is not implemented.
 - The PDF outline is exposed as an on-screen, navigable table of contents when the document provides one.
-- The view can be rotated or mirrored, shown in dual-page mode, and switched to night mode. Per-document position and view settings are restored on a later launch.
+- The view can be rotated or mirrored, shown in dual-page mode, and switched to night mode. In dual-page mode, both pages form one continuous spread for scrolling and zooming; zoom is anchored at the current viewport centre. Per-document position and view settings are restored on a later launch.
 - Green's multi-document switching, interactive text-search workflow, direct page-entry workflow and legacy configuration/scheme system are not implemented in MuGreen2. Window size, fullscreen mode and MuPDF cache size can be set with command-line options.
 
 The original Green-derived files retain Florian Tobias Schandinat's copyright and GPL-3.0 notices. MuPDF is integrated as the rendering backend; see the licensing notes below and the `LICENSE` file for the terms applying to the combined application.

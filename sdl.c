@@ -1176,10 +1176,10 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 	if (error)
 		goto render_error;
 
-	/* Stored offsets are in unrotated document space. In this single-page
-	 * probe, spread offsets are deliberately ignored rather than misapplied. */
-	offset_x = rtd->side_by_side ? 0 : doc->xoffset;
-	offset_y = rtd->side_by_side ? 0 : doc->yoffset;
+	/* This probe always renders one page, even if the saved reader
+	 * preference is dual-page. Offsets therefore remain active here. */
+	offset_x = doc->xoffset;
+	offset_y = doc->yoffset;
 	if (offset_x < 0) offset_x = 0;
 	if (offset_y < 0) offset_y = 0;
 	if (page_w <= display->w) offset_x = 0;

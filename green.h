@@ -16,6 +16,8 @@
 /* This Green-derived header retains its original GPL-3.0 terms.
  * The combined MuGreen2 application is distributed under AGPL-3.0-only;
  * see LICENSE and README.md. The original copyright notice is preserved.
+ * MuGreen2 modifications and adaptation: 2026; distributed as part of
+ * the AGPL-3.0-only application. Original Green attribution is retained.
  */
 #ifndef __GREEN_H__
 #define __GREEN_H__

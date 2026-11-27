@@ -63,7 +63,7 @@ The original Green-derived files retain Florian Tobias Schandinat's copyright an
 
 ## Build
 
-The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-toolchain and SDL2 development files first.
+The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and SDL2 development files first. If `SYSROOT` is not supplied, both scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
 
 1. Build the trimmed static MuPDF libraries:
 
@@ -71,7 +71,7 @@ The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-
    ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- PREFIX=/opt/mupdf-aarch64 ./build-mupdf.sh
    ```
 
-   For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`.
+   For 32-bit hard-float ARM, use `ARCH=armhf` with a suitable hard-float compiler prefix, such as `arm-linux-gnueabihf-`. The script selects an ARMHF compiler prefix by default for this target. For a native build, use `ARCH=native`; it uses the host compiler without a sysroot.
 
 2. Build MuGreen2:
 
@@ -79,7 +79,7 @@ The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-
    make ARCH=aarch64 CROSS_COMPILE=/path/to/bin/aarch64-linux-gnu- SYSROOT=/path/to/sysroot MUPDF=/opt/mupdf-aarch64 SDL2_CONFIG=/path/to/sdl2-config
    ```
 
-   Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds.
+   Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. For a native build, use `make ARCH=native MUPDF=/opt/mupdf-native` after building MuPDF with `ARCH=native`.
 
 3. Run it with one PDF:
 
@@ -87,7 +87,7 @@ The build scripts accept `ARCH` and `CROSS_COMPILE`. Install the matching cross-
    ./mugreen2 /path/to/document.pdf
    ```
 
-The MuPDF build script downloads the MuPDF 1.24.11 source release and builds the static libraries. It requires network access for that download on the first run.
+The MuPDF build script downloads the MuPDF 1.24.11 source release and verifies its SHA-256 checksum before extraction. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download.
 
 ## Saved settings
 

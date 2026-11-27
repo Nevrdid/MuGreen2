@@ -135,6 +135,7 @@ static const char	*g_help_lines[] = {
 #define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
 
 
+static SDL_Surface *DrawSurface(void);
 static Uint8 *DstPixel(SDL_Surface *d, int lx, int ly);
 void DrawString(SDL_Surface *display, int x, int y, const char *str, Uint32 color);
 

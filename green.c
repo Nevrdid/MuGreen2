@@ -486,10 +486,12 @@ void	Green_LoadSettings( Green_RTD *rtd )
 	FILE	*file;
 	char	*path = SettingsPath();
 	char	line[128];
+	bool side_by_side;
 	
 	if (!rtd || !path)
 		return;
 	
+	side_by_side = rtd->side_by_side != 0;
 	file = fopen( path, "r" );
 	if (!file)
 		return;
@@ -498,22 +500,24 @@ void	Green_LoadSettings( Green_RTD *rtd )
 	{
 		(void)ParseBooleanSetting( line, "night=", &rtd->night );
 		(void)ParseBooleanSetting( line, "right_to_left=", &rtd->right_to_left );
+		(void)ParseBooleanSetting( line, "side_by_side=", &side_by_side );
 	}
 	
 	fclose( file );
+	rtd->side_by_side = side_by_side ? 1 : 0;
 	return;
 }
 
 void	Green_SaveSettings( Green_RTD *rtd )
 {
 	char	*path = SettingsPath();
-	char	content[64];
+	char	content[96];
 	
 	if (!rtd || !path)
 		return;
 	
-	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\n",
-		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0 );
+	snprintf( content, sizeof( content ), "night=%d\nright_to_left=%d\nside_by_side=%d\n",
+		rtd->night ? 1 : 0, rtd->right_to_left ? 1 : 0, rtd->side_by_side ? 1 : 0 );
 	AtomicWriteText( path, content );
 	return;
 }

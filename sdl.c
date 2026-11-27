@@ -1247,9 +1247,11 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_B:
 			if (!doc)
 				break;
-			Green_RotateRight( doc );
-			if (rtd->side_by_side && doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
-			else Green_ValidateOffset(doc, display->w, display->h);
+			Green_RotateRight(doc);
+			if (rtd->side_by_side && doc->page_count > 1) {
+				doc->xoffset = doc->yoffset = 0;
+				ClampSpreadOffset(rtd, display->w, display->h);
+			} else Green_ValidateOffset(doc, display->w, display->h);
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -1291,7 +1293,7 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;
-			if (doc) { if (doc->page_count > 1) doc->xoffset = doc->yoffset = 0; else SetPageStart(doc, rtd->right_to_left, ViewWidth(rtd), display->h); }
+			if (doc) { if (rtd->side_by_side && doc->page_count > 1) doc->xoffset = doc->yoffset = 0; else SetPageStart(doc, rtd->right_to_left, ViewWidth(rtd), display->h); }
 			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER;
 			break;

@@ -6,10 +6,10 @@ ARCH=${ARCH:-aarch64}
 case "$ARCH" in
  native)
   # A native build must never inherit a cross-compiler from the environment.
-  CROSS_COMPILE=
+  unset CROSS_COMPILE
   ;;
  aarch64|armhf)
-  if [ "${CROSS_COMPILE+x}" != x ]; then
+  if [ -z "${CROSS_COMPILE:-}" ]; then
    case "$ARCH" in
     aarch64)
      CROSS_COMPILE=/opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
@@ -28,7 +28,7 @@ case "$ARCH" in
   ;;
  *) echo "Unsupported ARCH=$ARCH (choose aarch64, armhf, or native)." >&2; exit 1 ;;
 esac
-CC_BASE="${CROSS_COMPILE}gcc"
+CC_BASE="${CROSS_COMPILE:-}gcc"
 if [ "${SYSROOT+x}" != x ]; then
  SYSROOT=$("$CC_BASE" -print-sysroot 2>/dev/null || true)
  if [ "$SYSROOT" = "/" ]; then SYSROOT=; fi
@@ -49,9 +49,9 @@ esac
 SYSROOT_FLAG=
 if [ -n "$SYSROOT" ]; then SYSROOT_FLAG="--sysroot=$SYSROOT"; fi
 CC="$CC_BASE $SYSROOT_FLAG"
-CXX="${CROSS_COMPILE}g++ $SYSROOT_FLAG"
-AR="${CROSS_COMPILE}ar"; RANLIB="${CROSS_COMPILE}ranlib"; LD="${CROSS_COMPILE}ld"
-OBJCOPY="${CROSS_COMPILE}objcopy"; OBJDUMP="${CROSS_COMPILE}objdump"
+CXX="${CROSS_COMPILE:-}g++ $SYSROOT_FLAG"
+AR="${CROSS_COMPILE:-}ar"; RANLIB="${CROSS_COMPILE:-}ranlib"; LD="${CROSS_COMPILE:-}ld"
+OBJCOPY="${CROSS_COMPILE:-}objcopy"; OBJDUMP="${CROSS_COMPILE:-}objdump"
 mkdir -p "$WORK"; cd "$WORK"
 if [ ! -d "mupdf-$MUPDF_VER-source" ]; then
  ARCHIVE="mupdf-$MUPDF_VER-source.tar.gz"

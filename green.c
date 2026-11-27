@@ -21,6 +21,7 @@
  * the AGPL-3.0-only application. Original Green attribution is retained.
  */
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -73,32 +74,103 @@ static int EnsureDirectory( char *path )
 	return MakeDirectory( path );
 }
 
-static char *DocumentStatePath( const char *uri, char *path, size_t size )
-{
-	const char *base = getenv( "XDG_DATA_HOME" );
-	const char *home = getenv( "HOME" );
-	char directory[1024];
-	uint64_t h1, h2;
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
-	if (!uri || !*uri) return NULL;
-	if (base && *base)
+/* Resolve one writable, shared application data directory. All settings and
+ * per-document state use this directory so launchers have one override. */
+static char *GetDataDirectory( void )
+{
+	static char directory[PATH_MAX];
+	static bool resolved = false;
+	static bool warned = false;
+	const char *override, *xdg, *home;
+	char candidate[PATH_MAX], executable[PATH_MAX];
+	ssize_t length;
+	char *slash;
+	int n;
+
+	if (resolved)
+		return directory[0] ? directory : NULL;
+	resolved = true;
+
+	override = getenv( "MUGREEN2_DATA_DIR" );
+	if (override && *override)
 	{
-		if (snprintf( directory, sizeof( directory ), "%s/mugreen2/documents", base ) >= (int)sizeof( directory ))
-			return NULL;
-		/* Create the XDG data root as well if it does not exist yet. */
+		if (override[0] == '/')
+			n = snprintf( candidate, sizeof( candidate ), "%s", override );
+		else
 		{
-			char root[1024];
-			if (snprintf( root, sizeof( root ), "%s", base ) >= (int)sizeof( root) || EnsureDirectory( root ))
-				return NULL;
+			char *cwd = getcwd( NULL, 0 );
+			if (!cwd) n = -1;
+			else
+			{
+				n = snprintf( candidate, sizeof( candidate ), "%s/%s", cwd, override );
+				free( cwd );
+			}
+		}
+		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+			goto use_candidate;
+	}
+
+	xdg = getenv( "XDG_DATA_HOME" );
+	if (xdg && xdg[0] == '/')
+	{
+		n = snprintf( candidate, sizeof( candidate ), "%s/mugreen2", xdg );
+		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+			goto use_candidate;
+	}
+
+	home = getenv( "HOME" );
+	if (home && home[0] == '/')
+	{
+		n = snprintf( candidate, sizeof( candidate ), "%s/.local/share/mugreen2", home );
+		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+			goto use_candidate;
+	}
+
+	/* /proc/self/exe is available on the Linux handheld targets. The
+	 * executable directory is deliberately the final, writable-if-possible
+	 * fallback rather than an assumed writable system installation path. */
+	length = readlink( "/proc/self/exe", executable, sizeof( executable ) - 1 );
+	if (length > 0 && length < (ssize_t)sizeof( executable ))
+	{
+		executable[length] = 0;
+		slash = strrchr( executable, '/' );
+		if (slash)
+		{
+			*slash = 0;
+			n = snprintf( candidate, sizeof( candidate ), "%s/.mugreen2-data", executable );
+			if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+				goto use_candidate;
 		}
 	}
-	else
+
+	if (!warned)
 	{
-		if (!home || !*home ||
-			snprintf( directory, sizeof( directory ), "%s/.local/share/mugreen2/documents", home ) >= (int)sizeof( directory ))
-			return NULL;
+		fprintf( stderr, "MuGreen2: warning: no writable data directory; reading state and settings will not be saved. Set MUGREEN2_DATA_DIR to choose a writable directory.\n" );
+		warned = true;
 	}
-	if (EnsureDirectory( directory ))
+	return NULL;
+
+use_candidate:
+	if (snprintf( directory, sizeof( directory ), "%s", candidate ) >= (int)sizeof( directory))
+		return NULL;
+	return directory;
+}
+
+static char *DocumentStatePath( const char *uri, char *path, size_t size )
+{
+	char directory[PATH_MAX];
+	const char *base = GetDataDirectory();
+	uint64_t h1, h2;
+	int n;
+
+	if (!uri || !*uri || !base)
+		return NULL;
+	n = snprintf( directory, sizeof( directory ), "%s/documents", base );
+	if (n < 0 || n >= (int)sizeof( directory ) || EnsureDirectory( directory ))
 		return NULL;
 
 	h1 = StateHash( uri, UINT64_C(14695981039346656037), UINT64_C(1099511628211) );
@@ -173,7 +245,7 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 
 static bool LoadDocumentState( Green_Document *doc )
 {
-	char path[1200], saved_uri[8192], line[512];
+	char path[PATH_MAX + 64], saved_uri[8192], line[512];
 	FILE *file;
 	int page, x, y, rotation, mirrored, fit;
 	double scale;
@@ -226,7 +298,7 @@ static bool LoadDocumentState( Green_Document *doc )
  * durable across a sudden power loss on filesystems that support it. */
 static void AtomicWriteText( const char *path, const char *content )
 {
-	char temporary[1240], directory[1200], *slash;
+	char temporary[PATH_MAX + 128], directory[PATH_MAX + 64], *slash;
 	int fd, dirfd;
 	FILE *file;
 	size_t length;
@@ -286,7 +358,7 @@ static void AtomicWriteText( const char *path, const char *content )
 
 static void SaveDocumentState( Green_Document *doc )
 {
-	char path[1200], content[9000];
+	char path[PATH_MAX + 64], content[9000];
 	double scale;
 	if (!doc || !DocumentStatePath( doc->uri, path, sizeof( path )))
 		return;
@@ -349,10 +421,23 @@ static char *PathToURI( const char *path )
 
 char* FilenameToURI( char *filename )
 {
-	char *cwd = NULL, *absolute = NULL, *uri;
+	char *canonical, *cwd = NULL, *absolute = NULL, *uri;
 	size_t len;
+
 	if (!filename || !*filename)
 		return NULL;
+
+	/* Canonical paths make equivalent launcher spellings share one state
+	 * record. realpath requires the document to exist; retain the previous
+	 * absolute-path fallback so failures remain representable. */
+	canonical = realpath( filename, NULL );
+	if (canonical)
+	{
+		uri = PathToURI( canonical );
+		free( canonical );
+		return uri;
+	}
+
 	if (filename[0] == '/')
 		return PathToURI( filename );
 	cwd = getcwd( NULL, 0 );
@@ -454,14 +539,12 @@ void	Green_SaveAllLastPages( Green_RTD *rtd )
 	return;
 }
 
-static char	*SettingsPath( void )
+static char *SettingsPath( void )
 {
-	static char	path[512];
-	const char	*home = getenv( "HOME" );
-	
-	if (!home || !*home)
-		return NULL;
-	if (snprintf( path, sizeof( path ), "%s/.green.settings", home ) >= (int)sizeof( path ))
+	static char path[PATH_MAX + 32];
+	const char *directory = GetDataDirectory();
+
+	if (!directory || snprintf( path, sizeof( path ), "%s/settings", directory ) >= (int)sizeof( path ))
 		return NULL;
 	return path;
 }

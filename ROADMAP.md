@@ -96,24 +96,55 @@ Review current `main` before implementing any item; some listed functionality ma
 
 ## Phase 4 — Rendering and performance
 
-**Status: Logical renderer cleanup built and device-tested by the user. Temporary action feedback is implemented and awaiting device verification. Not merged into `main`.**
+**Status: Logical renderer merged into `main` and core rendering/navigation/mirroring behaviour device-tested by the user. Temporary action-feedback overlay is implemented; its expiry/replacement behaviour still needs explicit device verification. Performance optimisation and the post-merge review below are planned, not implemented.**
 
-- **Logical framebuffer and final presentation transform — implemented and device-tested.** PDF content is rasterised without document rotation into a logical framebuffer; the complete content frame is rotated once during SDL presentation. Reader rotation and the independent `-display-rotation=0|90|180|270` mounting correction are supported.
-- **Single-page rendering, panning and zoom — implemented and device-tested.** The user confirmed X/Y zoom, viewport-centred anchoring, horizontal/vertical panning, edge clamping and continued zoom operation after reset or reader rotation.
-- **Page and spread navigation — implemented and device-tested.** L1/R1, D-pad edge transitions and rotation-aware horizontal/vertical direction mappings work in the user's tests. L2/R2 ten-page skips were confirmed in single-page and dual-page modes, including document start/end.
-- **Facing-page spreads — implemented and device-tested.** Horizontal stacking is the default; Select+Up toggles vertical stacking and the choice persists. The axis remains stable through reader rotations. RTL and the explicit Select+Down page-order override are supported. A minor occasional previous-spread entry-corner inconsistency remains accepted as non-blocking.
-- **UI overlays — implemented and device-tested.** TOC placement, help panel and page indicator passed the user's orientation checks. UI stays readable and is not mirrored with PDF content.
-- **Controller and startup configuration — implemented and device-tested.** Select+Left rotates clockwise; Select+Right rotates anti-clockwise. Startup options include `-rotation=0|90|180|270`, `-display-rotation=0|90|180|270`, and `-rtl` / `-ltr`.
-- **Legacy SDL cleanup — implemented, built and device-tested.** The logical renderer is now the only rendering path. The old SDL page renderer, rotation-specific spread geometry, legacy zoom/scroll/page-transition code and temporary overlay-surface compositing helpers were removed. The `sdl.c` file decreased from 2,768 to 2,272 lines in this cleanup pass. The PDF backend API no longer accepts rotation or mirroring arguments; all in-repository call sites render unrotated pages. A pre-cleanup safety branch, `experiment-render-pipeline-pre-cleanup`, preserves the previously tested parallel implementation.
-- **Rotation-aware controller mapping and mirror/orientation separation — implementation updated on this branch; build and device verification pending.** Button events are normalised centrally before reaching normal reading, Select chords, help and TOC. The D-pad and A/B/X/Y rotate with the reader; `-controller-layout=nintendo|xbox` selects the face-button convention, with Xbox as the default when no saved preference exists; the global settings file persists the choice as `xbox_layout=1` (Xbox) or `xbox_layout=0` (Nintendo). `-no-control-rotation` keeps controls fixed while the reader rotates. Mirroring is a page-rendering-only operation: each PDF page is mirrored independently, without transforming spread placement/order, UI, reader rotation, reading direction, controller bindings, hotkeys or scrolling. Mirror axis is converted for the combined reader/display rotation. Document-state format 2 persists the axis while remaining able to read format 1.
-- **Temporary action feedback overlay — implemented; device verification pending.** Controller shortcuts briefly display action labels on the existing transparent UI layer, including rotation, reading direction, night mode, mirroring, view reset, spread layout/order and dual-page mode. Notifications are transient and do not interrupt reading.
-- **Remaining verification:** test the action messages on-device, including rapid successive actions replacing the current message and expiry while idle. The user reports performance is at least comparable and possibly faster, but no formal benchmark has been run.
-- Do not merge automatically. Review the final diff and architecture after action-overlay verification.
+### Completed and user-verified
 
-- MuPDF display-list/page rendering cache.
-- Tune MuPDF store/cache sizing and lifecycle.
-- Optimise outline/TOC lookup.
-- Profile and improve renderer performance and font-atlas handling.
+- **Logical framebuffer and final presentation transform.** PDF content is rasterised in unrotated logical page coordinates. The complete content frame is rotated once during SDL presentation. Reader rotation and the independent `-display-rotation=0|90|180|270` physical-mount correction remain separate.
+- **Single-page rendering, panning and zoom.** X/Y zoom, viewport-centred anchoring, horizontal/vertical panning, edge clamping and continued zoom after reset or reader rotation were tested by the user.
+- **Page and spread navigation.** L1/R1, D-pad edge transitions and rotation-aware horizontal/vertical directions were tested. L2/R2 ten-page skips work in single-page and dual-page modes, including document start/end.
+- **Facing-page spreads.** Horizontal stacking is the default; Select+Up toggles vertical stacking and persists. The axis remains stable through reader rotations. RTL and the session-only Select+Down page-order override are supported. A minor occasional previous-spread entry-corner inconsistency was accepted as non-blocking.
+- **UI overlays.** TOC, help panel and page indicator passed the user's orientation checks. UI remains upright/readable and is not mirrored with PDF content.
+- **Controller mapping and startup configuration.** Select+Left rotates clockwise; Select+Right rotates anti-clockwise. D-pad and face-button actions rotate with the reader; Xbox is the default face-button convention when no saved preference exists, with the selected convention persisted as `xbox_layout=1` (Xbox) or `xbox_layout=0` (Nintendo). `-no-control-rotation` disables reader-relative control mapping. Startup options include `-rotation`, `-display-rotation`, `-rtl` and `-ltr`.
+- **Page-only mirroring.** Each PDF page is mirrored independently before it is composited into the logical spread. Mirroring must affect only page pixels: it must not change controller bindings/hotkeys, D-pad scrolling/navigation, spread placement/order, reading direction, reader rotation, or UI overlays. The user tested the final fix and confirmed the behaviour works.
+- **Legacy SDL cleanup.** The logical renderer is the only rendering path. The old SDL page renderer, rotation-specific spread geometry, legacy zoom/scroll/page-transition code and temporary overlay compositing helpers were removed. The PDF backend API no longer accepts rotation or mirroring arguments; in-repository rendering uses unrotated pages.
+- **Temporary action feedback.** Controller shortcuts display brief labels on the existing transparent UI layer for rotation, reading direction, night mode, mirroring, view reset, spread layout/order and dual-page mode. This is implemented; rapid replacement and expiry while idle still need explicit device verification.
+- The user reports overall performance is at least comparable and possibly faster; no formal benchmark has been run.
+
+### Post-merge review backlog
+
+The following items were identified during review of the merged renderer. They are grouped by the kind of work they require; no item below should be treated as fixed until implemented and verified.
+
+#### Correctness and interaction
+
+- **Arrival-corner mapping must follow physical input direction.** Entering a spread by corner currently follows rotation but does not fully account for RTL. In single-page mode, `ScrollLogicalPDFPage` currently derives the arrival corner from `page_delta` (reading order), rather than the direction of the key press. Derive the target corner from the logical key direction: Left/Up arrives at the far edge; Right/Down arrives at the near edge. Apply RTL consistently and verify all four reader rotations in both LTR and RTL.
+- **D-pad repeat must not auto-chain page turns.** Once a held direction reaches a page edge, the 100 ms repeat can turn successive pages. Require a fresh press to cross the edge, or introduce a deliberate edge-crossing pause, so a held direction cannot rapidly page through the document.
+- **Dual-page zoom anchor drift.** In `ZoomLogicalPDFSpread`, convert the anchor pixel to the new scale using the ratio between the new and old scale (capture `old_scale` from the first metrics pass, recompute metrics after changing `finescale`, then multiply `anchor_x` and `anchor_y` by `scale / old_scale`). The single-page zoom path already performs the corresponding page-coordinate conversion.
+- **Manual page-order override and RTL must share one navigation rule.** RTL currently swaps slots and flips page delta, while Select+Down swaps slots only. Decide whether the manual override should also reverse D-pad page delta, then use one shared predicate for both. Persist the override in the settings file if it is intended to survive a restart; otherwise document it explicitly as session-only.
+
+#### Rendering performance and resource lifecycle
+
+- **Separate content invalidation from overlay invalidation.** Page-indicator and action-message expiry currently request `FLAG_RENDER`, causing the PDF to be rasterised again (including per-pixel mirror work) merely to update/remove an overlay. Cache the content framebuffer; keep the content render path for document/view changes, and let overlay-only changes redraw the UI layer and call `Present()`.
+- **Skip empty overlay uploads.** `Present()` currently uploads the full ARGB overlay texture even when the overlay is empty. Track whether the overlay contains visible content and skip the upload when empty.
+- **Prefer an accelerated SDL renderer.** Request `SDL_RENDERER_ACCELERATED` when creating the renderer, retain a fallback if unavailable, and warn when the selected renderer is software. The renderer name is already logged; this is especially relevant to the GE8300 target.
+- **Avoid unnecessary framebuffer recreation and handle allocation failure.** Compare the parity of reader rotation plus display rotation rather than the exact angle, because 0°→180° does not change framebuffer dimensions. If framebuffer creation fails, do not leave `g_fb == NULL` and continue into a later resize-handler dereference; return `GREEN_EXIT_RESIZE` or retain the previous valid framebuffer.
+
+#### PDF geometry, caching and diagnostics
+
+- **Cache page bounds independently of display lists.** `GetLogicalSpreadMetrics` can call `pb_device_size` for both pages several times per event. Each call reaches `ensure_page` with a one-entry cache, so alternating pages evict one another. First cache page bounds without retaining display lists; then consider a small 2–3 entry display-list cache.
+- **Make render-failure diagnostics actionable and bounded.** The placeholder exists, but failure text currently goes only to stderr, can repeat on every redraw, and the README claims the message is also logged. Log once per page; add timestamps and a size cap/rotation policy to the application log, and align the README with actual behaviour.
+- **Accept documented decimal scroll steps.** `-step=0.9` is documented as the default, but `ReadFraction` currently rejects decimal notation, so users can only enter an equivalent fraction such as `9/10`. Either accept decimals or change the documented syntax/default representation.
+
+#### Code and documentation cleanup
+
+- **Remove obsolete legacy helpers and fields** after confirming there are no external/internal callers: `Green_ScrollRelative`, `Green_Zoom`, `Green_GetScrollRegion`, `Green_ValidateOffset`, `Green_GetDimension`, and the `bb` field. They are reported unused by `sdl.c` and retain old rotation semantics.
+- Remove unused `g_overlay_rotation`, empty comment blocks and duplicate prototypes.
+- `RenderTOCContent` always receives rotation 0, making its physical-left-edge rotation logic dead; the TOC currently follows reader rotation. Either implement the intended physical-edge behaviour or remove the unused argument/branch and correct the comments and documentation.
+- Replace repeated `fit_doc.rotation = 0` setup with one `Green_FitLogical` helper.
+- Update `examples/launch-mugreen2.sh`: it still sets the obsolete `GREEN_ROTATE180` environment variable; use `-display-rotation=180` instead.
+- Resolve startup-override persistence semantics. `-rotation`, `-rtl` and `-ltr` are described as launch-only overrides, but appear to be saved at exit. Either prevent those CLI overrides from changing persistent preferences or document the actual persistence behaviour.
+- Reconcile controller-layout documentation: the README currently has conflicting Xbox/Nintendo defaults. Code and help default to Xbox. Add a clear physical-position-to-action table for each layout.
+- Keep the post-merge architecture and validation notes here; the standalone experiment-pipeline document is no longer needed after the merge.
 
 ## Phase 5 — Reader features
 

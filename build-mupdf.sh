@@ -3,24 +3,31 @@
 set -eu
 MUPDF_VER=${MUPDF_VER:-1.24.11}
 ARCH=${ARCH:-aarch64}
-if [ "${CROSS_COMPILE+x}" != x ]; then
- case "$ARCH" in
-  aarch64)
-   CROSS_COMPILE=/opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
-   if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
-    if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
-     CROSS_COMPILE=aarch64-linux-gnu-
-    else
-     echo "AArch64 compiler not found: install the /opt toolchain or aarch64-linux-gnu-gcc." >&2
-     exit 1
-    fi
-   fi
-   ;;
-  armhf) CROSS_COMPILE=arm-linux-gnueabihf- ;;
-  native) CROSS_COMPILE= ;;
-  *) echo "Unsupported ARCH=$ARCH (choose aarch64, armhf, or native)." >&2; exit 1 ;;
- esac
-fi
+case "$ARCH" in
+ native)
+  # A native build must never inherit a cross-compiler from the environment.
+  CROSS_COMPILE=
+  ;;
+ aarch64|armhf)
+  if [ "${CROSS_COMPILE+x}" != x ]; then
+   case "$ARCH" in
+    aarch64)
+     CROSS_COMPILE=/opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+     if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+      if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
+       CROSS_COMPILE=aarch64-linux-gnu-
+      else
+       echo "AArch64 compiler not found: install the /opt toolchain or aarch64-linux-gnu-gcc." >&2
+       exit 1
+      fi
+     fi
+     ;;
+    armhf) CROSS_COMPILE=arm-linux-gnueabihf- ;;
+   esac
+  fi
+  ;;
+ *) echo "Unsupported ARCH=$ARCH (choose aarch64, armhf, or native)." >&2; exit 1 ;;
+esac
 CC_BASE="${CROSS_COMPILE}gcc"
 if [ "${SYSROOT+x}" != x ]; then
  SYSROOT=$("$CC_BASE" -print-sysroot 2>/dev/null || true)
@@ -34,7 +41,6 @@ case "$ARCH" in
  aarch64) ARCHFLAGS=${ARCHFLAGS:--mcpu=cortex-a53+crc -mtune=cortex-a53}; EXPECTED_FORMAT=${EXPECTED_FORMAT:-aarch64} ;;
  armhf) ARCHFLAGS=${ARCHFLAGS:--march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard}; EXPECTED_FORMAT=${EXPECTED_FORMAT:-elf32-littlearm} ;;
  native) ARCHFLAGS=${ARCHFLAGS-}; EXPECTED_FORMAT= ;;
- *) echo "Unsupported ARCH=$ARCH (choose aarch64, armhf, or native)." >&2; exit 1 ;;
 esac
 case "$PREFIX" in
  "$SYSROOT"|"$SYSROOT"/usr|"$SYSROOT"/usr/)
@@ -60,13 +66,13 @@ if [ ! -d "mupdf-$MUPDF_VER-source" ]; then
   exit 1
  fi
  if command -v sha256sum >/dev/null 2>&1; then
-  if ! printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -; then
+  if ! printf '%s  %s\\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -; then
    echo "Removing the invalid MuPDF archive; it will be downloaded again next time." >&2
    rm -f "$ARCHIVE"
    exit 1
   fi
  elif command -v shasum >/dev/null 2>&1; then
-  if ! printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -; then
+  if ! printf '%s  %s\\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -; then
    echo "Removing the invalid MuPDF archive; it will be downloaded again next time." >&2
    rm -f "$ARCHIVE"
    exit 1

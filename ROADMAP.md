@@ -71,12 +71,13 @@ No legacy settings/state migration is planned unless a concrete production requi
 
 ## Phase 3 — Reading and navigation
 
-**Status: Batch A implemented on `main`; first-pass device verification partly complete. Presentation corrections are committed and awaiting retest. Remaining Phase 3 batches are planned.**
+**Status: Batch A implemented on `main`; core behaviour and help-panel presentation/rotation verified by the user. TOC rotation and navigation updates are implemented and awaiting device verification. Remaining Phase 3 batches are planned.**
 
 - **Batch A — implemented:** temporary page/spread indicator for 1.2 seconds after the current page changes; default scroll step changed to 0.9 (10% overlap), retaining `-step` overrides; D-pad hold-repeat unified across normal reading, TOC and help, with a 300 ms initial delay and 100 ms repeat interval. The event loop now waits against the next repeat, state-save, or indicator-expiry deadline.
 - **User-verified:** normal reading hold-repeat and release behaviour; default scrolling; custom `-step` override; unpaired final page indicator behaviour. The first-pass test reports these working correctly.
-- **Presentation corrections awaiting retest:** indicator background width now uses the bitmap font's actual 12-pixel character advance; page indicator and help panel are rendered in reader-rotated coordinates/orientation; help content now includes useful reading guidance and can scroll on shorter logical display heights. Help-panel D-pad scrolling now maps physical directions onto the rotated panel's logical vertical axis for 0°, 90°, 180° and 270°.
-- **Still to verify:** indicator background/readability on white pages; indicator position and text orientation at 90°, 180° and 270°; help panel orientation at all rotations and physical D-pad scrolling (including the expected axis/direction changes) where content exceeds the viewport; TOC repeat with a PDF containing an outline; state transitions and controller hot-plug cancel repeat cleanly. Build verification has not yet been performed.
+- **Presentation corrections — user-verified:** indicator background/readability and page indicator placement/orientation; help panel orientation and rotation-aware scrolling at the tested orientations. Help content includes useful reading guidance and scrolls on shorter logical display heights.
+- **TOC rotation — implemented, awaiting device verification:** the TOC is composited in reader-rotated coordinates, with its panel kept on the physical left edge in all four orientations. Selection and expand/collapse D-pad directions are mapped to the rotated TOC axes; selection hold-repeat follows the mapped physical direction.
+- **Still to verify:** TOC panel placement/orientation and D-pad selection plus expand/collapse at 0°, 90°, 180° and 270° using a PDF with an outline; TOC hold-repeat and state transitions; controller hot-plug cancels repeat cleanly. Build verification has not yet been performed.
 - Synchronise the current TOC section with the visible page.
 - Fit modes and direct go-to-page workflow.
 - Controller presence and mapping feedback:

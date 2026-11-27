@@ -37,8 +37,8 @@ User verification:
 
 Remaining hardening batches:
 - **Batch A — implemented and verified by the user:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
-- **Batch B — implemented, needs local verification:** report MuPDF page-render failures instead of silently presenting incomplete frames; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README.
-- **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3.
+- **Batch B — implementation revised from review feedback; local verification pending:** show an on-screen placeholder for page render failures and keep navigation alive; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README.
+- **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3. Follow-up: capture MuPDF soft content/image errors through `fz_cookie` during both display-list construction and replay, and provide visible/logged open diagnostics on handhelds.
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.
 

@@ -25,7 +25,7 @@ PREFIX ?= /usr/local
 SDL2_CONFIG ?= sdl2-config
 
 CC := $(CROSS_COMPILE)gcc
-STRIP ?= $(CROSS_COMPILE)strip
+STRIP = $(CROSS_COMPILE)strip
 # Let the selected compiler report its own sysroot. GCC prints "/" for a
 # native compiler with no separate sysroot; treat that as an empty value.
 SYSROOT ?= $(shell $(CC) -print-sysroot 2>/dev/null | sed 's@^/$$@@')

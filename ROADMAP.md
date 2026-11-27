@@ -74,16 +74,16 @@ No legacy settings/state migration is planned unless a concrete production requi
 **Status: Planned / review existing implementation before changing it.**
 
 - Page indicator and page feedback.
-- Scrolling overlap/step behaviour.
-- Controller repeat behaviour and navigation consistency.
+- Scrolling overlap/step behaviour (confirmed default: 90% viewport movement, 10% overlap).
+- Controller repeat behaviour and navigation consistency (confirmed initial delay: 300 ms; repeat interval: 100 ms).
+- Page indicator visibility (confirmed: temporary overlay after navigation).
 - Synchronise the current TOC section with the visible page.
 - Fit modes and direct go-to-page workflow.
-- Keyboard fallback using shared logical button-down/button-up handlers rather than duplicated navigation logic.
 - Controller presence and mapping feedback:
   - distinguish no physical joystick from an attached joystick without an SDL GameController mapping;
   - show an appropriate on-screen message;
   - support/document mapping configuration for handheld controllers.
-- Keyboard/controller input architecture should account for press/release semantics, modifier chords, triggers/axes, and overlays.
+- Keep controller input handling consistent across normal reading, TOC, and help overlays, preserving press/release semantics, modifier chords, triggers/axes, and existing bindings.
 
 Previously implemented navigation work to preserve:
 - Rotation behaviour across orientations.
@@ -116,12 +116,11 @@ Review current `main` before implementing any item; some listed functionality ma
 
 **Status: Planned.**
 
-- General code organisation after Phase 3 input/navigation interfaces stabilise.
-- Consolidate controller/keyboard help and derive help text from the actual bindings where practical.
+- General code organisation after Phase 3 controller-input/navigation interfaces stabilise.
+- Consolidate controller help and derive help text from the actual bindings where practical.
 - Remove avoidable duplication and clarify module boundaries.
 - Keep licensing and third-party notices accurate; update documentation as features land.
 
-Keyboard fallback is implemented in Phase 3; Phase 6 covers any remaining structural cleanup, not a second input rewrite.
 
 ## Phase 7 — Presentation polish
 

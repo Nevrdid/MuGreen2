@@ -800,7 +800,7 @@ static void RenderTOCContent(SDL_Surface *display, int rotation)
 	if (!g_toc_active) return;
 
 	/* Keep the TOC on the physical left edge. In logical overlay coordinates,
-	 * that edge moves with rotation: left, top, right, then bottom. */
+	 * that edge moves with rotation: left, bottom, right, then top. */
 	panel_extent = ((rotation & 1) ? display->h : display->w) * 3 / 4;
 	if (panel_extent < 200)
 		panel_extent = ((rotation & 1) ? display->h : display->w) < 200

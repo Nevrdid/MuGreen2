@@ -44,6 +44,7 @@ const char	*help_text =
 "    -display-rotation=<degrees> rotate the complete display: 0, 90, 180 or 270\n"
 "    -rtl                        start in right-to-left reading order\n"
 "    -ltr                        start in left-to-right reading order\n"
+"    -controller-layout=<mode>   face buttons: nintendo (default) or xbox\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
 "    -width=<width>              to specify the window width (in pixels)\n"
@@ -135,6 +136,7 @@ int	main( int argc, char *argv[] )
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
 	rtd.spread_vertical = false;
+	rtd.xbox_layout = false;
 	rtd.night = false;
 	rtd.right_to_left = false;
 	rtd.startup_rotation = 0;
@@ -206,6 +208,16 @@ int	main( int argc, char *argv[] )
 			rtd.right_to_left = true;
 		else if (!strcmp( opt, "ltr" ))
 			rtd.right_to_left = false;
+		else if (!strncmp( opt, "controller-layout=", 18 ))
+		{
+			opt += 18;
+			if (!strcmp( opt, "nintendo" ))
+				rtd.xbox_layout = false;
+			else if (!strcmp( opt, "xbox" ))
+				rtd.xbox_layout = true;
+			else
+				err = -1;
+		}
 		else if (!strncmp( opt, "step=", 5 ))
 		{
 			opt += 5;

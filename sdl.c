@@ -103,7 +103,7 @@ static int	g_help_scroll = 0;
 static const char	*g_help_lines[] = {
 	"Game controller controls (Nintendo labels)",
 	"",
-	"D-pad          Scroll / navigate the TOC",
+	"D-pad          Scroll / navigate; hold to repeat",
 	"B              Fit page to width / select TOC entry",
 	"A              Rotate right / close overlay",
 	"X / Y          Zoom in / zoom out",

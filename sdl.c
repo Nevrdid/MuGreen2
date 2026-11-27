@@ -933,7 +933,6 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
 {
 	Green_Document *doc = rtd->doc;
-	Green_Document fit_doc = *doc;
 	double scale;
 	int page_w, page_h, max_x, max_y;
 	int dx = 0, dy = 0, logical_dx, logical_dy, step;
@@ -946,9 +945,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: dy = 1; break;
 		default: return 0;
 	}
-
-	fit_doc.rotation = 0;
-	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		return 0;
 
@@ -986,9 +983,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			/* The destination corner follows the actual page transition:
 			 * next starts top-left; previous starts top-right. This remains
 			 * correct when rotation or RTL reverses a physical button's delta. */
-			fit_doc = *doc;
-			fit_doc.rotation = 0;
-			scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+			scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 			doc->xoffset = 0;
 			doc->yoffset = 0;
 			if (page_delta < 0
@@ -1017,7 +1012,6 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double factor)
 {
 	Green_Document *doc = rtd->doc;
-	Green_Document fit_doc = *doc;
 	double base_scale, old_scale, new_scale, center_x, center_y;
 	double old_page_x, old_page_y, new_fs = doc->finescale * factor;
 	int old_page_w, old_page_h, new_page_w, new_page_h;
@@ -1026,9 +1020,7 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	if (new_fs < 0.05) new_fs = 0.05;
 	if (new_fs > 20.0) new_fs = 20.0;
 	if (new_fs == doc->finescale) return 0;
-
-	fit_doc.rotation = 0;
-	base_scale = Green_Fit(&fit_doc, display->w, display->h);
+	base_scale = Green_FitLogical(doc, display->w, display->h);
 	old_scale = base_scale * doc->finescale;
 	new_scale = base_scale * new_fs;
 	if (old_scale <= 0.0 || new_scale <= 0.0
@@ -1362,13 +1354,10 @@ static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)
 {
 	Green_Document *doc = rtd->doc;
-	Green_Document fit_doc = *doc;
 	double scale;
 	int page_w, page_h, page_x, page_y, x1, y1, x2, y2, offset_x, offset_y;
 	const char *error = NULL;
-
-	fit_doc.rotation = 0;
-	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		error = pb_error_message(doc->doc);
 	if (error)
@@ -1562,13 +1551,10 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display);
 static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 {
 	Green_Document *doc = rtd->doc;
-	Green_Document fit_doc = *doc;
 	int page_w, page_h, max_x, max_y;
 	double scale;
 	int rotation = doc->rotation & 3;
-
-	fit_doc.rotation = 0;
-	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 	doc->xoffset = doc->yoffset = 0;
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 
 		&page_w, &page_h))
@@ -1631,11 +1617,9 @@ static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
 	}
 	else
 	{
-		Green_Document fit_doc = *doc;
 		int page_w, page_h;
-		fit_doc.rotation = 0;
 		if (pb_device_size(doc->doc, doc->page_cur,
-			(float)(Green_Fit(&fit_doc, DrawSurface()->w, DrawSurface()->h)
+			(float)(Green_FitLogical(doc, DrawSurface()->w, DrawSurface()->h)
 				* doc->finescale),  &page_w, &page_h))
 		{
 			*flags |= FLAG_RENDER;

@@ -1862,10 +1862,10 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 			{
 				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) {
 					Green_RotateRight(doc);
-					ShowActionMessage("Rotation +90 degrees");
+					ShowActionMessage("Rotate +90");
 				} else {
 					Green_RotateLeft(doc);
-					ShowActionMessage("Rotation -90 degrees");
+					ShowActionMessage("Rotate -90");
 				}
 				doc->xoffset = doc->yoffset = 0;
 				*flags |= FLAG_RENDER;
@@ -1893,20 +1893,20 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 		case SDL_CONTROLLER_BUTTON_Y:
 			if (doc) {
 				Green_MirrorH(doc);
-				ShowActionMessage("Horizontal mirror toggled");
+				ShowActionMessage("Horizontal mirror");
 			}
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_X:
 			if (doc) {
 				Green_MirrorV(doc);
-				ShowActionMessage("Vertical mirror toggled");
+				ShowActionMessage("Vertical mirror");
 			}
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;
-			ShowActionMessage(rtd->right_to_left ? "Manga mode ON" : "Manga mode OFF");
+			ShowActionMessage(rtd->right_to_left ? "Manga mode" : "Regular mode");
 			if (doc)
 			{
 				if (rtd->side_by_side && doc->page_count > 1)

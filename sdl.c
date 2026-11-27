@@ -108,7 +108,7 @@ static bool	g_rendered_content_this_frame = false;
 static int	g_help_scroll = 0;
 
 static const char	*g_help_lines[] = {
-	"Game controller controls (Nintendo labels)",
+	"Game controller controls",
 	"",
 	"D-pad          Scroll / navigate; hold to repeat",
 	"B              Fit page to width / select TOC entry",
@@ -149,6 +149,7 @@ static const char	*g_help_lines[] = {
 	"",
 	"Optional controls",
 	"",
+	"Layout: -controller-layout=nintendo|xbox",
 	"L2 / R2        Page jumps (if supported)",
 	"",
 	"About MuGreen2",
@@ -768,6 +769,65 @@ static int IsDpadButton(Uint8 button)
 		|| button == SDL_CONTROLLER_BUTTON_DPAD_LEFT || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
 }
 
+/* Convert physical GameController labels into the reader's logical controls.
+ * The layout convention is normalised first, then the face buttons and D-pad
+ * are rotated with the document. Start, Select, Guide and shoulders are fixed. */
+static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
+{
+	int rotation = Green_IsDocValid(rtd) ? (rtd->doc->rotation & 3) : 0;
+
+	if (rtd->xbox_layout)
+	{
+		if (button == SDL_CONTROLLER_BUTTON_A) button = SDL_CONTROLLER_BUTTON_B;
+		else if (button == SDL_CONTROLLER_BUTTON_B) button = SDL_CONTROLLER_BUTTON_A;
+		else if (button == SDL_CONTROLLER_BUTTON_X) button = SDL_CONTROLLER_BUTTON_Y;
+		else if (button == SDL_CONTROLLER_BUTTON_Y) button = SDL_CONTROLLER_BUTTON_X;
+	}
+
+	switch (rotation)
+	{
+		case 1:
+			switch (button) {
+				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_X;
+				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_A;
+				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_Y;
+				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_B;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_UP;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
+			}
+			break;
+		case 2:
+			switch (button) {
+				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_Y;
+				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_X;
+				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_A;
+				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_B;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_UP;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
+			}
+			break;
+		case 3:
+			switch (button) {
+				case SDL_CONTROLLER_BUTTON_A: return SDL_CONTROLLER_BUTTON_B;
+				case SDL_CONTROLLER_BUTTON_B: return SDL_CONTROLLER_BUTTON_Y;
+				case SDL_CONTROLLER_BUTTON_X: return SDL_CONTROLLER_BUTTON_A;
+				case SDL_CONTROLLER_BUTTON_Y: return SDL_CONTROLLER_BUTTON_X;
+				case SDL_CONTROLLER_BUTTON_DPAD_UP: return SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
+				case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: return SDL_CONTROLLER_BUTTON_DPAD_DOWN;
+				case SDL_CONTROLLER_BUTTON_DPAD_DOWN: return SDL_CONTROLLER_BUTTON_DPAD_LEFT;
+				case SDL_CONTROLLER_BUTTON_DPAD_LEFT: return SDL_CONTROLLER_BUTTON_DPAD_UP;
+			}
+			break;
+		default:
+			break;
+	}
+	return button;
+}
+
 static void	TOCStepSel( int dir )
 {
 	if (g_toc_count <= 0)
@@ -779,51 +839,18 @@ static void	TOCStepSel( int dir )
 }
 
 
+/* Input has already been rotated into logical overlay coordinates. */
 static int TOCSelectDirection(Uint8 button)
 {
-	switch (g_overlay_rotation & 3)
-	{
-		case 1:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
-			break;
-		case 2:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
-			break;
-		case 3:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
-			break;
-		default:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
-			break;
-	}
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
 	return 0;
 }
 
 static int TOCHierarchyDirection(Uint8 button)
 {
-	switch (g_overlay_rotation & 3)
-	{
-		case 1:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
-			break;
-		case 2:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
-			break;
-		case 3:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
-			break;
-		default:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
-			break;
-	}
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
 	return 0;
 }
 
@@ -897,16 +924,12 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 			return 0;
 	}
 
-	/* Horizontal D-pad directions follow the physical L1/R1 mapping.
-	 * Vertical directions have their own reading-axis mapping: Up/Down
-	 * retain previous/next at 90 degrees, and reverse at 270 degrees.
-	 * At 180 degrees both axes reverse. */
-	if (button == SDL_CONTROLLER_BUTTON_DPAD_UP
-		|| button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) {
-		if ((doc->rotation & 3) == 2 || (doc->rotation & 3) == 3)
+	/* D-pad buttons are already in logical screen coordinates. Shoulder
+	 * buttons remain fixed physical controls and retain their reader mapping. */
+	if (button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
+		|| button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) {
+		if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
 			page_delta = -page_delta;
-	} else if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2) {
-		page_delta = -page_delta;
 	}
 	if (rtd->right_to_left)
 		page_delta = -page_delta;
@@ -939,13 +962,9 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		return 0;
 
-	/* Inverse of the clockwise whole-frame presentation rotation. */
-	switch (doc->rotation & 3) {
-		case 1: logical_dx = dy;  logical_dy = -dx; break;
-		case 2: logical_dx = -dx; logical_dy = -dy; break;
-		case 3: logical_dx = -dy; logical_dy = dx;  break;
-		default: logical_dx = dx; logical_dy = dy; break;
-	}
+	/* Input directions are already in logical page coordinates. */
+	logical_dx = dx;
+	logical_dy = dy;
 
 	/* Undo the source flip used to preserve the legacy mirror result. */
 	if (doc->mirrored) {
@@ -1182,12 +1201,8 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
         return ScrollLogicalPDFPage(rtd, display, button);
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
-    switch (doc->rotation & 3) {
-        case 1: logical_dx = dy; logical_dy = -dx; break;
-        case 2: logical_dx = -dx; logical_dy = -dy; break;
-        case 3: logical_dx = -dy; logical_dy = dx; break;
-        default: logical_dx = dx; logical_dy = dy; break;
-    }
+    logical_dx = dx;
+    logical_dy = dy;
     if (doc->mirrored) {
         if (doc->rotation & 1) logical_dx = -logical_dx;
         else logical_dy = -logical_dy;
@@ -1622,29 +1637,11 @@ static void	HelpStepScroll( int dir, int max_scroll )
 		g_help_scroll--;
 }
 
-/* Map physical D-pad directions to the help panel's logical vertical axis.
- * The overlay is drawn before being rotated onto the physical display. */
+/* Input has already been rotated into logical overlay coordinates. */
 static int HelpScrollDirection(Uint8 button)
 {
-	switch (g_overlay_rotation & 3)
-	{
-		case 1:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
-			break;
-		case 2:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
-			break;
-		case 3:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
-			break;
-		default:
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
-			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
-			break;
-	}
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
 	return 0;
 }
 
@@ -2156,7 +2153,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				case SDL_QUIT: flags |= FLAG_QUIT; break;
 				case SDL_CONTROLLERBUTTONDOWN:
 				{
-					Uint8 button = event.cbutton.button;
+					Uint8 button = MapControllerButton(rtd, event.cbutton.button);
 					if (button == SDL_CONTROLLER_BUTTON_BACK)
 					{
 						ListNavStop();
@@ -2213,7 +2210,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				}
 				case SDL_CONTROLLERBUTTONUP:
 				{
-					Uint8 button = event.cbutton.button;
+					Uint8 button = MapControllerButton(rtd, event.cbutton.button);
 					if (button == SDL_CONTROLLER_BUTTON_BACK)
 					{
 						g_select_button_held = false;

@@ -135,6 +135,9 @@ static const char	*g_help_lines[] = {
 #define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
 
 
+static Uint8 *DstPixel(SDL_Surface *d, int lx, int ly);
+void DrawString(SDL_Surface *display, int x, int y, const char *str, Uint32 color);
+
 /* Combined-spread geometry: offsets are device pixels from the spread's
  * leading top-left corner, allowing either page to move across the viewport. */
 static int GetSpreadMetrics(Green_RTD *rtd, int vw, int vh, double *scale,

@@ -1199,7 +1199,7 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	if (doc->yoffset < 0) doc->yoffset = 0;
 	else if (doc->yoffset > new_page_h - display->h) doc->yoffset = new_page_h - display->h;
 
-	return doc->finescale != rtd->doc->finescale || doc->xoffset != old_x || doc->yoffset != old_y;
+	return doc->finescale != new_fs || doc->xoffset != old_x || doc->yoffset != old_y;
 }
 
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)

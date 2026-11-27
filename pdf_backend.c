@@ -334,9 +334,9 @@ static int ensure_page(pb_doc *d, int pageno)
 	}
 	fz_always(ctx)
 	{
-		fz_drop_device(ctx, dev);
-		fz_drop_display_list(ctx, list);
-		fz_drop_page(ctx, page);
+		if (dev) fz_drop_device(ctx, dev);
+		if (list) fz_drop_display_list(ctx, list);
+		if (page) fz_drop_page(ctx, page);
 	}
 	fz_catch(ctx)
 	{

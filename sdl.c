@@ -1115,6 +1115,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	double scale;
 	int page_w, page_h, dx = 0, dy = 0, logical_dx, logical_dy;
 	int step;
+	int old_x = doc->xoffset, old_y = doc->yoffset;
 
 	switch (button) {
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT: dx = -1; break;

@@ -94,7 +94,7 @@ static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
 static int	g_overlay_rotation = 0;
 /* Opt-in SDL-only proof of a rotation-aware logical framebuffer. */
-static SDL_RendererFlip	g_logical_frame_flip = SDL_FLIP_NONE;
+static SDL_RendererFlip	g_content_flip = SDL_FLIP_NONE;
 static int	g_reader_rotation = 0;
 
 static bool	g_help_active = false;
@@ -276,7 +276,7 @@ static void	Present( void )
 		dst.x = (ow - dst.w) / 2;
 		dst.y = (oh - dst.h) / 2;
 		SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL,
-			g_logical_frame_flip);
+			g_content_flip);
 		/* UI follows reader rotation, but is deliberately not mirrored. */
 		if (g_overlay_fb && g_overlay_texture)
 		{
@@ -1049,6 +1049,28 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 /* Logical-coordinate facing-page geometry. The stack preference is kept
  * unchanged across reader rotations: horizontal remains side-by-side and
  * vertical remains top-and-bottom from the user's viewing orientation. */
+static void RenderPageWarning(SDL_Surface *display, Green_Document *doc,
+	int page, int x1, int y1, int x2)
+{
+	if (!pb_page_has_warnings(doc->doc, page))
+		return;
+	if (x2 - x1 >= 18)
+	{
+		SDL_Rect marker = { x2 - 18, y1 + 4, 14, 14 };
+		SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
+		DrawString(display, marker.x + 3, marker.y + 1, "!",
+			SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
+	}
+	if (pb_take_page_warning(doc->doc, page))
+	{
+		char message[256];
+		snprintf(message, sizeof(message),
+			"Page %d contains content that MuPDF could not fully interpret", page + 1);
+		Green_LogMessage(message);
+		fprintf(stderr, "MuGreen2: %s\n", message);
+	}
+}
+
 static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     double *scale, int *lp, int *rp, int *lw, int *lh, int *rw, int *rh,
     int *vertical)
@@ -1234,6 +1256,7 @@ static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
         x1 - px, y1 - py, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
         DstPixel(display, x1, y1), display->pitch)) {
         g_rendered_content_this_frame = true;
+        RenderPageWarning(display, rtd->doc, page, x1, y1, x2);
         return;
     }
     error = pb_error_message(rtd->doc->doc);
@@ -1278,7 +1301,7 @@ static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
         RenderLogicalSpreadPage(rtd, display, rp, ox + lw, oy + (spread_h - rh) / 2,
             rw, rh, scale, failed_page);
     }
-    g_logical_frame_flip = doc->mirrored
+    g_content_flip = doc->mirrored
         ? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
         : SDL_FLIP_NONE;
     return 1;
@@ -1322,11 +1345,13 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 		error = pb_error_message(doc->doc);
 	if (!error) {
 		g_rendered_content_this_frame = true;
+		if (x1 < x2 && y1 < y2)
+			RenderPageWarning(display, doc, doc->page_cur, x1, y1, x2);
 		/* The old backend mirrored vertically after document rotation. To
 		 * preserve that result while rotation happens at presentation, mirror
 		 * the logical source vertically for even turns and horizontally for
 		 * odd turns. SDL applies this flip before rotating the texture. */
-		g_logical_frame_flip = doc->mirrored
+		g_content_flip = doc->mirrored
 			? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
 			: SDL_FLIP_NONE;
 		return 0;
@@ -1407,7 +1432,8 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			g_reader_rotation = rotation;
 			display = DrawSurface();
 		}
-		g_logical_frame_flip = SDL_FLIP_NONE;
+		g_overlay_rotation = rotation;
+		g_content_flip = SDL_FLIP_NONE;
 		SDL_FillRect(display, NULL, SDL_MapRGB(display->format,
 			rtd->night ? 0x10 : rtd->c_background.r,
 			rtd->night ? 0x10 : rtd->c_background.g,
@@ -1418,6 +1444,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	}
 	else
 	{
+		g_overlay_rotation = g_reader_rotation;
 		rect.x = rect.y = 0;
 		rect.w = display->w;
 		rect.h = display->h;

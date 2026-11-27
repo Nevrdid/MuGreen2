@@ -90,8 +90,9 @@ The normal renderer remains the default when neither test variable is enabled. T
 6. Pan with each D-pad direction at all four rotations. Movement should follow the physical direction pressed, including when holding a direction to repeat. The first press that reaches an edge should only clamp; a further press should change page if that axis has real overflow.
 7. On a page change, verify that next pages start at logical top-left and previous pages at logical top-right. Confirm Left/Right follow L1/R1, and Up/Down follow their documented vertical mapping (previous/next at 0° and 90°, next/previous at 180° and 270°), including RTL.
 8. Repeat the panning and page-edge checks with mirroring enabled, if desired, to check that the direction mapping follows the mirrored content.
-9. Repeat with `-display-rotation=180` and confirm it adds only the physical panel correction.
-10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
+9. Repeat with `-display-rotation=180` while keeping `-rotation=0`; verify that the image is upside down but controller navigation retains its 0° reader mapping. This specifically separates physical display correction from reader/input orientation.
+10. Test `-display-rotation=90` and `-display-rotation=270` for full-frame sizing and verify that controller directions still follow reader rotation, not display mounting.
+11. Confirm the ordinary renderer still behaves correctly when both logical test variables are unset.
 
 This remains an experimental rendering path, not a replacement for the existing renderer. Single-page rendering, zoom, panning, page-edge transitions, and facing-page spreads have been build-tested and device-tested by the user. The first UI-overlay layer is now implemented but still needs build/device verification. Complete mirror/rotation coverage and performance comparison remain outstanding. Keep the experiment isolated until those areas are validated, then compare complexity and behaviour against the existing implementation before considering any merge.
 

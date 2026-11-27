@@ -38,7 +38,7 @@ const char	*help_text =
 "\n"
 "The following options are available:\n"
 "    -fit=<mode>                 initial fit: none, width, height or page\n"
-"    -step=<fraction>            scroll step as a fraction of the viewport\n"
+"    -step=<fraction>            scroll step as a fraction of the viewport (default: 0.9)\n"
 "    -zoomstep=<fraction>        zoom increment as a fraction (default: 1/5)\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
@@ -126,7 +126,7 @@ int	main( int argc, char *argv[] )
 	rtd.c_background.b = 0x30;
 	rtd.c_background.a = 0xFF;
 	rtd.fit_method = WIDTH;
-	rtd.step = 1;
+	rtd.step = 0.9;
 	rtd.zoomstep = 1.2;	/* ~20% per zoom click */
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;

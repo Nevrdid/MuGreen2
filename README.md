@@ -22,7 +22,8 @@ The on-screen help panel lists the current bindings. The default Nintendo-labell
 | --- | --- |
 | D-pad | Scroll / navigate the table of contents |
 | B | Fit page to width / select TOC entry |
-| A | Rotate right / close overlay |
+| Select + Left | Rotate clockwise |
+| Select + Right | Rotate anti-clockwise |
 | X / Y | Zoom in / zoom out |
 | L1 / R1 | Previous / next page |
 | L2 / R2 | Jump -10 / +10 pages (optional) |

@@ -828,6 +828,50 @@ static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h )
 	return 1;
 }
 
+/* Scroll in screen directions while keeping document reading order across page edges.
+ * A page turn is only triggered by movement along the document's vertical axis. */
+static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
+{
+	Green_Document *doc = rtd->doc;
+	int max_x, max_y, doc_max_y, doc_dy, page_step, next_page;
+
+	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
+	doc_max_y = (doc->rotation & 1) ? max_x : max_y;
+
+	switch (doc->rotation & 3)
+	{
+		case 1: doc_dy = -sx; break;
+		case 2: doc_dy = doc->mirrored ? sy : -sy; break;
+		case 3: doc_dy = sx; break;
+		default: doc_dy = doc->mirrored ? -sy : sy; break;
+	}
+
+	/* Only the reading-order edges advance or rewind the document. */
+	if (doc_dy > 0 && doc->yoffset >= doc_max_y)
+		next_page = 1;
+	else if (doc_dy < 0 && doc->yoffset <= 0)
+		next_page = -1;
+	else
+		next_page = 0;
+
+	if (next_page)
+	{
+		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
+			return 0;
+
+		/* Enter the new page at the matching reading-order edge. */
+		Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
+		doc_max_y = (doc->rotation & 1) ? max_x : max_y;
+		doc->yoffset = doc_dy > 0 ? 0 : doc_max_y;
+		Green_ValidateOffset( doc, w, h );
+		return 1;
+	}
+
+	Green_ScrollRelative( doc, sx, sy, w, h, 0 );
+	return 1;
+}
+
 static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, int h, unsigned short *flags )
 {
 	int	page;
@@ -991,25 +1035,23 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	{
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
 			if (!doc) break;
-			if (rtd->side_by_side && doc->yoffset == 0) { if (!Green_GotoPage( doc, doc->page_cur - 2, true )) break; }
-			else Green_ScrollRelative( doc, 0, -display->h * rtd->step, vw, display->h, 1 );
-			*flags |= FLAG_RENDER; break;
+			if (ScrollDocument( rtd, 0, -(int)(display->h * rtd->step), vw, display->h ))
+				*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
 			if (!doc) break;
-			if (rtd->side_by_side) { int max_x, max_y; Green_GetScrollRegion( doc, vw, display->h, &max_x, &max_y ); if (doc->yoffset >= max_y) { if (!Green_GotoPage( doc, doc->page_cur + 2, true )) break; } else Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 ); }
-			else Green_ScrollRelative( doc, 0, display->h * rtd->step, vw, display->h, 1 );
-			*flags |= FLAG_RENDER; break;
+			if (ScrollDocument( rtd, 0, (int)(display->h * rtd->step), vw, display->h ))
+				*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-			if (!doc)
-				break;
-			Green_ScrollRelative( doc, -hstep, 0, vw, display->h, 1 );
-			*flags |= FLAG_RENDER;
+			if (!doc) break;
+			if (ScrollDocument( rtd, -hstep, 0, vw, display->h ))
+				*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-			if (!doc)
-				break;
-			Green_ScrollRelative( doc, hstep, 0, vw, display->h, 1 );
-			*flags |= FLAG_RENDER;
+			if (!doc) break;
+			if (ScrollDocument( rtd, hstep, 0, vw, display->h ))
+				*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_A:
 			if (!doc)

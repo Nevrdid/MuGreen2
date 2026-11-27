@@ -126,8 +126,8 @@ case "$ARCH" in
  aarch64|armhf)
   CONFIGURE_ARGS="$CONFIGURE_ARGS \
    --enable-video-kmsdrm --disable-kmsdrm-shared \
-   --enable-video-opengles --enable-video-opengles2 --disable-video-opengl \
-   --disable-video-x11 --disable-video-wayland --disable-video-directfb \
+   --enable-video-opengles --enable-video-opengles2 --disable-video-opengles1 --disable-video-opengl \
+   --disable-video-dummy --disable-video-offscreen --disable-video-x11 --disable-video-wayland --disable-video-directfb \
    --disable-video-vulkan --disable-pulseaudio --disable-pipewire \
    --disable-alsa --disable-oss --disable-jack --disable-sndio --disable-audio"
   ;;

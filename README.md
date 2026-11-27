@@ -63,9 +63,17 @@ The original Green-derived files retain Florian Tobias Schandinat's copyright an
 
 ## Build
 
-The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and SDL2 development files first. If `SYSROOT` is not supplied, both scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
+The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and SDL2 development files first. If `SYSROOT` is not supplied, the build scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
 
-1. Build SDL2 for the target architecture:\n\n   ```sh\n   ARCH=aarch64 ./build_sdl2.sh\n   ```\n\n   SDL2 is installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. For a native build, use `ARCH=native ./build_sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release.\n\n2. Build the trimmed static MuPDF libraries:
+1. Build SDL2 for the target architecture:
+
+   ```sh
+   ARCH=aarch64 ./build_sdl2.sh
+   ```
+
+   SDL2 is installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. For a native build, use `ARCH=native ./build_sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release.
+
+2. Build the trimmed static MuPDF libraries:
 
    ```sh
    ARCH=aarch64 ./build-mupdf.sh
@@ -81,7 +89,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    make ARCH=aarch64 MUPDF=mupdf/aarch64 SDL2_CONFIG="$PWD/sdl2/aarch64/bin/sdl2-config"
    ```
 
-   For native builds, use `make ARCH=native MUPDF=mupdf/native SDL2_CONFIG="$PWD/sdl2/native/bin/sdl2-config"`. The Makefile forces the host compiler for `ARCH=native`. Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between cross-builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`. For a native build, run `make ARCH=native` after building MuPDF with `ARCH=native`.
+   For native builds, use `make ARCH=native MUPDF=mupdf/native SDL2_CONFIG="$PWD/sdl2/native/bin/sdl2-config"`. The Makefile forces the host compiler for `ARCH=native`. Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between cross-builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`.
 
 4. Install the executable (optional):
 

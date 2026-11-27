@@ -40,7 +40,7 @@ GREEN_TEST_LOGICAL_PDF=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
 
 In this probe:
 - **B / A (SDL button names)** retain the reader's existing rotate / reset actions. Physical labels depend on the controller's SDL mapping; on the user's Nintendo-layout controller, physical **A** rotates and physical **B** resets the view.
-- **L1 / R1** move to the previous / next page. In the logical-PDF probe, their page direction is reversed at 180° and 270° so the physical left/right behaviour stays consistent; RTL reading reverses it again.
+- **L1 / R1** move to the previous / next page. In the logical-PDF probe, their page direction is reversed at 90° and 180° so the physical left/right behaviour stays consistent; RTL reading reverses it again.
 - **L2 / R2** are ignored in this probe; the normal ten-page skip action is intentionally disabled.
 - The reset action returns to width-fit and the top of the page.
 - **X / Y** zoom out / in, using a logical-coordinate zoom anchored at the viewport centre.
@@ -72,7 +72,7 @@ The normal renderer remains the default when neither test variable is enabled. T
 1. Use a PDF with clear page orientation (ideally a page containing text and obvious top/bottom content).
 2. Compare 0°, 90°, 180°, and 270° reader orientations with the same PDF.
 3. Confirm text is upright and the page is not rotated twice or mirrored unexpectedly.
-4. Turn pages with L1/R1 at 0°, 90°, 180° and 270°. L1/R1 should reverse at 180° and 270°; also check the expected reversal in RTL mode, and confirm the page remains correctly positioned.
+4. Turn pages with L1/R1 at 0°, 90°, 180° and 270°. L1/R1 should reverse at 90° and 180°; also check the expected reversal in RTL mode, and confirm the page remains correctly positioned.
 5. Zoom in and out with X/Y. Confirm the zoom stays centred around the middle of the visible area and that zooming creates enough overflow to test both D-pad axes.
 6. Pan with each D-pad direction at all four rotations. Movement should follow the physical direction pressed, including when holding a direction to repeat; movement should stop cleanly at each page edge without changing pages.
 7. Repeat the panning checks with mirroring enabled, if desired, to check that the direction mapping follows the mirrored content.

@@ -37,6 +37,22 @@ The old `GREEN_ROTATE180`, `GREEN_TEST_LOGICAL_FRAME` and `GREEN_TEST_LOGICAL_PD
 ./mugreen2 -rotation=0 -display-rotation=180 /path/to/document.pdf
 ```
 
+## Temporary action feedback
+
+Controller shortcuts display a brief message near the bottom of the logical UI overlay. Messages last approximately 1.4 seconds, are replaced by a newer action, do not pause reading, and remain upright/unmirrored with the rest of the UI.
+
+Current notifications include:
+- Reader rotation clockwise/anti-clockwise.
+- Manga/regular reading mode.
+- Night mode on/off.
+- Horizontal/vertical mirror action.
+- View reset.
+- Horizontal/vertical spread selection.
+- Facing-page order swapped/restored.
+- Dual-page mode on/off.
+
+The overlay uses the existing transparent UI layer and SDL event timeout; it does not add a separate rendering surface or polling loop.
+
 ## Behaviour validated on the handheld before cleanup
 
 The user confirmed:

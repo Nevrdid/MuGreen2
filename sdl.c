@@ -1204,6 +1204,7 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
 			if (doc) Green_ValidateOffset( doc, ViewWidth( rtd ), display->h );
+			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER; break;
 		default: break;
 	}

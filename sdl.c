@@ -162,132 +162,16 @@ void DrawString(SDL_Surface *display, int x, int y, const char *str, Uint32 colo
 
 /* Combined-spread geometry: offsets are device pixels from the spread's
  * leading top-left corner, allowing either page to move across the viewport. */
-static int GetSpreadMetrics(Green_RTD *rtd, int vw, int vh, double *scale,
-	int *lp, int *rp, int *lw, int *lh, int *rw, int *rh)
-{
-	Green_Document *doc = rtd->doc;
-	if (!rtd->side_by_side || doc->page_count < 2) return 0;
-	if (doc->page_cur % 2 == 0) {
-		if (rtd->right_to_left) { *lp = doc->page_cur + 1; *rp = doc->page_cur; }
-		else { *lp = doc->page_cur; *rp = doc->page_cur + 1; }
-	} else {
-		if (rtd->right_to_left) { *lp = doc->page_cur; *rp = doc->page_cur - 1; }
-		else { *lp = doc->page_cur - 1; *rp = doc->page_cur; }
-	}
-	if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count) return 0;
-	/* Reader rotations of 90° and 180° are commonly paired with matching
-	 * physical turns of the handheld. These orientations reverse the spread
-	 * slot order in the physical reading frame. The manual override lets the
-	 * user compensate for devices with a different physical rotation direction. */
-	if ((((doc->rotation & 3) == 1) || ((doc->rotation & 3) == 2))
-		!= g_spread_order_reversed) {
-		int page = *lp;
-		*lp = *rp;
-		*rp = page;
-	}
-	*scale = Green_Fit(doc, vw / 2, vh) * doc->finescale;
-	if (pb_device_size(doc->doc, *lp, (float)*scale, doc->rotation & 3, lw, lh)
-		|| pb_device_size(doc->doc, *rp, (float)*scale, doc->rotation & 3, rw, rh)) return 0;
-	return 1;
-}
 
-static void ClampSpreadOffset(Green_RTD *rtd, int vw, int vh)
-{
-	int lp, rp, lw, lh, rw, rh, sw, sh;
-	double scale;
-	Green_Document *doc = rtd->doc;
-	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
-		/* A lone first/last page uses the ordinary full-width page viewport. */
-		doc->xoffset = doc->yoffset = 0;
-		Green_ValidateOffset(doc, vw, vh);
-		return;
-	}
-	sw = lw + rw; sh = lh > rh ? lh : rh;
-	if (doc->xoffset < 0) doc->xoffset = 0;
-	if (doc->yoffset < 0) doc->yoffset = 0;
-	if (sw <= vw) doc->xoffset = 0;
-	else if (doc->xoffset > sw - vw) doc->xoffset = sw - vw;
-	if (sh <= vh) doc->yoffset = 0;
-	else if (doc->yoffset > sh - vh) doc->yoffset = sh - vh;
-}
 
-static void RenderSpreadPage(Green_RTD *rtd, int page, int px, int py,
-	int pw, int ph, double scale, int *failed_page)
-{
-	Green_Document *doc = rtd->doc;
-	SDL_Surface *display = DrawSurface();
-	SDL_Rect clip;
-	int x1 = px < 0 ? 0 : px, y1 = py < 0 ? 0 : py;
-	int x2 = px + pw > display->w ? display->w : px + pw;
-	int y2 = py + ph > display->h ? display->h : py + ph;
-	int sx, sy;
-	const char *error = NULL;
-	if (x1 >= x2 || y1 >= y2) return;
-	clip.x = x1; clip.y = y1; clip.w = x2 - x1; clip.h = y2 - y1;
-	/* These crop coordinates are already in transformed device space;
-	 * pb_render applies rotation and mirroring to the page itself. */
-	sx = x1 - px; sy = y1 - py;
-	if (pb_render(doc->doc, page, (float)scale, doc->rotation & 3,
-		doc->mirrored, rtd->night, sx, sy, clip.w, clip.h, PB_FMT_XRGB8888,
-		DstPixel(display, clip.x, clip.y), display->pitch))
-		error = pb_error_message(doc->doc);
-	else g_rendered_content_this_frame = true;
-	if (error) {
-		SDL_FillRect(display, &clip, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
-		DrawString(display, clip.x + 8, clip.y + 8, "Page cannot be rendered",
-			SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
-		SDL_SetClipRect(display, &clip);
-		DrawString(display, clip.x + 8, clip.y + 30, error, SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
-		SDL_SetClipRect(display, NULL);
-		fprintf(stderr, "MuGreen2: rendering failed on page %d: %s\n", page + 1, error);
-		if (*failed_page < 0) *failed_page = page;
-	} else if (pb_page_has_warnings(doc->doc, page)) {
-		SDL_Rect marker = { x2 - 18, y1 + 4, 14, 14 };
-		if (marker.x >= x1) {
-			SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
-			DrawString(display, marker.x + 3, marker.y + 1, "!", SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
-		}
-		if (pb_take_page_warning(doc->doc, page)) {
-			char msg[256];
-			snprintf(msg, sizeof(msg), "Page %d contains content that MuPDF could not fully interpret", page + 1);
-			Green_LogMessage(msg); fprintf(stderr, "MuGreen2: %s\n", msg);
-		}
-	}
-}
 
-static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
-{
-	Green_Document *doc = rtd->doc;
-	int lp, rp, lw, lh, rw, rh, old_sw, old_sh, new_sw, new_sh;
-	double scale, anchor_x, anchor_y, old_fs = doc->finescale;
-	int margin_x, margin_y;
-	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
-		/* The unpaired first/last page is rendered as a normal full-width page. */
-		Green_Zoom(doc, vw, vh, new_fs);
-		return;
-	}
-	old_sw = lw + rw; old_sh = lh > rh ? lh : rh;
-	anchor_x = doc->xoffset + vw / 2.0 - (old_sw < vw ? (vw - old_sw) / 2.0 : 0);
-	anchor_y = doc->yoffset + vh / 2.0 - (old_sh < vh ? (vh - old_sh) / 2.0 : 0);
-	if (!(new_fs >= 0.05)) new_fs = 0.05;
-	if (new_fs > 20.0) new_fs = 20.0;
-	doc->finescale = new_fs;
-	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
-		doc->finescale = old_fs; return;
-	}
-	new_sw = lw + rw; new_sh = lh > rh ? lh : rh;
-	margin_x = new_sw < vw ? (vw - new_sw) / 2 : 0;
-	margin_y = new_sh < vh ? (vh - new_sh) / 2 : 0;
-	doc->xoffset = (int)(anchor_x - vw / 2.0 + margin_x + 0.5);
-	doc->yoffset = (int)(anchor_y - vh / 2.0 + margin_y + 0.5);
-	ClampSpreadOffset(rtd, vw, vh);
-}
 
-static int	ViewWidth( Green_RTD *rtd );
+
+
+
+
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
-static SDL_Surface *CreateOverlaySurface(SDL_Surface *display, int rotation);
-static void CompositeOverlay(SDL_Surface *display, SDL_Surface *overlay, int rotation);
 static void RenderHelpContent(SDL_Surface *display);
 
 static void RenderHelp(SDL_Surface *display)
@@ -369,46 +253,11 @@ static Uint8	*DstPixel( SDL_Surface *d, int lx, int ly )
 
 /* Overlay surfaces use the reader's logical orientation. PDF content is already
  * rendered in rotated device space, so UI layers must be rotated separately. */
-static SDL_Surface *CreateOverlaySurface(SDL_Surface *display, int rotation)
-{
-	int w = (rotation & 1) ? display->h : display->w;
-	int h = (rotation & 1) ? display->w : display->h;
-	SDL_Surface *overlay = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, display->format->format);
-	if (overlay) {
-		Uint32 key = SDL_MapRGB(overlay->format, 0xFF, 0x00, 0xFF);
-		SDL_FillRect(overlay, NULL, key);
-		SDL_SetColorKey(overlay, SDL_TRUE, key);
-	}
-	return overlay;
-}
 
-static void CompositeOverlay(SDL_Surface *display, SDL_Surface *overlay, int rotation)
-{
-	Uint32 key = SDL_MapRGB(overlay->format, 0xFF, 0x00, 0xFF);
-	int x, y;
-	for (y = 0; y < overlay->h; y++) {
-		Uint32 *src = (Uint32 *)((Uint8 *)overlay->pixels + y * overlay->pitch);
-		for (x = 0; x < overlay->w; x++) {
-			int dx, dy;
-			if (src[x] == key) continue;
-			switch (rotation & 3) {
-			case 1: dx = display->w - 1 - y; dy = x; break;
-			case 2: dx = display->w - 1 - x; dy = display->h - 1 - y; break;
-			case 3: dx = y; dy = display->h - 1 - x; break;
-			default: dx = x; dy = y; break;
-			}
-			if (dx >= 0 && dx < display->w && dy >= 0 && dy < display->h) {
-				Uint32 *dst = (Uint32 *)((Uint8 *)display->pixels + dy * display->pitch);
-				dst[dx] = src[x];
-			}
-		}
-	}
-}
 
-static int OrientedDisplayHeight(SDL_Surface *display, int rotation)
-{
-	return (rotation & 1) ? display->w : display->h;
-}
+
+
+
 
 static void	Present( void )
 {
@@ -545,63 +394,7 @@ static const unsigned char bitmap_font[][7] = {
  * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
  * so the window origin is converted here. */
 void DrawString( SDL_Surface *display, int x, int y, const char *str, Uint32 color );
-static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
-	int page_num, double tscale, int *failed_page )
-{
-	Green_Document *doc = rtd->doc;
-	SDL_Surface *display = DrawSurface();
-	int W, H, xd, yd, w, h, rot = doc->rotation & 3;
-	const char *error = NULL;
-	SDL_Rect clip = dest;
-	if (dest.w <= 0 || dest.h <= 0) return 0;
-	if (pb_device_size(doc->doc, page_num, (float)tscale, rot, &W, &H))
-		error = pb_error_message(doc->doc);
-	else {
-		switch (rot) {
-		case 1: xd = W - yoff - dest.w; yd = xoff; break;
-		case 2: xd = W - xoff - dest.w; yd = H - yoff - dest.h; break;
-		case 3: xd = yoff; yd = H - xoff - dest.h; break;
-		default: xd = xoff; yd = yoff; break;
-		}
-		if (doc->mirrored) yd = H - yd - dest.h;
-		w = dest.w; h = dest.h;
-		if (xd < 0) xd = 0;
-		if (yd < 0) yd = 0;
-		if (xd + w > W) w = W - xd;
-		if (yd + h > H) h = H - yd;
-		if (w > 0 && h > 0 && pb_render(doc->doc, page_num, (float)tscale, rot,
-			doc->mirrored, rtd->night, xd, yd, w, h, PB_FMT_XRGB8888,
-			DstPixel(display, dest.x, dest.y), display->pitch))
-			error = pb_error_message(doc->doc);
-		else if (w > 0 && h > 0)
-			g_rendered_content_this_frame = true;
-		if (!error && pb_page_has_warnings(doc->doc, page_num))
-		{
-			SDL_Rect marker = { dest.x + dest.w - 18, dest.y + 4, 14, 14 };
-			SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
-			DrawString(display, marker.x + 3, marker.y + 1, "!", SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
-			if (pb_take_page_warning(doc->doc, page_num))
-				{
-				char log_message[256];
-				snprintf(log_message, sizeof(log_message), "Page %d contains content that MuPDF could not fully interpret", page_num + 1);
-				Green_LogMessage(log_message);
-				fprintf(stderr, "MuGreen2: %s\n", log_message);
-			}
-		}
-	}
-	if (error) {
-		SDL_FillRect(display, &dest, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
-		DrawString(display, dest.x + 8, dest.y + 8, "Page cannot be rendered",
-			SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
-		SDL_SetClipRect(display, &clip);
-		DrawString(display, dest.x + 8, dest.y + 30, error,
-			SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
-		SDL_SetClipRect(display, NULL);
-		fprintf(stderr, "MuGreen2: rendering failed on page %d: %s\n", page_num + 1, error);
-		if (*failed_page < 0) *failed_page = page_num;
-	}
-	return 0;
-}
+
 
 // Draw a single character using bitmap font
 void DrawChar( SDL_Surface *display, int x, int y, char c, Uint32 color )
@@ -687,13 +480,7 @@ static int	DrawUtf8( SDL_Surface *display, int x, int y, int max_w, int line_h,
 	return line_h;
 }
 
-static int	ViewWidth( Green_RTD *rtd )
-{
-	(void)rtd;
-	/* Facing-page mode scrolls and zooms one continuous spread across the
-	 * complete display, not two independently clipped half-width viewports. */
-	return DrawSurface()->w;
-}
+
 
 static void	FreeTOC( TOCNode *node )
 {
@@ -1667,180 +1454,39 @@ static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
 	*flags &= ~FLAG_RENDER;
 }
 
-static void	SetPageStart( Green_Document *doc, bool right_to_left, int w, int h );
+static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display);
 
 /* Page turn keeps finescale + pan in normal mode; manga mode starts at top-right. */
-static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h, bool right_to_left )
-{
-	if (!Green_GotoPage( doc, page, false ))
-		return 0;
-	if (right_to_left)
-		SetPageStart( doc, true, w, h );
-	else
-		Green_ValidateOffset( doc, w, h );
-	return 1;
-}
+
 
 /* Position a newly selected page at the leading corner. Offsets are stored in
  * unrotated document space, so this remains the original top-right corner
  * regardless of the current display rotation. */
-static void	SetPageStart( Green_Document *doc, bool right_to_left, int w, int h )
+static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 {
-	int max_x, max_y;
-	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
-	if (doc->rotation & 1)
-		max_x = max_y;
-	doc->xoffset = right_to_left ? max_x : 0;
+	Green_Document *doc = rtd->doc;
+	Green_Document fit_doc = *doc;
+	int page_w, page_h;
+	double scale;
+
+	fit_doc.rotation = 0;
+	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
+		&page_w, &page_h))
+		return;
+	doc->xoffset = rtd->right_to_left && page_w > display->w
+		? page_w - display->w : 0;
 	doc->yoffset = 0;
-	Green_ValidateOffset( doc, w, h );
 }
 
 /* Scroll in screen directions and change pages at the corresponding edges. */
-static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
-{
-	Green_Document *doc = rtd->doc;
-	int max_x, max_y, doc_max_x, doc_max_y, doc_dy, page_step, next_page = 0;
-	int rotation = doc->rotation & 3;
 
-	if (rtd->side_by_side && doc->page_count > 1)
-	{
-		int lp, rp, lw, lh, rw, rh, old_x = doc->xoffset, old_y = doc->yoffset;
-		double scale;
-		if (GetSpreadMetrics(rtd, DrawSurface()->w, DrawSurface()->h, &scale, &lp, &rp, &lw, &lh, &rw, &rh))
-		{
-			int spread_h = lh > rh ? lh : rh;
-			int max_scroll_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
-			doc->xoffset += sx; doc->yoffset += sy;
-			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
-			if (doc->xoffset != old_x || doc->yoffset != old_y) return 1;
-			if (sx) {
-				next_page = sx < 0 ? ((rotation == 1 || rotation == 2) ? 1 : -1)
-					: ((rotation == 1 || rotation == 2) ? -1 : 1);
-				if (rtd->right_to_left) next_page = -next_page;
-			} else if (rotation & 1) {
-				int top_border, bottom_border;
-				if (rotation == 1) {
-					top_border = doc->mirrored ? doc->yoffset == max_scroll_y : doc->yoffset == 0;
-					bottom_border = doc->mirrored ? doc->yoffset == 0 : doc->yoffset == max_scroll_y;
-				} else {
-					top_border = doc->mirrored ? doc->yoffset == 0 : doc->yoffset == max_scroll_y;
-					bottom_border = doc->mirrored ? doc->yoffset == max_scroll_y : doc->yoffset == 0;
-				}
-				if (sy < 0 && top_border) next_page = rotation == 1 ? -1 : 1;
-				else if (sy > 0 && bottom_border) next_page = rotation == 1 ? 1 : -1;
-			} else {
-				int doc_dy = rotation == 2 ? (doc->mirrored ? sy : -sy)
-					: (doc->mirrored ? -sy : sy);
-				if (doc_dy > 0 && doc->yoffset >= max_scroll_y) next_page = 1;
-				else if (doc_dy < 0 && doc->yoffset <= 0) next_page = -1;
-			}
-			if (next_page) {
-				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + next_page * 2, false)) return 0;
-				doc->xoffset = doc->yoffset = 0;
-				return 1;
-			}
-			return 0;
-		}
-	}
-
-	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
-	doc_max_x = (rotation & 1) ? max_y : max_x;
-	doc_max_y = (rotation & 1) ? max_x : max_y;
-
-	if (sx)
-	{
-		int old_x = doc->xoffset, old_y = doc->yoffset;
-
-		/* Let Green apply the rotated/mirrored scroll transform and clamp the
-		 * offsets. A horizontal edge is reached when that scroll cannot move. */
-		Green_ScrollRelative( doc, sx, 0, w, h, 0 );
-		if (doc->xoffset != old_x || doc->yoffset != old_y)
-			return 1;
-
-		/* Convert the screen edge into document order, then apply reading direction. */
-		next_page = sx < 0
-			? ((rotation == 1 || rotation == 2) ? 1 : -1)
-			: ((rotation == 1 || rotation == 2) ? -1 : 1);
-		if (rtd->right_to_left)
-			next_page = -next_page;
-	}
-	else if (rotation & 1)
-	{
-		int old_x = doc->xoffset, old_y = doc->yoffset;
-		int top_border, bottom_border;
-
-		/* At 90/270 degrees, Up/Down moves the document's X offset. */
-		Green_ScrollRelative( doc, 0, sy, w, h, 0 );
-		if (doc->xoffset != old_x || doc->yoffset != old_y)
-			return 1;
-
-		if (rotation == 1)
-		{
-			top_border = doc->mirrored
-				? doc->xoffset == doc_max_x : doc->xoffset == 0;
-			bottom_border = doc->mirrored
-				? doc->xoffset == 0 : doc->xoffset == doc_max_x;
-		}
-		else
-		{
-			top_border = doc->mirrored
-				? doc->xoffset == 0 : doc->xoffset == doc_max_x;
-			bottom_border = doc->mirrored
-				? doc->xoffset == doc_max_x : doc->xoffset == 0;
-		}
-
-		/* Match the document reading direction at the rotated top/bottom
-		 * edges. Rotation 270 reverses the page order relative to 90. */
-		if (sy < 0 && top_border)
-			next_page = rotation == 1 ? -1 : 1;
-		else if (sy > 0 && bottom_border)
-			next_page = rotation == 1 ? 1 : -1;
-	}
-	else
-	{
-		switch (rotation)
-		{
-			case 2: doc_dy = doc->mirrored ? sy : -sy; break;
-			default: doc_dy = doc->mirrored ? -sy : sy; break;
-		}
-
-		/* Vertical movement follows the document's reading-order axis. */
-		if (doc_dy > 0 && doc->yoffset >= doc_max_y)
-			next_page = 1;
-		else if (doc_dy < 0 && doc->yoffset <= 0)
-			next_page = -1;
-		else
-		{
-			Green_ScrollRelative( doc, 0, sy, w, h, 0 );
-			return 1;
-		}
-	}
-
-	if (next_page)
-	{
-		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
-		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
-			return 0;
-
-		/* Re-entering a facing-page pair starts at the spread origin; a
-		 * single-page view keeps the traditional document-space leading edge. */
-		if (rtd->side_by_side && doc->page_count > 1) {
-			doc->xoffset = doc->yoffset = 0;
-			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
-		} else SetPageStart(doc, rtd->right_to_left, w, h);
-		return 1;
-	}
-
-	return 1;
-}
 
 static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
 	int w, int h, unsigned short *flags)
 {
 	int page, max_x, max_y;
 
-	(void)w;
-	(void)h;
 	if (!doc)
 		return;
 	page = doc->page_cur + (rtd->right_to_left ? -delta : delta);
@@ -2171,7 +1817,7 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 				if (rtd->side_by_side && doc->page_count > 1)
 					doc->xoffset = doc->yoffset = 0;
 				else
-					SetPageStart(doc, rtd->right_to_left, display->w, display->h);
+					SetLogicalPageStart(rtd, display);
 			}
 			Green_SaveSettings(rtd);
 			*flags |= FLAG_RENDER;
@@ -2507,7 +2153,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						bool *held = left ? &g_l2_held : &g_r2_held;
 						bool down = event.caxis.value > 16000;
 						if (down && !*held && !g_select_button_held && g_state == NORMAL && Green_IsDocValid( rtd ))
-							SkipPages( rtd->doc, rtd, left ? -10 : 10, ViewWidth( rtd ), display->h, &flags );
+							SkipPages(rtd->doc, rtd, left ? -10 : 10, &flags);
 						*held = down;
 					}
 					break;

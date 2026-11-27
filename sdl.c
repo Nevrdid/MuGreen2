@@ -93,7 +93,7 @@ static Uint32	g_list_nav_next = 0;
 static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
 static int	g_overlay_rotation = 0;
-/* Opt-in SDL-only proof of a rotation-aware logical framebuffer. */
+/* SDL presents the logical content framebuffer with one final transform. */
 static SDL_RendererFlip	g_content_flip = SDL_FLIP_NONE;
 static int	g_reader_rotation = 0;
 
@@ -121,7 +121,7 @@ static const char	*g_help_lines[] = {
 	"",
 	"Hotkey shortcuts (hold Select first)",
 	"",
-	"Hotkey+Up      Toggle stack axis (logical-PDF test)",
+	"Hotkey+Up      Toggle stack axis",
 	"Hotkey+Down    Toggle facing-page order (dual-page only)",
 	"Hotkey+B       Toggle night mode",
 	"Hotkey+X       Mirror horizontally",
@@ -1005,7 +1005,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	return doc->xoffset != old_x || doc->yoffset != old_y;
 }
 
-/* Zoom the logical single-page probe around the viewport centre. */
+/* Zoom a logical single page around the viewport centre. */
 static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double factor)
 {
 	Green_Document *doc = rtd->doc;
@@ -1367,7 +1367,7 @@ render_error:
 			SDL_SetClipRect(display, &failed);
 			DrawString(display, 8, 30, error, SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
 			SDL_SetClipRect(display, NULL);
-			fprintf(stderr, "MuGreen2: logical PDF test failed on page %d: %s\n",
+			fprintf(stderr, "MuGreen2: PDF rendering failed on page %d: %s\n",
 				doc->page_cur + 1, error);
 		}
 		if (*failed_page < 0) *failed_page = doc->page_cur;
@@ -1498,6 +1498,7 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 
 	fit_doc.rotation = 0;
 	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
+	doc->xoffset = doc->yoffset = 0;
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
 		&page_w, &page_h))
 		return;

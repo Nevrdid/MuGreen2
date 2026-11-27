@@ -1388,23 +1388,23 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
     /* Enter next spreads at physical top-left and previous spreads at
-     * physical top-right, transformed into the logical framebuffer. */
+     * physical bottom-right, transformed into the logical framebuffer. */
     switch (doc->rotation & 3) {
         case 1:
-            doc->xoffset = 0;
+            doc->xoffset = page_delta > 0 ? 0 : max_x;
             doc->yoffset = page_delta > 0 ? max_y : 0;
             break;
         case 2:
             doc->xoffset = page_delta > 0 ? max_x : 0;
-            doc->yoffset = max_y;
+            doc->yoffset = page_delta > 0 ? max_y : 0;
             break;
         case 3:
-            doc->xoffset = max_x;
+            doc->xoffset = page_delta > 0 ? max_x : 0;
             doc->yoffset = page_delta > 0 ? 0 : max_y;
             break;
         default:
             doc->xoffset = page_delta > 0 ? 0 : max_x;
-            doc->yoffset = 0;
+            doc->yoffset = page_delta > 0 ? 0 : max_y;
             break;
     }
     return 1;

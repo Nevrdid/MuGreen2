@@ -31,7 +31,7 @@ The on-screen help panel lists the current bindings. The default is the Nintendo
 | Select | Tap for help; hold as a modifier |
 | Select + Start | Exit |
 | Guide | Exit (optional) |
-| Select + B | Toggle night mode (after rotation/layout remapping) |
+| Select + B | Toggle night mode |
 | Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
 | Select + R1 | Toggle right-to-left manga reading |

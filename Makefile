@@ -25,7 +25,12 @@ PREFIX ?= /usr/local
 SDL2_CONFIG ?= sdl2-config
 
 CC := $(CROSS_COMPILE)gcc
-STRIP = $(CROSS_COMPILE)strip
+NOSTRIP ?= 0
+ifeq ($(NOSTRIP),1)
+STRIP_CMD := true
+else
+STRIP_CMD := $(CROSS_COMPILE)strip
+endif
 # Let the selected compiler report its own sysroot. GCC prints "/" for a
 # native compiler with no separate sysroot; treat that as an empty value.
 SYSROOT ?= $(shell $(CC) -print-sysroot 2>/dev/null | sed 's@^/$$@@')
@@ -42,7 +47,7 @@ all: mugreen2
 
 mugreen2: $(OBJS)
 	$(CC) $(SYSROOT_FLAG) $(LDFLAGS) $^ $(LIBS) -o $@
-	$(STRIP) $@
+	$(STRIP_CMD) $@
 
 main.o: main.c green.h pdf_backend.h
 	$(CC) $(SYSROOT_FLAG) $(CFLAGS) -c $< -o $@

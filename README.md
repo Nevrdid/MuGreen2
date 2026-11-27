@@ -78,10 +78,10 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 3. Build MuGreen2 against the matching MuPDF and SDL2 builds:
 
    ```sh
-   make ARCH=aarch64
+   make ARCH=aarch64 MUPDF=mupdf/aarch64 SDL2_CONFIG="$PWD/sdl2/aarch64/bin/sdl2-config"
    ```
 
-   Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between the two builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`. For a native build, run `make ARCH=native` after building MuPDF with `ARCH=native`.
+   For native builds, use `make ARCH=native MUPDF=mupdf/native SDL2_CONFIG="$PWD/sdl2/native/bin/sdl2-config"`. The Makefile forces the host compiler for `ARCH=native`. Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between cross-builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`. For a native build, run `make ARCH=native` after building MuPDF with `ARCH=native`.
 
 4. Install the executable (optional):
 

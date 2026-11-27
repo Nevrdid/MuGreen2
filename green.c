@@ -227,10 +227,10 @@ static char *SkipSpace( char *p )
 /* Parse the complete state record without scanf's undefined behaviour for
  * out-of-range integer conversions, and reject missing or trailing fields. */
 static bool ParseDocumentState( char *line, int *page, double *scale,
-	int *x, int *y, int *rotation, int *mirrored, int *fit )
+	int *x, int *y, int *rotation, int *mirrored, int *mirror_vertical, int *fit, int version )
 {
 	char *p = line, *end;
-	long values[6];
+	long values[7];
 	double d;
 	int i;
 
@@ -245,7 +245,7 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 	if (end == p || errno == ERANGE || !isfinite( d ))
 		return false;
 	p = end;
-	for (i = 1; i < 6; i++)
+	for (i = 1; i < (version == 2 ? 7 : 6); i++)
 	{
 		p = SkipSpace( p );
 		errno = 0;
@@ -263,7 +263,8 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 	*y = (int)values[2];
 	*rotation = (int)values[3];
 	*mirrored = (int)values[4];
-	*fit = (int)values[5];
+	*mirror_vertical = version == 2 ? (int)values[5] : 0;
+	*fit = version == 2 ? (int)values[6] : (int)values[5];
 	return true;
 }
 
@@ -271,7 +272,7 @@ static bool LoadDocumentState( Green_Document *doc )
 {
 	char path[PATH_MAX + 64], saved_uri[8192], line[512];
 	FILE *file;
-	int page, x, y, rotation, mirrored, fit;
+	int page, x, y, rotation, mirrored, mirror_vertical, fit, version;
 	double scale;
 
 	if (!DocumentStatePath( doc->uri, path, sizeof( path )))
@@ -279,12 +280,14 @@ static bool LoadDocumentState( Green_Document *doc )
 	file = fopen( path, "r" );
 	if (!file)
 		return false;
-	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\n" )
+	if (!fgets( line, sizeof( line ), file )
+		|| (strcmp( line, "MUGREEN2 1\n" ) && strcmp( line, "MUGREEN2 2\n" ))
 		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
 	{
 		fclose( file );
 		return false;
 	}
+	version = line[8] - '0';
 	/* A truncated URI must never be accepted as a different document. */
 	if (!strchr( saved_uri, '\n' ) && !feof( file ))
 	{
@@ -294,7 +297,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
 	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
 		|| (!strchr( line, '\n' ) && !feof( file ))
-		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit )
+		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &mirror_vertical, &fit, version )
 		|| fgetc( file ) != EOF || ferror( file ))
 	{
 		fclose( file );
@@ -304,6 +307,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	if (page < 1 || page > doc->page_count
 		|| scale <= 0 || rotation < 0 || rotation > 3
 		|| mirrored < 0 || mirrored > 1
+		|| mirror_vertical < 0 || mirror_vertical > 1
 		|| fit < NATURAL || fit > PAGE)
 		return false;
 
@@ -313,6 +317,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	doc->yoffset = y < 0 ? 0 : y;
 	doc->rotation = ((rotation % 4) + 4) % 4;
 	doc->mirrored = mirrored != 0;
+	doc->mirror_vertical = mirror_vertical != 0;
 	doc->fit_method = (Green_FitMethod)fit;
 	return true;
 }
@@ -388,12 +393,13 @@ static void SaveDocumentState( Green_Document *doc )
 		return;
 	scale = ClampFineScale( doc->finescale );
 	if (snprintf( content, sizeof( content ),
-		"MUGREEN2 1\n%s\n%d %.6f %d %d %d %d %d\n",
+		"MUGREEN2 2\n%s\n%d %.6f %d %d %d %d %d %d\n",
 		doc->uri, doc->page_cur + 1, scale,
 		doc->xoffset < 0 ? 0 : doc->xoffset,
 		doc->yoffset < 0 ? 0 : doc->yoffset,
 		((doc->rotation % 4) + 4) % 4,
 		doc->mirrored ? 1 : 0,
+		doc->mirror_vertical ? 1 : 0,
 		doc->fit_method >= NATURAL && doc->fit_method <= PAGE ? (int)doc->fit_method : WIDTH ) >= (int)sizeof( content ))
 		return;
 	AtomicWriteText( path, content );

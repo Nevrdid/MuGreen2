@@ -64,7 +64,7 @@ Horizontal D-pad page direction follows L1/R1: Left matches L1 and Right matches
 
 Page dimensions are measured unrotated against the logical framebuffer dimensions. This is important at 90°/270°, where the logical viewport width and height are swapped relative to the physical display. The transition remains limited to the experimental single-page path.
 
-**Device result:** the user has now tested the Stage 5 page-edge behaviour and confirmed that it works, including the final fit/overflow and rotation-specific direction refinements. The next/previous page entry corners also behave as intended. The broader mirror/rotation matrix remains part of the overall pipeline validation.
+**Device result:** the user has now tested the Stage 5 page-edge behaviour and confirmed that it works, including the final fit/overflow and rotation-specific direction refinements. Next spreads start at physical top-left. Previous spreads now experimentally start at physical bottom-right; device testing is pending to judge whether this feels more practical. The broader mirror/rotation matrix remains part of the overall pipeline validation.
 
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
 - dual-page/facing-page layout (the current page is shown alone);
@@ -100,7 +100,7 @@ The logical-PDF test now renders facing-page pairs in one continuous logical-coo
 - D-pad input pans the combined spread in logical coordinates; once the relevant axis reaches its edge (or fits entirely in the viewport), another press changes to the adjacent page pair. L1/R1 also navigate by pairs.
 - An unpaired first/last page falls back to the single-page logical renderer.
 
-**User verification:** the user built and tested the corrected spread implementation. Horizontal/vertical stacking now remains stable from the user's viewing orientation at all reader rotations; the corrected page order works in LTR/RTL with the explicit Select+Down override. The user reports that all tested behaviour is now correct, including spread navigation and zoom/pan. This stage is treated as device-verified.
+**User verification:** the user built and tested the corrected spread implementation. Horizontal/vertical stacking now remains stable from the user's viewing orientation at all reader rotations; the corrected page order works in LTR/RTL with the explicit Select+Down override. The user reports that all tested behaviour is now correct, including spread navigation and zoom/pan. This stage is treated as device-verified. A follow-up experiment changes previous-spread entry from physical top-right to physical bottom-right; that adjustment is not yet device-verified.
 
 Select+Up's stack-axis preference is persisted in global settings and is active only in the logical-PDF experiment. The normal renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
 

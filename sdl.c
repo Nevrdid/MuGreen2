@@ -842,10 +842,19 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 	{
 		int old_x = doc->xoffset, old_y = doc->yoffset;
 
+		int old_page = doc->page_cur;
+		int moved;
+
 		/* Let Green apply the rotated/mirrored scroll transform and clamp the
 		 * offsets. A horizontal edge is reached when that scroll cannot move. */
 		Green_ScrollRelative( doc, sx, 0, w, h, 0 );
-		if (doc->xoffset != old_x || doc->yoffset != old_y)
+		moved = doc->xoffset != old_x || doc->yoffset != old_y;
+		fprintf( stderr,
+			"[MuGreen2 nav] rotation=%d mirrored=%d sx=%d page=%d "
+			"offset=(%d,%d)->(%d,%d) scroll_region=(%d,%d) moved=%d\\n",
+			rotation, doc->mirrored, sx, old_page, old_x, old_y,
+			doc->xoffset, doc->yoffset, max_x, max_y, moved );
+		if (moved)
 			return 1;
 
 		/* Left goes backward at 0/270 degrees, forward at 90/180. */
@@ -853,8 +862,16 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			? ((rotation == 1 || rotation == 2) ? 1 : -1)
 			: ((rotation == 1 || rotation == 2) ? -1 : 1);
 		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
-		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
-			return 0;
+		{
+			int target_page = old_page + next_page * page_step;
+			int changed = Green_GotoPage( doc, target_page, false );
+			fprintf( stderr,
+				"[MuGreen2 nav] edge reached: direction=%d step=%d target=%d "
+				"goto_result=%d\\n",
+				next_page, page_step, target_page, changed );
+			if (!changed)
+				return 0;
+		}
 
 		/* The beginning of a page is always its unrotated top-left corner. */
 		doc->xoffset = 0;

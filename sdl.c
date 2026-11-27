@@ -1392,7 +1392,8 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
         default: return 0;
     }
     if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
-        &lw, &lh, &rw, &rh, &vertical)) return 0;
+        &lw, &lh, &rw, &rh, &vertical))
+        return ScrollLogicalPDFPage(rtd, display, button);
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
     switch (doc->rotation & 3) {

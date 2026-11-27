@@ -130,6 +130,7 @@ int	main( int argc, char *argv[] )
 	rtd.zoomstep = 1.2;	/* ~20% per zoom click */
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
+	rtd.spread_vertical = false;
 	rtd.night = false;
 	rtd.right_to_left = false;
 	Green_LoadSettings( &rtd );

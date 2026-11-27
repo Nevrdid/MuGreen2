@@ -58,7 +58,7 @@ The logical-PDF probe now supports the existing X/Y zoom buttons. Zoom is calcul
 
 ## Stage 5 — page-edge transitions
 
-The logical-PDF probe now changes pages when the user presses farther past an edge that has real scrollable overflow. Reaching the edge itself only clamps the current page; a subsequent press beyond that edge attempts the page change. A non-scrollable axis never triggers an immediate page change.
+The logical-PDF probe now changes pages when the user presses farther past an edge that has real scrollable overflow. Reaching the edge itself only clamps the current page; a subsequent press beyond that edge attempts the page change. A non-scrollable axis never triggers an immediate page change unless the page dimension exactly matches the logical viewport dimension; an exact-fit axis is already at its edge. Pages smaller than the viewport do not count as exact-fit edges.
 
 The page direction is shared with L1/R1: physical Left/Up use the same direction as L1, and Right/Down use the same direction as R1, including the 90°/180° rotation reversal and RTL adjustment. A successful next-page transition starts at the logical top-left; a previous-page transition starts at the logical top-right. Overscroll is not carried to the new page.
 

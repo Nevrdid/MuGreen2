@@ -1254,13 +1254,17 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			if (!doc) break;
-			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? 2 : -2), vw, display->h, rtd->right_to_left )) break; }
-			else if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? 1 : -1), vw, display->h, rtd->right_to_left )) break;
+			if (rtd->side_by_side && doc->page_count > 1) {
+				if (!Green_GotoPage(doc, doc->page_cur + (rtd->right_to_left ? 2 : -2), false)) break;
+				ClampSpreadOffset(rtd, display->w, display->h);
+			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? 1 : -1), vw, display->h, rtd->right_to_left)) break;
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			if (!doc) break;
-			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? -2 : 2), vw, display->h, rtd->right_to_left )) break; }
-			else if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? -1 : 1), vw, display->h, rtd->right_to_left )) break;
+			if (rtd->side_by_side && doc->page_count > 1) {
+				if (!Green_GotoPage(doc, doc->page_cur + (rtd->right_to_left ? -2 : 2), false)) break;
+				ClampSpreadOffset(rtd, display->w, display->h);
+			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? -1 : 1), vw, display->h, rtd->right_to_left)) break;
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_START: return OpenTOCPanel( rtd, flags );
 		default: break;

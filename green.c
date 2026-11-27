@@ -721,71 +721,39 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 
 	if (doc->rotation == 1)
 	{
-		doc_dx = doc->mirrored ? -y : y;
+		doc_dx = y;
 		doc_dy = -x;
 		left_border = doc->yoffset == doc_max_y;
 		right_border = doc->yoffset == 0;
-		if (doc->mirrored)
-		{
-			top_border = doc->xoffset == doc_max_x;
-			bottom_border = doc->xoffset == 0;
-		}
-		else
-		{
-			top_border = doc->xoffset == 0;
-			bottom_border = doc->xoffset == doc_max_x;
-		}
+		top_border = doc->xoffset == 0;
+		bottom_border = doc->xoffset == doc_max_x;
 	}
 	else if (doc->rotation == 2)
 	{
 		doc_dx = -x;
-		doc_dy = doc->mirrored ? y : -y;
+		doc_dy = -y;
 		left_border = doc->xoffset == doc_max_x;
 		right_border = doc->xoffset == 0;
-		if (doc->mirrored)
-		{
-			top_border = doc->yoffset == 0;
-			bottom_border = doc->yoffset == doc_max_y;
-		}
-		else
-		{
-			top_border = doc->yoffset == doc_max_y;
-			bottom_border = doc->yoffset == 0;
-		}
+		top_border = doc->yoffset == doc_max_y;
+		bottom_border = doc->yoffset == 0;
 	}
 	else if (doc->rotation == 3)
 	{
-		doc_dx = doc->mirrored ? y : -y;
+		doc_dx = -y;
 		doc_dy = x;
 		left_border = doc->yoffset == 0;
 		right_border = doc->yoffset == doc_max_y;
-		if (doc->mirrored)
-		{
-			top_border = doc->xoffset == 0;
-			bottom_border = doc->xoffset == doc_max_x;
-		}
-		else
-		{
-			top_border = doc->xoffset == doc_max_x;
-			bottom_border = doc->xoffset == 0;
-		}
+		top_border = doc->xoffset == doc_max_x;
+		bottom_border = doc->xoffset == 0;
 	}
 	else
 	{
 		doc_dx = x;
-		doc_dy = doc->mirrored ? -y : y;
+		doc_dy = y;
 		left_border = doc->xoffset == 0;
 		right_border = doc->xoffset == doc_max_x;
-		if (doc->mirrored)
-		{
-			top_border = doc->yoffset == doc_max_y;
-			bottom_border = doc->yoffset == 0;
-		}
-		else
-		{
-			top_border = doc->yoffset == 0;
-			bottom_border = doc->yoffset == doc_max_y;
-		}
+		top_border = doc->yoffset == 0;
+		bottom_border = doc->yoffset == doc_max_y;
 	}
 	
 	if (bb_flag)
@@ -861,13 +829,13 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 				{
 					Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
 					if (doc->rotation == 1)
-						doc->xoffset = doc->mirrored ? max_y : 0;
+						doc->xoffset = 0;
 					else if (doc->rotation == 2)
-						doc->yoffset = doc->mirrored ? 0 : max_y;
+						doc->yoffset = max_y;
 					else if (doc->rotation == 3)
-						doc->xoffset = doc->mirrored ? 0 : max_y;
+						doc->xoffset = max_y;
 					else
-						doc->yoffset = doc->mirrored ? max_y : 0;
+						doc->yoffset = 0;
 					
 					Green_ValidateOffset( doc, w, h );
 				}
@@ -889,13 +857,13 @@ void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int 
 				{
 					Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
 					if (doc->rotation == 1)
-						doc->xoffset = doc->mirrored ? 0 : max_y;
+						doc->xoffset = max_y;
 					else if (doc->rotation == 2)
-						doc->yoffset = doc->mirrored ? max_y : 0;
+						doc->yoffset = 0;
 					else if (doc->rotation == 3)
-						doc->xoffset = doc->mirrored ? max_y : 0;
+						doc->xoffset = max_y;
 					else
-						doc->yoffset = doc->mirrored ? 0 : max_y;
+						doc->yoffset = max_y;
 					
 					Green_ValidateOffset( doc, w, h );
 				}

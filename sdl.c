@@ -979,12 +979,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	logical_dx = dx;
 	logical_dy = dy;
 
-	/* Undo the source flip used to preserve the legacy mirror result. */
-	if (doc->mirrored) {
-		bool flip_horizontal = doc->mirror_vertical ^ (doc->rotation & 1);
-		if (flip_horizontal) logical_dx = -logical_dx;
-		else logical_dy = -logical_dy;
-	}
+	/* Mirroring affects presentation only; controller input remains unchanged. */
 
 	max_x = page_w > display->w ? page_w - display->w : 0;
 	max_y = page_h > display->h ? page_h - display->h : 0;
@@ -1217,11 +1212,7 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
     logical_dx = dx;
     logical_dy = dy;
-    if (doc->mirrored) {
-        bool flip_horizontal = doc->mirror_vertical ^ (doc->rotation & 1);
-        if (flip_horizontal) logical_dx = -logical_dx;
-        else logical_dy = -logical_dy;
-    }
+    /* Mirroring affects presentation only; controller input remains unchanged. */
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
     old_x = doc->xoffset < 0 ? 0 : (doc->xoffset > max_x ? max_x : doc->xoffset);

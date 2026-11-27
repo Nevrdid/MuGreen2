@@ -128,12 +128,18 @@ inline static void Green_RotateLeft(Green_Document *doc)
 }
 inline static void Green_MirrorH(Green_Document *doc)
 {
-	doc->mirrored = !doc->mirrored;
+	if (doc->mirrored && !doc->mirror_vertical)
+		doc->mirrored = false;
+	else
+		doc->mirrored = true;
 	doc->mirror_vertical = false;
 }
 inline static void Green_MirrorV(Green_Document *doc)
 {
-	doc->mirrored = !doc->mirrored;
+	if (doc->mirrored && doc->mirror_vertical)
+		doc->mirrored = false;
+	else
+		doc->mirrored = true;
 	doc->mirror_vertical = true;
 }
 #endif /* __GREEN_H__ */

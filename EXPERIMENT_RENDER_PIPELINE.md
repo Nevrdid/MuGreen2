@@ -1,127 +1,68 @@
-# Experimental logical framebuffer pipeline
+# Logical framebuffer renderer migration
 
-This experiment lives only on `experiment-render-pipeline`. It is deliberately isolated from `main`.
+This work remains isolated on `experiment-render-pipeline`. The branch now uses the logical framebuffer renderer as its **only rendering path**; the old SDL page renderer, rotation-specific spread renderer, and manual overlay compositing path have been removed from `sdl.c`. `main` is unchanged.
 
-## Stage 1 — SDL presentation proof
+A safety snapshot of the fully tested parallel implementation is preserved on `experiment-render-pipeline-pre-cleanup`.
 
-The opt-in `GREEN_TEST_LOGICAL_FRAME=1` mode draws a labelled test pattern into a framebuffer whose dimensions follow the reader's logical orientation. SDL rotates the complete framebuffer once at presentation time.
+## Current rendering architecture
 
-Run:
+- PDF pages are rasterised in their unrotated page coordinate system into a logical framebuffer.
+- Single-page and facing-page layout, fit, zoom, panning and clipping use logical viewport dimensions.
+- A separate transparent ARGB layer holds the TOC, help panel and page indicator. It follows presentation rotation but is not mirrored with PDF content.
+- The complete content and UI layers are rotated once during SDL presentation. Reader rotation and physical display mounting correction remain independent.
+- Document mirroring is represented as a source texture flip before the final presentation transform.
+- Controller directions are converted from physical input directions into logical page directions at the navigation boundary.
+
+## Controls and startup options
+
+- `Select + Left`: rotate reader clockwise.
+- `Select + Right`: rotate reader anti-clockwise.
+- `Select + Up`: toggle vertical/horizontal spread stacking (dual-page mode).
+- `Select + Down`: manually reverse facing-page order.
+- `Select + L1`: toggle dual-page mode.
+- `Select + R1`: toggle RTL reading.
+- `L1 / R1`: previous / next page or spread.
+- `L2 / R2`: skip 10 pages backward / forward.
+- `X / Y`: zoom out / in.
+- D-pad: pan, or change page when the relevant axis has no overflow or the page edge has been reached.
+
+Startup options:
+- `-rotation=0|90|180|270`: initial reader rotation.
+- `-display-rotation=0|90|180|270`: rotate the complete presented frame for physical panel mounting.
+- `-rtl` / `-ltr`: initial reading direction.
+
+The old `GREEN_ROTATE180`, `GREEN_TEST_LOGICAL_FRAME` and `GREEN_TEST_LOGICAL_PDF` environment switches are no longer used. Run the branch normally:
 
 ```sh
-GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 /path/to/document.pdf
+./mugreen2 -rotation=0 -display-rotation=180 /path/to/document.pdf
 ```
 
-For a panel mounted upside down, also test:
+## Behaviour validated on the handheld before cleanup
 
-```sh
-GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 -display-rotation=180 /path/to/document.pdf
-```
+The user confirmed:
+- Logical framebuffer presentation and display-mount correction at tested orientations.
+- Single-page rendering, panning, edge clamping and zoom centred on the viewport.
+- Zoom continues to work after reset and reader rotation.
+- L1/R1 and D-pad page navigation across rotations, including distinct vertical and horizontal direction mappings.
+- Facing-page mode with horizontal stacking by default and a persistent Select+Up vertical-stack toggle; page order, RTL and manual Select+Down override.
+- TOC placement/orientation, help panel, page indicator and unmirrored UI overlays.
+- L2/R2 ten-page skipping in single-page and dual-page modes, including the beginning and end of documents.
+- Select+Left/Right reader rotation.
 
-The test pattern bypasses PDF rendering and the normal UI. It still opens the document so the reader's existing rotation control can change the test orientation.
+The user reports performance is at least comparable to the previous implementation, possibly faster. This is a subjective device observation, not a formal benchmark.
 
-**Device result:** the user confirmed that the complete pattern rotates correctly through the tested reader orientations and that `-display-rotation=180` adds the expected startup 180-degree correction. One test-pattern label was misplaced inside the black centre area; this is a cosmetic label-coordinate issue, not a reported presentation-transform failure.
+A small non-blocking inconsistency remains: when navigating to previous spreads, the expected entry corner is not always applied and can occasionally land at top-left. The user considers navigation comfortable and has deferred fixing this.
 
-## Stage 2 — single-page PDF rendering proof
+## Cleanup status
 
-The opt-in `GREEN_TEST_LOGICAL_PDF=1` mode renders one real PDF page without asking MuPDF to rotate it. The PDF is drawn in the logical framebuffer using its unrotated page dimensions; SDL applies reader rotation to the completed framebuffer at presentation time.
+The first cleanup pass promoted the logical renderer to the default on this branch and removed the parallel legacy SDL implementation. `sdl.c` went from 2,768 lines before cleanup to 2,268 lines after the current pass. This is a source-size comparison, not a measure of architectural quality by itself.
 
-Run:
+The old test-mode switches and stage-1 pattern renderer are gone. Legacy SDL spread geometry, zoom, page rendering, rotation-aware scrolling, and temporary overlay-surface/compositing helpers were removed. The logical rendering path now owns presentation, overlays and navigation.
 
-```sh
-GREEN_TEST_LOGICAL_PDF=1 ./mugreen2 /path/to/document.pdf
-```
+## Remaining work before considering a merge
 
-Optionally combine with the independent physical-display correction:
-
-```sh
-GREEN_TEST_LOGICAL_PDF=1 ./mugreen2 -display-rotation=180 /path/to/document.pdf
-```
-
-Startup orientation options are `-rotation=0|90|180|270` for the reader and
-`-display-rotation=0|90|180|270` for the complete presented frame. Use
-`-rtl` or `-ltr` to select the initial reading direction. Reader rotation
-takes precedence over the saved per-document rotation; command-line reading
-direction takes precedence over the saved global preference. Display rotation
-is independent and does not change document navigation direction.
-
-In this probe:
-- **Select + Left** rotates the reader clockwise; **Select + Right** rotates it anti-clockwise. Rotation is no longer bound to the face button.
-- On the user's Nintendo-layout controller, physical **B** still resets the view to width-fit and the top of the page; physical **A** no longer rotates the reader.
-- **L1 / R1** move to the previous / next page. In the logical-PDF probe, their page direction is reversed at 90° and 180° so the physical left/right behaviour stays consistent; RTL reading reverses it again.
-- **L2 / R2** are ignored in this probe; the normal ten-page skip action is intentionally disabled.
-- The reset action returns to width-fit and the top of the page.
-- **X / Y** zoom out / in, using a logical-coordinate zoom anchored at the viewport centre.
-- Mirroring is translated to a pre-presentation SDL flip so its existing post-rotation vertical-mirror result can be retained; panning direction is transformed through the same flip.
-
-## Stage 3 — logical-coordinate single-page panning
-
-The same `GREEN_TEST_LOGICAL_PDF=1` probe supports D-pad panning. Physical D-pad directions are transformed through the inverse reader rotation and the source mirror flip, so movement follows the direction pressed on the handheld. The current page is panned in logical coordinates, with page and viewport bounds calculated in the same logical orientation. Existing D-pad hold-repeat timing is reused.
-
-## Stage 4 — logical-coordinate zoom
-
-The logical-PDF probe now supports the existing X/Y zoom buttons. Zoom is calculated against the logical framebuffer and keeps the page point under the viewport centre anchored as the scale changes. It does not call the legacy rotation-aware zoom routine. Zoom is bounded to the same 0.05–20.0 fine-scale range used by document state.
-
-**Device result:** the user built and tested the probe. X/Y zoom in/out, viewport-centred zoom, horizontal panning after zooming, and panning at 90° and 270° all work. The user also confirmed that zoom remains available after resetting the view and after changing reader rotation. The framebuffer pointer is refreshed after rendering because rotation can recreate the logical framebuffer.
-
-## Stage 5 — page-edge transitions
-
-The logical-PDF probe now changes pages when the user presses farther past an edge that has real scrollable overflow. Reaching the edge itself only clamps the current page; a subsequent press beyond that edge attempts the page change. Each axis is handled independently: when the page dimension is less than or equal to the logical viewport dimension, D-pad input on that axis changes page immediately because there is no scrolling to perform. When the page is larger than the viewport on that axis, D-pad input pans until the corresponding edge is reached, and only a further press changes page.
-
-Horizontal D-pad page direction follows L1/R1: Left matches L1 and Right matches R1, including the 90°/180° rotation reversal and RTL adjustment. Vertical D-pad page direction is mapped independently: Up/Down mean previous/next at 0° and 90°, and next/previous at 180° and 270°; RTL reverses that mapping. A successful next-page transition starts at the logical top-left; a previous-page transition starts at the logical top-right, based on the actual page change rather than the physical button. Overscroll is not carried to the new page.
-
-Page dimensions are measured unrotated against the logical framebuffer dimensions. This is important at 90°/270°, where the logical viewport width and height are swapped relative to the physical display. The transition remains limited to the experimental single-page path.
-
-**Device result:** the user has now tested the Stage 5 page-edge behaviour and confirmed that it works, including the final fit/overflow and rotation-specific direction refinements. Next spreads start at physical top-left. Previous spreads now experimentally start at physical bottom-right; device testing is pending to judge whether this feels more practical. The broader mirror/rotation matrix remains part of the overall pipeline validation.
-
-This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
-- dual-page/facing-page layout (the current page is shown alone);
-- TOC, help, page indicator, or other overlays;
-- all mirror/rotation combinations, window resizing, or performance.
-
-The normal renderer remains the default when neither test variable is enabled. The stage 1 test takes precedence if both variables are set.
-
-## What to check on device
-
-1. Use a PDF with clear page orientation (ideally a page containing text and obvious top/bottom content).
-2. Compare 0°, 90°, 180°, and 270° reader orientations with the same PDF.
-3. Confirm text is upright and the page is not rotated twice or mirrored unexpectedly.
-4. Turn pages with L1/R1 at 0°, 90°, 180° and 270°. L1/R1 should reverse at 90° and 180°; also check the expected reversal in RTL mode, and confirm the page remains correctly positioned.
-5. Zoom in and out with X/Y. Confirm the zoom stays centred around the middle of the visible area and that zooming creates enough overflow to test both D-pad axes.
-6. Pan with each D-pad direction at all four rotations. Movement should follow the physical direction pressed, including when holding a direction to repeat. The first press that reaches an edge should only clamp; a further press should change page if that axis has real overflow.
-7. On a page change, verify that next pages start at logical top-left and previous pages at logical top-right. Confirm Left/Right follow L1/R1, and Up/Down follow their documented vertical mapping (previous/next at 0° and 90°, next/previous at 180° and 270°), including RTL.
-8. Repeat the panning and page-edge checks with mirroring enabled, if desired, to check that the direction mapping follows the mirrored content.
-9. Repeat with `-display-rotation=180` while keeping `-rotation=0`; verify that the image is upside down but controller navigation retains its 0° reader mapping. This specifically separates physical display correction from reader/input orientation.
-10. Test `-display-rotation=90` and `-display-rotation=270` for full-frame sizing and verify that controller directions still follow reader rotation, not display mounting.
-11. Confirm the ordinary renderer still behaves correctly when both logical test variables are unset.
-
-This remains an experimental rendering path, not a replacement for the existing renderer. Single-page rendering, zoom, panning, page-edge transitions, and facing-page spreads have been build-tested and device-tested by the user. The first UI-overlay layer is now implemented but still needs build/device verification. Complete mirror/rotation coverage and performance comparison remain outstanding. Keep the experiment isolated until those areas are validated, then compare complexity and behaviour against the existing implementation before considering any merge.
-
-
-## Stage 6 — logical facing-page spreads
-
-The logical-PDF test now renders facing-page pairs in one continuous logical-coordinate spread. The stack preference is intended to remain visually stable from the user's point of view: horizontal means left/right and vertical means top/bottom at every reader rotation. The latest correction removes the rotation-dependent stack-axis toggle; it still needs device verification because the previous implementation visibly changed axes when rotating. Page order is determined by reading direction and the explicit Select+Down manual override, not by reader rotation. The previous automatic rotation-dependent slot swaps caused the page-order errors reported during device testing and have been removed.
-
-- **Select + Up** toggles horizontal and vertical stacking while dual-page mode is active in the logical-PDF test. The preference is saved in the global settings file and is restored on the next launch.
-- Page pairs retain RTL ordering and the existing manual Select+Down spread-order override. Reader rotation no longer automatically swaps the two page slots.
-- Mixed page dimensions are centred across the cross-axis. The fit scale is calculated against the combined spread dimensions, respecting the document's fit mode.
-- X/Y zoom uses the combined spread geometry but preserves the point under the **viewport centre**. It does not anchor around the centre of the entire spread.
-- D-pad input pans the combined spread in logical coordinates; once the relevant axis reaches its edge (or fits entirely in the viewport), another press changes to the adjacent page pair. L1/R1 also navigate by pairs.
-- An unpaired first/last page falls back to the single-page logical renderer.
-
-**User verification:** the user built and tested the corrected spread implementation. Horizontal/vertical stacking now remains stable from the user's viewing orientation at all reader rotations; the corrected page order works in LTR/RTL with the explicit Select+Down override. The user reports that all tested behaviour is now correct, including spread navigation and zoom/pan. This stage is treated as device-verified. A follow-up experiment changes previous-spread entry from physical top-right to physical bottom-right; that adjustment is not yet device-verified.
-
-Select+Up's stack-axis preference is persisted in global settings and is active only in the logical-PDF experiment. The normal renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
-
-## Stage 7 — logical UI overlay presentation
-
-The first overlay migration slice is implemented on this branch:
-- The logical-PDF test now owns a transparent ARGB overlay surface and streaming texture, separate from the PDF framebuffer.
-- The page indicator, TOC and help panel draw directly in logical framebuffer coordinates; they no longer create and CPU-rotate a temporary surface in this test path.
-- The TOC is anchored to the logical left edge, so final reader rotation moves it around the handheld's edges instead of pinning it to the physical screen's left side.
-- PDF mirroring is applied only to the PDF texture. The UI overlay receives the same final reader rotation but is not mirrored with document content.
-- Help-panel scroll limits use the logical overlay height in the logical-PDF path.
-- L2/R2 ten-page skip bindings are active in the logical-PDF path as well as the legacy path; logical offsets are clamped against the current single-page or spread geometry.
-- The existing renderer's overlay implementation is unchanged.
-
-**User verification:** page indicator and help panel passed all tested orientations; mirroring and the remaining overlay checks were reported correct. The TOC edge-following adjustment and restored L2/R2 handling need a rebuild/device check. Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with -display-rotation=180 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
+1. Build the cleaned branch and run a complete device smoke test. The cleanup has not yet been compiled or tested on-device.
+2. Specifically recheck RTL view entry after toggling RTL at 0°, 90°, 180° and 270°; the logical page-start mapping was adjusted during cleanup and needs device verification.
+3. Review the PDF backend API for rotation/mirroring functionality that may now be redundant because the SDL renderer calls it with zero rotation and no mirroring. Only simplify that API after checking every call site.
+4. Optionally collect a repeatable performance comparison. The user's current impression is that performance is unchanged or improved.
+5. Review the final diff and architecture before deciding whether to merge. Do not merge automatically.

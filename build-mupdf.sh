@@ -14,7 +14,7 @@ fi
 CC_BASE="${CROSS_COMPILE}gcc"
 if [ "${SYSROOT+x}" != x ]; then
  SYSROOT=$("$CC_BASE" -print-sysroot 2>/dev/null || true)
- [ "$SYSROOT" = "/" ] && SYSROOT=
+ if [ "$SYSROOT" = "/" ]; then SYSROOT=; fi
 fi
 SYSROOT=${SYSROOT-}
 PREFIX=${PREFIX:-/opt/mupdf-${ARCH}}
@@ -50,9 +50,9 @@ if [ ! -d "mupdf-$MUPDF_VER-source" ]; then
   exit 1
  fi
  if command -v sha256sum >/dev/null 2>&1; then
-  printf '%s  %s\\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -
+  printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -
  elif command -v shasum >/dev/null 2>&1; then
-  printf '%s  %s\\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -
+  printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -
  else
   echo "sha256sum or shasum is required to verify the MuPDF archive." >&2
   exit 1

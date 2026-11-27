@@ -1323,7 +1323,16 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			state_dirty = true;
 			state_save_at = SDL_GetTicks() + 750;
 		}
-		if (flags&FLAG_RENDER)
+				/* Check the save deadline on every loop, not only when the event
+		 * queue becomes idle. A steady stream of SDL events must not starve
+		 * persistence indefinitely. */
+		if (state_dirty && SDL_TICKS_PASSED( SDL_GetTicks(), state_save_at ))
+		{
+			if (Green_IsDocValid( rtd))
+				Green_SaveDocumentState( rtd->doc );
+			state_dirty = false;
+		}
+if (flags&FLAG_RENDER)
 		{
 			Render( rtd );
 			flags ^= FLAG_RENDER;
@@ -1350,15 +1359,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			Uint32 now = SDL_GetTicks();
 			int timeout = SDL_TICKS_PASSED( now, state_save_at ) ? 0 : (int)(state_save_at - now);
 			if (!SDL_WaitEventTimeout( &event, timeout ))
-			{
-				if (SDL_TICKS_PASSED( SDL_GetTicks(), state_save_at ))
-				{
-					if (Green_IsDocValid( rtd))
-						Green_SaveDocumentState( rtd->doc );
-					state_dirty = false;
-				}
 				continue;
-			}
 		}
 		else if (!SDL_WaitEvent( &event ))
 		{

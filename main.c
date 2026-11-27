@@ -41,6 +41,7 @@ const char	*help_text =
 "    -step=<fraction>            scroll step as a fraction of the viewport (default: 0.9)\n"
 "    -zoomstep=<fraction>        zoom increment as a fraction (default: 1/5)\n"
 "    -rotation=<degrees>         initial reader rotation: 0, 90, 180 or 270\n"
+"    -display-rotation=<degrees> rotate the complete display: 0, 90, 180 or 270\n"
 "    -rtl                        start in right-to-left reading order\n"
 "    -ltr                        start in left-to-right reading order\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
@@ -138,6 +139,7 @@ int	main( int argc, char *argv[] )
 	rtd.right_to_left = false;
 	rtd.startup_rotation = 0;
 	rtd.startup_rotation_set = false;
+	rtd.display_rotation = 0;
 	Green_LoadSettings( &rtd );
 	
 	for (i = 1; i < argc; i++)
@@ -185,6 +187,20 @@ int	main( int argc, char *argv[] )
 				err = -1;
 			if (!err)
 				rtd.startup_rotation_set = true;
+		}
+		else if (!strncmp( opt, "display-rotation=", 17 ))
+		{
+			opt += 17;
+			if (!strcmp( opt, "0" ))
+				rtd.display_rotation = 0;
+			else if (!strcmp( opt, "90" ))
+				rtd.display_rotation = 1;
+			else if (!strcmp( opt, "180" ))
+				rtd.display_rotation = 2;
+			else if (!strcmp( opt, "270" ))
+				rtd.display_rotation = 3;
+			else
+				err = -1;
 		}
 		else if (!strcmp( opt, "rtl" ))
 			rtd.right_to_left = true;

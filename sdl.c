@@ -1259,6 +1259,40 @@ static void	HelpStepScroll( int dir, int max_scroll )
 		g_help_scroll--;
 }
 
+/* Map physical D-pad directions to the help panel's logical vertical axis.
+ * The overlay is drawn before being rotated onto the physical display. */
+static int HelpScrollDirection(Uint8 button)
+{
+	switch (g_overlay_rotation & 3)
+	{
+		case 1:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return 1;
+			break;
+		case 2:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return 1;
+			break;
+		case 3:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT) return 1;
+			break;
+		default:
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_UP) return -1;
+			if (button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) return 1;
+			break;
+	}
+	return 0;
+}
+
+static void HelpListNavStart(Uint8 button, int dir)
+{
+	if (!dir) return;
+	g_list_nav_dir = dir;
+	g_list_nav_button = button;
+	g_list_nav_next = SDL_GetTicks() + LIST_NAV_DELAY_MS;
+}
+
 static int HelpMaxScrollForHeight(int height)
 {
 	int line_h = 16, y0 = 48, visible = (height - y0 - 8) / line_h;
@@ -1350,15 +1384,20 @@ static RState	HelpInput( Uint8 button, unsigned short *flags )
 {
 	SDL_Surface *display = DrawSurface();
 	int max_scroll = HelpMaxScrollForHeight(OrientedDisplayHeight(display, g_overlay_rotation));
+	int dir;
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
 			ListNavStop(); g_help_active = false; *flags |= FLAG_RENDER; return NORMAL;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			HelpStepScroll( 1, max_scroll ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
-		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			HelpStepScroll( -1, max_scroll ); ListNavStart( button ); *flags |= FLAG_RENDER; break;
-		default: break;
+		default:
+			dir = HelpScrollDirection(button);
+			if (dir)
+			{
+				HelpStepScroll(dir, max_scroll);
+				HelpListNavStart(button, dir);
+				*flags |= FLAG_RENDER;
+			}
+			break;
 	}
 	return HELP;
 }

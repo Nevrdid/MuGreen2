@@ -328,6 +328,14 @@ static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
 			doc->mirrored, rtd->night, xd, yd, w, h, PB_FMT_XRGB8888,
 			DstPixel(display, dest.x, dest.y), display->pitch))
 			error = pb_error_message(doc->doc);
+		if (!error && pb_page_has_warnings(doc->doc, page_num))
+		{
+			SDL_Rect marker = { dest.x + dest.w - 18, dest.y + 4, 14, 14 };
+			SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
+			DrawString(display, marker.x + 3, marker.y + 1, "!", SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
+			if (pb_take_page_warning(doc->doc, page_num))
+				fprintf(stderr, "MuGreen2: page %d contains content that MuPDF could not fully interpret.\\n", page_num + 1);
+		}
 	}
 	if (error) {
 		SDL_FillRect(display, &dest, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
@@ -1296,7 +1304,13 @@ if (flags & FLAG_RENDER)
 			{
 				if (!g_has_presented_frame)
 				{
-					if (failed_page + 1 < rtd->doc->page_count) rtd->doc->page_cur = failed_page + 1;
+					if (rtd->side_by_side && rtd->doc->page_count > 1)
+					{
+						int pair_next = ((failed_page > rtd->doc->page_cur ? failed_page : rtd->doc->page_cur) / 2 + 1) * 2;
+						if (pair_next < rtd->doc->page_count) rtd->doc->page_cur = pair_next;
+						else rtd->doc->page_cur = rtd->doc->page_count > 1 ? rtd->doc->page_count - 2 : 0;
+					}
+					else if (failed_page + 1 < rtd->doc->page_count) rtd->doc->page_cur = failed_page + 1;
 					else if (failed_page > 0) rtd->doc->page_cur = failed_page - 1;
 					Green_SaveDocumentState(rtd->doc);
 					exit_status = GREEN_EXIT_RENDER;

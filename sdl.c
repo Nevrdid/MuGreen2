@@ -2442,10 +2442,12 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) ||
-			CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test)
-				&& ((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
-				(g_logical_frame_test || g_logical_pdf_test)
-				&& ((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
+			CreateFramebuffer(((g_logical_frame_test || g_logical_pdf_test)
+				? (g_reader_rotation + g_display_rotation)
+				: g_display_rotation) & 1 ? oh : ow,
+				((g_logical_frame_test || g_logical_pdf_test)
+				? (g_reader_rotation + g_display_rotation)
+				: g_display_rotation) & 1 ? ow : oh))
 		{
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
@@ -2702,10 +2704,12 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
-							if (CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test)
-								&& ((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
-								(g_logical_frame_test || g_logical_pdf_test)
-								&& ((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
+							if (CreateFramebuffer(((g_logical_frame_test || g_logical_pdf_test)
+								? (g_reader_rotation + g_display_rotation)
+								: g_display_rotation) & 1 ? oh : ow,
+								((g_logical_frame_test || g_logical_pdf_test)
+								? (g_reader_rotation + g_display_rotation)
+								: g_display_rotation) & 1 ? ow : oh))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;

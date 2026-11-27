@@ -61,9 +61,10 @@ typedef struct {
 	bool night;
 	bool right_to_left;
 	bool spread_vertical;
-	/* Explicit command-line startup override; applied after restoring document state. */
+	/* Explicit command-line startup overrides; applied after restoring document state. */
 	int startup_rotation;
 	bool startup_rotation_set;
+	int display_rotation;
 } Green_RTD;
 
 pb_open_result Green_Open(Green_RTD *rtd, const char *filename, char *message, size_t message_size);

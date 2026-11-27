@@ -13,7 +13,7 @@ This roadmap tracks implementation scope and verification status. Items are not 
 
 ## Phase 2 — State, persistence, and failure robustness
 
-**Status: In progress — Batch A hardening implemented; local verification pending.**
+**Status: In progress — Batch A verified by the user; Batch B implemented, local verification pending.**
 
 Already implemented:
 - Strict document-state parsing and validation.
@@ -36,8 +36,8 @@ User verification:
 - Dual-page preference persistence still needs local rebuild/runtime confirmation.
 
 Remaining hardening batches:
-- **Batch A — implemented, needs local verification:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
-- **Batch B — pending:** render failure reporting and classified open failures with documented exit codes.
+- **Batch A — implemented and verified by the user:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
+- **Batch B — implemented, needs local verification:** report MuPDF page-render failures instead of silently presenting incomplete frames; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README.
 - **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3.
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.

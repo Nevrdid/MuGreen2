@@ -128,6 +128,27 @@ Exactly one PDF path is required. Options may be placed before or after the path
 
 For example: `mugreen2 -fullscreen -fit=page -cache=64 manual.pdf`.
 
+### Exit codes
+
+MuGreen2 uses stable non-zero exit codes so launchers can distinguish common failures:
+
+| Code | Meaning |
+| ---: | --- |
+| 0 | Success / normal exit |
+| 1 | Invalid command-line options or document argument count |
+| 2 | PDF file not found |
+| 3 | PDF file is not readable |
+| 4 | Not a regular file, or the file is not a supported/valid document |
+| 5 | PDF requires a password |
+| 6 | Other document-opening failure (I/O, memory, or MuPDF initialisation) |
+| 7 | SDL initialisation failure |
+| 8 | SDL window, renderer, or initial framebuffer setup failure |
+| 9 | PDF page rendering failure |
+| 10 | SDL event-wait failure |
+| 11 | Framebuffer resize failure |
+
+Document-opening and page-rendering failures also print a diagnostic to standard error.
+
 ## Display environment
 
 Set `GREEN_ROTATE180=1` to rotate the final presented image by 180 degrees. This is intended for handheld panels mounted upside down; it does not alter PDF page orientation or saved document rotation. The default is `0` (disabled).

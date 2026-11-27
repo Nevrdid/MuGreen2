@@ -87,3 +87,19 @@ The normal renderer remains the default when neither test variable is enabled. T
 10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
 This remains an experimental single-page path, not a replacement for the existing renderer. The user has build-tested and device-tested the current single-page rendering, zoom, panning, and page-edge transitions. Dual-page spreads, overlays, complete mirroring coverage, and performance remain outstanding. Keep the experiment isolated until those areas are migrated and tested, then compare complexity and behaviour against the existing renderer before considering any merge.
+
+
+## Stage 6 — logical facing-page spreads
+
+The logical-PDF test now renders facing-page pairs in one continuous logical-coordinate spread. The stack preference describes the **physical display** and defaults to horizontal (left/right) at every reader rotation. The renderer exchanges the logical stacking axis at 90°/270° so the final whole-frame rotation preserves the selected physical arrangement.
+
+- **Select + Up** toggles horizontal and vertical stacking while dual-page mode is active in the logical-PDF test. The preference is saved in the global settings file and is restored on the next launch.
+- Page pairs retain RTL ordering and the existing manual spread-order override. The slot order is adjusted for the combination of reader rotation and selected physical stack axis.
+- Mixed page dimensions are centred across the cross-axis. The fit scale is calculated against the combined spread dimensions, respecting the document's fit mode.
+- X/Y zoom uses the combined spread geometry but preserves the point under the **viewport centre**. It does not anchor around the centre of the entire spread.
+- D-pad input pans the combined spread in logical coordinates; once the relevant axis reaches its edge (or fits entirely in the viewport), another press changes to the adjacent page pair. L1/R1 also navigate by pairs.
+- An unpaired first/last page falls back to the single-page logical renderer.
+
+**Build/device verification pending.** This stage has been source-reviewed but has not yet been compiled or tested on the handheld. In particular, verify Select+Up, persistence, both stack axes at all four rotations, mixed-size pages, LTR/RTL and manual slot reversal, zoom anchoring while focused on one page, D-pad pan/edge transitions, and unpaired pages.
+
+The logical-PDF test still does not migrate TOC/help/page-indicator overlays. The normal renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset. Select+Up's new stack toggle is intentionally active only in the logical-PDF experiment.

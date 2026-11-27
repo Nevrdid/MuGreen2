@@ -23,20 +23,19 @@ Already implemented:
 - URI-safe state identity encoding.
 - Global night-mode, right-to-left, and dual-page preferences.
 - Dual-page preference is saved immediately when toggled.
-- Legacy URI migration code and its documentation were removed.\n- Unified settings/document-state storage under one resolved data directory.\n- Global settings now use `<datadir>/settings`; no legacy `~/.green.settings` migration or fallback is retained.\n- Canonicalised existing document paths with `realpath()` before URI encoding, with an absolute-path fallback.
+- Legacy URI migration code and its documentation were removed.
+- Unified settings/document-state storage under one resolved data directory.
+- Global settings now use `<datadir>/settings`; no legacy `~/.green.settings` migration or fallback is retained.
+- Canonicalised existing document paths with `realpath()` before URI encoding, with an absolute-path fallback.
 
 User verification:
 - Document state survives forced termination after the debounce fix.
 - Dual-page preference persistence still needs local rebuild/runtime confirmation.
 
-Final hardening batch:
-1. **Unified data directory:** introduce `MUGREEN2_DATA_DIR`; otherwise use `XDG_DATA_HOME/mugreen2`, then `$HOME/.local/share/mugreen2`, then a writable directory beside the executable as a last resort. If no usable location exists, warn once on stderr and continue without persistence. Settings and document state must use the same resolved directory.
-2. **New settings location:** store global preferences at `<datadir>/settings`; do not migrate or read legacy `~/.green.settings`. Backward compatibility is intentionally unnecessary before production.
-3. **Canonical document identity:** resolve document paths with `realpath()` before URI encoding so equivalent paths share state. If resolution fails, retain a safe absolute/raw-path fallback.
-4. **Render failure reporting:** propagate device-size and render failures, log them, and show a clear in-page error instead of silently displaying a blank/partial page. Avoid logging the same persistent failure every frame.
-5. **Open failure classification:** distinguish missing/unreadable files, password-required documents, malformed/unsupported documents, and other backend/I/O failures. Provide documented, stable process exit codes for frontends.
-6. **Controller mapping documentation:** document `SDL_GAMECONTROLLERCONFIG` and `SDL_GAMECONTROLLERCONFIG_FILE`, including that mappings must be available before SDL GameController initialisation. Controller detection/banner implementation is deferred to Phase 3.
-7. **Window dimension validation:** validate parsed width/height before conversion to `unsigned short`; preserve `0` as automatic display size and accept only `0..65535`.
+Remaining hardening batches:
+- **Batch A — implemented, needs local verification:** unified data directory, new settings path without legacy migration, and canonical document identity.
+- **Batch B — pending:** render failure reporting and classified open failures with documented exit codes.
+- **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3.
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.
 

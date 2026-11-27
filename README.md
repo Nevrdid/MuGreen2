@@ -65,7 +65,7 @@ The original Green-derived files retain Florian Tobias Schandinat's copyright an
 
 The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Install the matching compiler and SDL2 development files first. If `SYSROOT` is not supplied, both scripts ask the selected compiler for its sysroot with `-print-sysroot`; a compiler with no separate sysroot is supported.
 
-1. Build the trimmed static MuPDF libraries:
+1. Build SDL2 for the target architecture:\n\n   ```sh\n   ARCH=aarch64 ./build_sdl2.sh\n   ```\n\n   SDL2 is installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. For a native build, use `ARCH=native ./build_sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release.\n\n2. Build the trimmed static MuPDF libraries:
 
    ```sh
    ARCH=aarch64 ./build-mupdf.sh
@@ -75,7 +75,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    By default, the installed headers and libraries are kept separately in `mupdf/aarch64/`, `mupdf/armhf/`, and `mupdf/native/`. Building one architecture therefore won't overwrite another architecture's installed MuPDF files. Set `PREFIX` to override the install location if needed.
 
-2. Build MuGreen2 against the matching MuPDF build:
+3. Build MuGreen2 against the matching MuPDF and SDL2 builds:
 
    ```sh
    make ARCH=aarch64
@@ -83,7 +83,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between the two builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`. For a native build, run `make ARCH=native` after building MuPDF with `ARCH=native`.
 
-3. Install the executable (optional):
+4. Install the executable (optional):
 
    ```sh
    make install PREFIX=/usr/local
@@ -91,7 +91,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    Set `DESTDIR` to stage installation into a package root. To keep debug symbols, use `make NOSTRIP=1`; the default build strips the executable.
 
-4. Run it with one PDF:
+5. Run it with one PDF:
 
    ```sh
    ./mugreen2 /path/to/document.pdf

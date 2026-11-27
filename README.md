@@ -81,13 +81,21 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    Keep `ARCH`, `CROSS_COMPILE`, `SYSROOT`, and `MUPDF` consistent between the two builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. For a native build, use `make ARCH=native MUPDF=/opt/mupdf-native` after building MuPDF with `ARCH=native`.
 
-3. Run it with one PDF:
+3. Install the executable (optional):
+
+   ```sh
+   make install PREFIX=/usr/local
+   ```
+
+   Set `DESTDIR` to stage installation into a package root. To keep debug symbols, use `make STRIP=true`; the default build strips the executable.
+
+4. Run it with one PDF:
 
    ```sh
    ./mugreen2 /path/to/document.pdf
    ```
 
-The MuPDF build script downloads the MuPDF 1.24.11 source release and verifies its SHA-256 checksum before extraction. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download.
+The MuPDF build script downloads the MuPDF 1.24.11 source release and verifies its SHA-256 checksum before extraction. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download. Checksum verification is performed when the archive is extracted; if the corresponding source directory already exists, the script reuses it without re-verifying the extracted tree. Remove that directory to force a fresh, verified extraction.
 
 ## Saved settings
 

@@ -30,6 +30,8 @@ The on-screen help panel lists the current bindings. The default Nintendo-labell
 | Select | Tap for help; hold as a modifier |
 | Select + Start | Exit |
 | Guide | Exit (optional) |
+
+Holding a D-pad direction repeats navigation after a 300 ms initial delay, then every 100 ms. Normal reading scrolls by 90% of the viewport by default, leaving a 10% overlap; use `-step=<fraction>` to override this. After the visible page or spread changes, a small page-number overlay appears for about 1.2 seconds.
 | Select + B | Toggle night mode |
 | Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
@@ -135,7 +137,7 @@ Exactly one PDF path is required. Options may be placed before or after the path
 | Option | Description |
 | --- | --- |
 | `-fit=none\|width\|height\|page` | Initial fit mode (default: `width`) |
-| `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `1`) |
+| `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `0.9`, leaving 10% overlap) |
 | `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
 | `-fullscreen` | Start fullscreen |
 | `-no-fullscreen` | Start windowed |

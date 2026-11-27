@@ -295,6 +295,10 @@ static void RenderHelp(SDL_Surface *display)
 {
 	SDL_Surface *overlay;
 	if (!g_help_active) return;
+	if (g_logical_pdf_test) {
+		RenderHelpContent(display);
+		return;
+	}
 	overlay = CreateOverlaySurface(display, g_overlay_rotation);
 	if (!overlay) {
 		RenderHelpContent(display);
@@ -318,6 +322,10 @@ static SDL_Window	*g_window = NULL;
 static SDL_Renderer	*g_renderer = NULL;
 static SDL_Texture	*g_texture = NULL;
 static SDL_Surface	*g_fb = NULL;
+/* Logical-PDF UI is kept on its own layer so document mirroring never flips
+ * controller-facing overlays. Both layers receive the same final rotation. */
+static SDL_Surface	*g_overlay_fb = NULL;
+static SDL_Texture	*g_overlay_texture = NULL;
 
 static SDL_Surface	*DrawSurface( void )
 {
@@ -330,8 +338,14 @@ static void	DestroyFramebuffer( void )
 		SDL_DestroyTexture( g_texture );
 	if (g_fb)
 		SDL_FreeSurface( g_fb );
+	if (g_overlay_texture)
+		SDL_DestroyTexture( g_overlay_texture );
+	if (g_overlay_fb)
+		SDL_FreeSurface( g_overlay_fb );
 	g_texture = NULL;
 	g_fb = NULL;
+	g_overlay_texture = NULL;
+	g_overlay_fb = NULL;
 }
 
 /* (Re)create the framebuffer and its texture; 0 on success */
@@ -346,6 +360,18 @@ static int	CreateFramebuffer( int w, int h )
 	{
 		DestroyFramebuffer();
 		return -1;
+	}
+	if (g_logical_pdf_test)
+	{
+		g_overlay_fb = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, SDL_PIXELFORMAT_ARGB8888);
+		g_overlay_texture = SDL_CreateTexture(g_renderer, SDL_PIXELFORMAT_ARGB8888,
+			SDL_TEXTUREACCESS_STREAMING, w, h);
+		if (!g_overlay_fb || !g_overlay_texture
+			|| SDL_SetTextureBlendMode(g_overlay_texture, SDL_BLENDMODE_BLEND) != 0)
+		{
+			DestroyFramebuffer();
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -416,6 +442,13 @@ static void	Present( void )
 			dst.w = g_fb->w; dst.h = g_fb->h;
 			dst.x = (ow - dst.w) / 2; dst.y = (oh - dst.h) / 2;
 			SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL, g_logical_frame_flip);
+			/* UI follows reader rotation, but is deliberately not mirrored with
+			 * the PDF content. */
+			if (g_logical_pdf_test && g_overlay_fb && g_overlay_texture)
+			{
+				SDL_UpdateTexture(g_overlay_texture, NULL, g_overlay_fb->pixels, g_overlay_fb->pitch);
+				SDL_RenderCopyEx(g_renderer, g_overlay_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);
+			}
 		}
 	}
 	else
@@ -906,6 +939,10 @@ static void RenderTOC(SDL_Surface *display, Green_RTD *rtd)
 	SDL_Surface *overlay;
 	(void)rtd;
 	if (!g_toc_active) return;
+	if (g_logical_pdf_test) {
+		RenderTOCContent(display, g_overlay_rotation);
+		return;
+	}
 	overlay = CreateOverlaySurface(display, g_overlay_rotation);
 	if (!overlay)
 	{
@@ -1585,6 +1622,31 @@ render_error:
 	return -1;
 }
 
+static void RenderLogicalPageIndicator(SDL_Surface *display, Green_RTD *rtd,
+	Green_Document *doc)
+{
+	char label[64];
+	int first = doc->page_cur, last = first, box_w;
+	SDL_Rect box;
+	Uint32 bg = SDL_MapRGB(display->format, 0x18, 0x18, 0x20);
+	Uint32 fg = SDL_MapRGB(display->format, 0xF0, 0xF0, 0xF0);
+	if (rtd->side_by_side && doc->page_count > 1) {
+		first = (doc->page_cur / 2) * 2;
+		last = first + 1;
+	}
+	if (last < doc->page_count && last != first)
+		snprintf(label, sizeof(label), "%d-%d / %d", first + 1, last + 1, doc->page_count);
+	else
+		snprintf(label, sizeof(label), "%d / %d", first + 1, doc->page_count);
+	box_w = (int)strlen(label) * 12 + 16;
+	box.x = (display->w - box_w) / 2;
+	box.y = 8;
+	box.w = box_w;
+	box.h = 24;
+	SDL_FillRect(display, &box, bg);
+	DrawString(display, box.x + 8, box.y + 5, label, fg);
+}
+
 static int	Render( Green_RTD *rtd, int *failed_page )
 {
 	Green_Document *doc;
@@ -1610,6 +1672,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			g_reader_rotation = rotation;
 		}
 		display = DrawSurface();
+		g_overlay_rotation = rotation;
 		g_logical_frame_flip = SDL_FLIP_NONE;
 		if (g_logical_frame_test)
 			RenderLogicalPipelineTestFrame(display);
@@ -1621,6 +1684,16 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			if (!(rtd->side_by_side && rtd->doc->page_count > 1
 				&& RenderLogicalPDFSpread(rtd, display, failed_page)))
 				(void)RenderLogicalPDFPage(rtd, display, failed_page);
+			if (g_overlay_fb)
+			{
+				SDL_FillRect(g_overlay_fb, NULL,
+					SDL_MapRGBA(g_overlay_fb->format, 0, 0, 0, 0));
+				RenderTOC(g_overlay_fb, rtd);
+				RenderHelp(g_overlay_fb);
+				if (g_state == NORMAL && g_page_indicator_until
+					&& !SDL_TICKS_PASSED(SDL_GetTicks(), g_page_indicator_until))
+					RenderLogicalPageIndicator(g_overlay_fb, rtd, rtd->doc);
+			}
 		}
 		Present();
 		return *failed_page >= 0 ? -1 : 0;
@@ -2030,7 +2103,8 @@ static void RenderHelpContent(SDL_Surface *display)
 static RState	HelpInput( Uint8 button, unsigned short *flags )
 {
 	SDL_Surface *display = DrawSurface();
-	int max_scroll = HelpMaxScrollForHeight(OrientedDisplayHeight(display, g_overlay_rotation));
+	int max_scroll = HelpMaxScrollForHeight(g_logical_pdf_test
+		? display->h : OrientedDisplayHeight(display, g_overlay_rotation));
 	int dir;
 	switch (button)
 	{
@@ -2380,7 +2454,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			else if (g_state == TOC)
 				TOCStepSel(g_list_nav_dir);
 			else if (g_state == HELP)
-				HelpStepScroll(g_list_nav_dir, HelpMaxScrollForHeight(OrientedDisplayHeight(display, g_overlay_rotation)));
+				HelpStepScroll(g_list_nav_dir, HelpMaxScrollForHeight(g_logical_pdf_test
+					? display->h : OrientedDisplayHeight(display, g_overlay_rotation)));
 			g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
 			flags |= FLAG_RENDER;
 		}

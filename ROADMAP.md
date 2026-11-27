@@ -64,8 +64,9 @@ No legacy settings/state migration is planned unless a concrete production requi
 - Render only the visible intersection of each page, allowing either page to move naturally beyond the viewport.
 - Use the full display width for horizontal spread scrolling and preserve the viewport-centre reading position when zooming. With no pan, that point is the centre of the spread; after panning a page to the centre, zoom remains anchored on that page.
 - Keep RTL page ordering and page-pair navigation, and reset/clamp spread offsets when changing layout or rotation.
+- When the reader's rotation is 180°, swap the two physical spread slots. This compensates for the user's corresponding 180° physical handheld turn, keeping the logical reading order on the expected side.
 
-**Local verification still required:** initial two-page fit, zoom at the untouched spread centre, pan until the left page is centred and zoom there, pan/zoom across the seam in both directions, vertical scrolling, RTL order, rotation, mixed page sizes, first/last single-page cases, and switching dual-page mode on/off. Also confirm restored state behaves correctly after saving in dual-page mode.
+**User verification:** the continuous spread zoom/scroll issue is reported fixed. The 180° spread-slot compensation is newly implemented and still needs device testing: rotate the PDF 180° with the reader control, physically turn the handheld 180° to keep text upright, and confirm the first page remains on the expected reading side in both LTR and RTL. Also test 0°/90°/270° rotation, mixed page sizes, first/last single-page cases, dual-page toggling, and restored state.
 
 ## Phase 3 — Reading and navigation
 

@@ -160,6 +160,16 @@ static uint64_t StateHash( const char *text, uint64_t basis, uint64_t prime )
 	return hash;
 }
 
+static int MakeDirectory( const char *path )
+{
+	struct stat st;
+	if (mkdir( path, 0700 ) && errno != EEXIST)
+		return -1;
+	if (stat( path, &st ) || !S_ISDIR( st.st_mode ))
+		return -1;
+	return 0;
+}
+
 static int EnsureDirectory( char *path )
 {
 	char *p;
@@ -167,12 +177,10 @@ static int EnsureDirectory( char *path )
 		if (*p == '/')
 		{
 			*p = 0;
-			if (mkdir( path, 0700 ) && errno != EEXIST) { *p = '/'; return -1; }
+			if (MakeDirectory( path )) { *p = '/'; return -1; }
 			*p = '/';
 		}
-	if (mkdir( path, 0700 ) && errno != EEXIST)
-		return -1;
-	return 0;
+	return MakeDirectory( path );
 }
 
 static char *DocumentStatePath( const char *uri, char *path, size_t size )

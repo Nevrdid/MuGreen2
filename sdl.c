@@ -1510,7 +1510,7 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 
 
 static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
-	int w, int h, unsigned short *flags)
+	unsigned short *flags)
 {
 	int page, max_x, max_y;
 

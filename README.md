@@ -12,6 +12,7 @@ This is a single-document reader for embedded Linux devices. The build supports 
 - Document table of contents (when present in the PDF).
 - Controller-oriented navigation, zoom, rotation, mirroring, dual-page view, and night mode.
 - Remembers reader state between launches.
+- Optional right-to-left page navigation for manga and other right-to-left documents.
 
 ### Controller layout
 
@@ -32,6 +33,7 @@ The on-screen help panel lists the current bindings. The default Nintendo-labell
 | Select + B | Toggle night mode |
 | Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
+| Select + R1 | Toggle right-to-left manga reading |
 
 Some controls are optional and depend on the controller exposing the corresponding SDL input.
 
@@ -89,7 +91,7 @@ The MuPDF build script downloads the MuPDF 1.24.11 source release and builds the
 
 ## Saved settings
 
-The night-mode preference remains global and is stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
+The night-mode and right-to-left reading preferences remain global and are stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
 
 ## Licensing
 

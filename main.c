@@ -827,7 +827,7 @@ int	main( int argc, char *argv[] )
 	rtd.c_background.a = 0xFF;
 	rtd.fit_method = WIDTH;
 	rtd.step = 1;
-	rtd.zoomstep = 1.05;	/* ~5% per zoom click */
+	rtd.zoomstep = 1.2;	/* ~20% per zoom click */
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
 	rtd.night = false;

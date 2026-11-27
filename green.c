@@ -110,6 +110,41 @@ static char *DocumentStatePath( const char *uri, char *path, size_t size )
 #define GREEN_MIN_FINE_SCALE 0.05
 #define GREEN_MAX_FINE_SCALE 20.0
 
+static int URIHexValue( char c )
+{
+	if (c >= '0' && c <= '9') return c - '0';
+	if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+	if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+	return -1;
+}
+
+/* Recover the pre-percent-encoding URI so existing state files for paths
+ * containing spaces, percent signs, or non-ASCII bytes remain discoverable. */
+static char *LegacyUnescapedURI( const char *uri )
+{
+	size_t i, n = strlen( uri ), out = 0;
+	char *legacy = malloc( n + 1 );
+	if (!legacy)
+		return NULL;
+	for (i = 0; i < n; i++)
+	{
+		if (uri[i] == '%' && i + 2 < n)
+		{
+			int hi = URIHexValue( uri[i + 1] );
+			int lo = URIHexValue( uri[i + 2] );
+			if (hi >= 0 && lo >= 0)
+			{
+				legacy[out++] = (char)((hi << 4) | lo);
+				i += 2;
+				continue;
+			}
+		}
+		legacy[out++] = uri[i];
+	}
+	legacy[out] = 0;
+	return legacy;
+}
+
 static double ClampFineScale( double scale )
 {
 	if (!isfinite( scale ) || scale < GREEN_MIN_FINE_SCALE)
@@ -171,35 +206,60 @@ static bool ParseDocumentState( char *line, int *page, double *scale,
 
 static bool LoadDocumentState( Green_Document *doc )
 {
-	char path[1200], saved_uri[8192], line[512];
+	char path[1200], legacy_path[1200], saved_uri[8192], line[512];
+	char *legacy_uri = NULL;
+	const char *expected_uri = doc->uri;
 	FILE *file;
 	int page, x, y, rotation, mirrored, fit;
 	double scale;
 
-	if (!DocumentStatePath( doc->uri, path, sizeof( path )) || !(file = fopen( path, "r" )))
+	if (!DocumentStatePath( doc->uri, path, sizeof( path )))
 		return false;
+	file = fopen( path, "r" );
+	if (!file)
+	{
+		/* Older versions hashed the unescaped filename URI. Try that key
+		 * before giving up, then the next save naturally migrates the file. */
+		legacy_uri = LegacyUnescapedURI( doc->uri );
+		if (legacy_uri && strcmp( legacy_uri, doc->uri )
+			&& DocumentStatePath( legacy_uri, legacy_path, sizeof( legacy_path )))
+		{
+			file = fopen( legacy_path, "r" );
+			if (file)
+				expected_uri = legacy_uri;
+		}
+	}
+	if (!file)
+	{
+		free( legacy_uri );
+		return false;
+	}
 	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\n" )
 		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
 	{
 		fclose( file );
+		free( legacy_uri );
 		return false;
 	}
 	/* A truncated URI must never be accepted as a different document. */
 	if (!strchr( saved_uri, '\n' ) && !feof( file ))
 	{
 		fclose( file );
+		free( legacy_uri );
 		return false;
 	}
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
-	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
+	if (strcmp( saved_uri, expected_uri ) || !fgets( line, sizeof( line ), file )
 		|| (!strchr( line, '\n' ) && !feof( file ))
 		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit )
 		|| fgetc( file ) != EOF || ferror( file ))
 	{
 		fclose( file );
+		free( legacy_uri );
 		return false;
 	}
 	fclose( file );
+	free( legacy_uri );
 	if (page < 1 || page > doc->page_count
 		|| scale <= 0 || mirrored < 0 || mirrored > 1
 		|| fit < NATURAL || fit > PAGE)

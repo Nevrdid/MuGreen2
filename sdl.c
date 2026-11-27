@@ -2199,11 +2199,13 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				case SDL_WINDOWEVENT:
 					if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED)
 					{
-						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
-						if (ow != display->w || oh != display->h)
+						int ow, oh, logical_w, logical_h;
+						SDL_GetRendererOutputSize(g_renderer, &ow, &oh);
+						logical_w = ((g_reader_rotation + g_display_rotation) & 1) ? oh : ow;
+						logical_h = ((g_reader_rotation + g_display_rotation) & 1) ? ow : oh;
+						if (logical_w != display->w || logical_h != display->h)
 						{
-							if (CreateFramebuffer(((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
-								((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
+							if (CreateFramebuffer(logical_w, logical_h))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;

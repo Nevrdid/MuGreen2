@@ -452,7 +452,18 @@ static void	Present( void )
 		}
 	}
 	else
-		SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, (double)(g_display_rotation * 90), NULL, SDL_FLIP_NONE );
+	{
+		int ow, oh;
+		SDL_Rect dst;
+		if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) == 0) {
+			dst.w = g_fb->w;
+			dst.h = g_fb->h;
+			dst.x = (ow - dst.w) / 2;
+			dst.y = (oh - dst.h) / 2;
+			SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst,
+				(double)(g_display_rotation * 90), NULL, SDL_FLIP_NONE);
+		}
+	}
 	SDL_RenderPresent( g_renderer );
 }
 

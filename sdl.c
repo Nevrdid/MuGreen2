@@ -1630,6 +1630,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					Uint8 button = event.cbutton.button;
 					if (button == SDL_CONTROLLER_BUTTON_BACK)
 					{
+						ListNavStop();
 						g_select_button_held = true; g_select_chord_used = false;
 						if (g_start_button_held) { g_exit_chord = true; flags |= FLAG_QUIT; }
 						break;

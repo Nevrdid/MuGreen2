@@ -1426,7 +1426,7 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
 static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double factor)
 {
     Green_Document *doc = rtd->doc;
-    int lp, rp, lw, lh, rw, rh, vertical, old_w, old_h, new_w, new_h;
+    int lp, rp, lw, lh, rw, rh, vertical, old_w, old_h, new_w, new_h, max_x, max_y;
     double scale, old_fs = doc->finescale, anchor_x, anchor_y;
     int old_x = doc->xoffset, old_y = doc->yoffset;
     if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
@@ -1451,10 +1451,12 @@ static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double fac
         + (new_w < display->w ? (display->w - new_w) / 2.0 : 0) + 0.5);
     doc->yoffset = (int)(anchor_y - display->h / 2.0
         + (new_h < display->h ? (display->h - new_h) / 2.0 : 0) + 0.5);
+    max_x = new_w > display->w ? new_w - display->w : 0;
+    max_y = new_h > display->h ? new_h - display->h : 0;
     if (doc->xoffset < 0) doc->xoffset = 0;
-    else if (doc->xoffset > new_w - display->w) doc->xoffset = new_w - display->w;
+    else if (doc->xoffset > max_x) doc->xoffset = max_x;
     if (doc->yoffset < 0) doc->yoffset = 0;
-    else if (doc->yoffset > new_h - display->h) doc->yoffset = new_h - display->h;
+    else if (doc->yoffset > max_y) doc->yoffset = max_y;
     return 1;
 }
 
@@ -1535,8 +1537,7 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 	if (error)
 		goto render_error;
 
-	/* This probe always renders one page, even if the saved reader
-	 * preference is dual-page. Offsets therefore remain active here. */
+	/* Single-page fallback for unpaired first/last pages. */
 	offset_x = doc->xoffset;
 	offset_y = doc->yoffset;
 	if (offset_x < 0) offset_x = 0;
@@ -2289,7 +2290,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			if (g_logical_frame_test)
 				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\n");
 			else if (g_logical_pdf_test)
-				fprintf(stderr, "MuGreen2: logical PDF page test enabled (scrolling, dual-page mode and overlays bypassed)\n");
+				fprintf(stderr, "MuGreen2: logical PDF test enabled (overlays bypassed)\n");
 		}
 		if (rtd->flags & GREEN_FULLSCREEN)
 			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;

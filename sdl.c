@@ -812,9 +812,9 @@ static void RenderTOCContent(SDL_Surface *display, int rotation)
 	content_h = display->h;
 	switch (rotation & 3)
 	{
-		case 1: content_h = panel_extent; break;
+		case 1: origin_y = display->h - panel_extent; content_h = panel_extent; break;
 		case 2: origin_x = display->w - panel_extent; content_w = panel_extent; break;
-		case 3: origin_y = display->h - panel_extent; content_h = panel_extent; break;
+		case 3: content_h = panel_extent; break;
 		default: content_w = panel_extent; break;
 	}
 

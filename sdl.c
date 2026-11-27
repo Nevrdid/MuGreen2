@@ -1263,8 +1263,12 @@ static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
     if (error) {
         SDL_Rect failed = { x1, y1, x2 - x1, y2 - y1 };
         SDL_FillRect(display, &failed, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
+        SDL_SetClipRect(display, &failed);
         DrawString(display, x1 + 8, y1 + 8, "Page cannot be rendered",
             SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
+        DrawString(display, x1 + 8, y1 + 30, error,
+            SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
+        SDL_SetClipRect(display, NULL);
         fprintf(stderr, "MuGreen2: logical spread rendering failed on page %d: %s\n",
             page + 1, error);
         if (*failed_page < 0) *failed_page = page;

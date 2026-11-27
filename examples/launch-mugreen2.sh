@@ -3,7 +3,7 @@
 set -eu
 
 if [ "$#" -ne 1 ]; then
-    printf "Usage: %s <PDF file>\\n" "$0" >&2
+    printf "Usage: %s <PDF file>\n" "$0" >&2
     exit 2
 fi
 

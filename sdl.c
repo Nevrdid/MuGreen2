@@ -2370,7 +2370,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			if (g_logical_frame_test)
 				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\n");
 			else if (g_logical_pdf_test)
-				fprintf(stderr, "MuGreen2: logical PDF test enabled (overlays bypassed)\n");
+				fprintf(stderr, "MuGreen2: logical PDF test enabled (logical UI overlay layer active)\n");
 		}
 		if (rtd->flags & GREEN_FULLSCREEN)
 			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;

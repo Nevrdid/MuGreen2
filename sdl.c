@@ -113,7 +113,7 @@ static const char	*g_help_lines[] = {
 	"Hotkey shortcuts (hold Select first)",
 	"",
 	"Hotkey+Down    Toggle facing-page order (dual-page only)",
-	"Hotkey+A       Toggle night mode",
+	"Hotkey+B       Toggle night mode",
 	"Hotkey+X       Mirror horizontally",
 	"Hotkey+Y       Mirror vertically",
 	"Hotkey+L1      Toggle dual-page mode",
@@ -1337,8 +1337,11 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	SDL_Surface *display = DrawSurface();
 	switch (button)
 	{
-		case SDL_CONTROLLER_BUTTON_A:
-			rtd->night = !rtd->night; Green_SaveSettings( rtd ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_B:
+			rtd->night = !rtd->night;
+			Green_SaveSettings(rtd);
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
 			if (doc && rtd->side_by_side && doc->page_count > 1) {
 				g_spread_order_reversed = !g_spread_order_reversed;
@@ -1588,7 +1591,7 @@ if (flags & FLAG_RENDER)
 					}
 					if (g_select_button_held)
 					{
-						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
+						if (button == SDL_CONTROLLER_BUTTON_B || button == SDL_CONTROLLER_BUTTON_X
 							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
 							|| button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
 						{

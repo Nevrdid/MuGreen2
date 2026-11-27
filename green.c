@@ -116,7 +116,7 @@ static char *GetDataDirectory( void )
 		}
 		if (n >= 0 && n < (int)sizeof( candidate ) && UsableDirectory( candidate ) == 0)
 			goto use_candidate;
-		fprintf( stderr, "MuGreen2: warning: MUGREEN2_DATA_DIR '%s' is unusable; trying default data directories.\\n", override );
+		fprintf( stderr, "MuGreen2: warning: MUGREEN2_DATA_DIR '%s' is unusable; trying default data directories.\n", override );
 	}
 
 	xdg = getenv( "XDG_DATA_HOME" );
@@ -181,7 +181,7 @@ static const char *GetDocumentsDirectory( void )
 	if (n < 0 || n >= (int)sizeof( directory ) || UsableDirectory( directory ))
 	{
 		directory[0] = 0;
-		fprintf( stderr, "MuGreen2: warning: document-state directory is not writable; document state will not be saved.\\n" );
+		fprintf( stderr, "MuGreen2: warning: document-state directory is not writable; document state will not be saved.\n" );
 		return NULL;
 	}
 	return directory;

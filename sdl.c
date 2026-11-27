@@ -1497,7 +1497,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 				rtd->night ? 0x10 : rtd->c_background.r,
 				rtd->night ? 0x10 : rtd->c_background.g,
 				rtd->night ? 0x10 : rtd->c_background.b));
-			if (!(rtd->side_by_side && doc->page_count > 1
+			if (!(rtd->side_by_side && rtd->doc->page_count > 1
 				&& RenderLogicalPDFSpread(rtd, display, failed_page)))
 				(void)RenderLogicalPDFPage(rtd, display, failed_page);
 		}

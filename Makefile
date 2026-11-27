@@ -22,7 +22,7 @@ else
 $(error Unsupported ARCH '$(ARCH)' (choose aarch64, armhf, or native))
 endif
 
-MUPDF ?= /opt/mupdf-$(ARCH)
+MUPDF ?= mupdf/$(ARCH)
 PREFIX ?= /usr/local
 SDL2_CONFIG ?= sdl2-config
 

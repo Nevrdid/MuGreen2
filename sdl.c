@@ -1195,14 +1195,17 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 		|| (logical_dy > 0 && max_y > 0 && old_y == max_y)) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
-			/* A next page starts at its logical top-left. A previous page
-			 * starts at its logical top-right, irrespective of rotation. */
+			/* Left/Up are the L1 (previous) direction; Right/Down
+			 * are the R1 (next) direction. Choose the entry corner from
+			 * that reading direction, not the signed page index delta:
+			 * rotation and RTL can both invert that delta. */
 			fit_doc = *doc;
 			fit_doc.rotation = 0;
 			scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
 			doc->xoffset = 0;
 			doc->yoffset = 0;
-			if (page_delta < 0
+			if ((button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
+					|| button == SDL_CONTROLLER_BUTTON_DPAD_UP)
 				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
 					&page_w, &page_h)
 				&& page_w > display->w)

@@ -1187,10 +1187,10 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	doc->xoffset = old_x;
 	doc->yoffset = old_y;
 
-	/* A scrollable axis changes page only after its corresponding edge
-	 * has been reached. An exactly fitting axis has no scroll range, so it
-	 * is already at either edge. A smaller page is not treated as an edge:
-	 * that avoids turning ordinary non-scrollable space into a page key. */
+	/* Handle each axis independently. If the page fits within the logical
+	 * viewport on that axis, there is no panning to do and D-pad input
+	 * changes page immediately. If it overflows, pan until the corresponding
+	 * edge is reached; only a further press changes page. */
 	if ((logical_dx < 0 && ((max_x > 0 && old_x == 0)
 			|| page_w <= display->w))
 		|| (logical_dx > 0 && ((max_x > 0 && old_x == max_x)

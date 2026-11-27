@@ -935,13 +935,13 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			next_page = 1;
 		else if (doc_dy < 0 && doc->yoffset <= 0)
 			next_page = -1;
-		if (rtd->right_to_left)
-			next_page = -next_page;
 		else
 		{
 			Green_ScrollRelative( doc, 0, sy, w, h, 0 );
 			return 1;
 		}
+		if (rtd->right_to_left)
+			next_page = -next_page;
 	}
 
 	if (next_page)
@@ -974,7 +974,7 @@ static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, in
 	if (page == doc->page_cur)
 		return;
 	
-	if (GotoPageKeepView( doc, page, w, h ))
+	if (GotoPageKeepView( doc, page, w, h, rtd->right_to_left ))
 		*flags |= FLAG_RENDER;
 	return;
 }

@@ -5,7 +5,17 @@ MUPDF_VER=${MUPDF_VER:-1.24.11}
 ARCH=${ARCH:-aarch64}
 if [ "${CROSS_COMPILE+x}" != x ]; then
  case "$ARCH" in
-  aarch64) CROSS_COMPILE=/opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu- ;;
+  aarch64)
+   CROSS_COMPILE=/opt/gcc-arm-10.3-2021.07-x86_64-aarch64-none-linux-gnu/bin/aarch64-none-linux-gnu-
+   if ! command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+    if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
+     CROSS_COMPILE=aarch64-linux-gnu-
+    else
+     echo "AArch64 compiler not found: install the /opt toolchain or aarch64-linux-gnu-gcc." >&2
+     exit 1
+    fi
+   fi
+   ;;
   armhf) CROSS_COMPILE=arm-linux-gnueabihf- ;;
   native) CROSS_COMPILE= ;;
   *) echo "Unsupported ARCH=$ARCH (choose aarch64, armhf, or native)." >&2; exit 1 ;;
@@ -50,9 +60,17 @@ if [ ! -d "mupdf-$MUPDF_VER-source" ]; then
   exit 1
  fi
  if command -v sha256sum >/dev/null 2>&1; then
-  printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -
+  if ! printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | sha256sum -c -; then
+   echo "Removing the invalid MuPDF archive; it will be downloaded again next time." >&2
+   rm -f "$ARCHIVE"
+   exit 1
+  fi
  elif command -v shasum >/dev/null 2>&1; then
-  printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -
+  if ! printf '%s  %s\n' "$MUPDF_SHA256" "$ARCHIVE" | shasum -a 256 -c -; then
+   echo "Removing the invalid MuPDF archive; it will be downloaded again next time." >&2
+   rm -f "$ARCHIVE"
+   exit 1
+  fi
  else
   echo "sha256sum or shasum is required to verify the MuPDF archive." >&2
   exit 1

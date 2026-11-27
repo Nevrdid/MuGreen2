@@ -58,37 +58,6 @@ static char	*LastPagesPath( void )
 	return path;
 }
 
-static void	SaveLastPagesFile( void )
-{
-	FILE	*file;
-	char	*path = LastPagesPath();
-	int	i;
-	
-	if (!path)
-		return;
-	
-	file = fopen( path, "w" );
-	if (!file)
-		return;
-	
-	for (i = 0; i < g_last_page_count; i++)
-	{
-		if (g_last_pages[i].extended_state)
-			fprintf( file, "%d %.6f %d %d %d %d %d %s\n",
-				g_last_pages[i].page + 1,
-				g_last_pages[i].finescale > 0 ? g_last_pages[i].finescale : 1.0,
-				g_last_pages[i].xoffset, g_last_pages[i].yoffset,
-				g_last_pages[i].rotation, g_last_pages[i].mirrored ? 1 : 0,
-				(int)g_last_pages[i].fit_method, g_last_pages[i].uri );
-		else
-			fprintf( file, "%d %.6f %s\n", g_last_pages[i].page + 1,
-				g_last_pages[i].finescale > 0 ? g_last_pages[i].finescale : 1.0,
-				g_last_pages[i].uri );
-	}
-	
-	fclose( file );
-	return;
-}
 
 static void	LoadLastPagesFile( void )
 {

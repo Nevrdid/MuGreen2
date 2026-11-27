@@ -122,6 +122,8 @@ static const char	*g_help_lines[] = {
 	"",
 	"Hotkey shortcuts (hold Select first)",
 	"",
+	"Hotkey+Up      Toggle horizontal / vertical page stacking",
+	"Hotkey+Up      Toggle horizontal / vertical page stacking",
 	"Hotkey+Down    Toggle facing-page order (dual-page only)",
 	"Hotkey+B       Toggle night mode",
 	"Hotkey+X       Mirror horizontally",
@@ -1280,6 +1282,121 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	return 1;
 }
 
+/* Logical-coordinate facing-page geometry. The preference describes the
+ * physical screen: horizontal means left/right and vertical means top/bottom.
+ * Odd reader rotations exchange the logical stacking axis so the final
+ * presentation rotation preserves that physical arrangement. */
+static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
+    double *scale, int *lp, int *rp, int *lw, int *lh, int *rw, int *rh,
+    int *vertical)
+{
+    Green_Document *doc = rtd->doc;
+    double lpage_w, lpage_h, rpage_w, rpage_h, fit_w, fit_h;
+    double base_scale;
+    if (!rtd->side_by_side || doc->page_count < 2) return 0;
+    if (doc->page_cur % 2 == 0) {
+        if (rtd->right_to_left) { *lp = doc->page_cur + 1; *rp = doc->page_cur; }
+        else { *lp = doc->page_cur; *rp = doc->page_cur + 1; }
+    } else {
+        if (rtd->right_to_left) { *lp = doc->page_cur; *rp = doc->page_cur - 1; }
+        else { *lp = doc->page_cur - 1; *rp = doc->page_cur; }
+    }
+    if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
+        return 0;
+    if (((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
+        != g_spread_order_reversed) {
+        int page = *lp; *lp = *rp; *rp = page;
+    }
+    *vertical = rtd->spread_vertical != ((doc->rotation & 1) != 0);
+    Green_PageSize(doc, *lp, &lpage_w, &lpage_h);
+    Green_PageSize(doc, *rp, &rpage_w, &rpage_h);
+    if (*vertical) {
+        fit_w = lpage_w > rpage_w ? lpage_w : rpage_w;
+        fit_h = lpage_h + rpage_h;
+    } else {
+        fit_w = lpage_w + rpage_w;
+        fit_h = lpage_h > rpage_h ? lpage_h : rpage_h;
+    }
+    if (fit_w <= 0 || fit_h <= 0) return 0;
+    switch (doc->fit_method) {
+        case NATURAL: base_scale = 1.0; break;
+        case WIDTH: base_scale = display->w / fit_w; break;
+        case HEIGHT: base_scale = display->h / fit_h; break;
+        case PAGE:
+        default:
+            base_scale = display->w / fit_w;
+            if (display->h / fit_h < base_scale) base_scale = display->h / fit_h;
+            break;
+    }
+    *scale = base_scale * doc->finescale;
+    if (pb_device_size(doc->doc, *lp, (float)*scale, 0, lw, lh)
+        || pb_device_size(doc->doc, *rp, (float)*scale, 0, rw, rh))
+        return 0;
+    return 1;
+}
+
+static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
+    int page, int px, int py, int pw, int ph, double scale, int *failed_page)
+{
+    int x1 = px < 0 ? 0 : px, y1 = py < 0 ? 0 : py;
+    int x2 = px + pw > display->w ? display->w : px + pw;
+    int y2 = py + ph > display->h ? display->h : py + ph;
+    const char *error;
+    if (x1 >= x2 || y1 >= y2) return;
+    if (!pb_render(rtd->doc->doc, page, (float)scale, 0, 0, rtd->night,
+        x1 - px, y1 - py, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
+        DstPixel(display, x1, y1), display->pitch)) {
+        g_rendered_content_this_frame = true;
+        return;
+    }
+    error = pb_error_message(rtd->doc->doc);
+    if (error) {
+        SDL_Rect failed = { x1, y1, x2 - x1, y2 - y1 };
+        SDL_FillRect(display, &failed, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
+        DrawString(display, x1 + 8, y1 + 8, "Page cannot be rendered",
+            SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
+        fprintf(stderr, "MuGreen2: logical spread rendering failed on page %d: %s\\n",
+            page + 1, error);
+        if (*failed_page < 0) *failed_page = page;
+    }
+}
+
+static int RenderLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display,
+    int *failed_page)
+{
+    int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h, ox, oy;
+    double scale;
+    Green_Document *doc = rtd->doc;
+    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+        &lw, &lh, &rw, &rh, &vertical))
+        return 0;
+    spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+    spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    if (doc->xoffset < 0) doc->xoffset = 0;
+    if (doc->yoffset < 0) doc->yoffset = 0;
+    if (spread_w <= display->w) doc->xoffset = 0;
+    else if (doc->xoffset > spread_w - display->w) doc->xoffset = spread_w - display->w;
+    if (spread_h <= display->h) doc->yoffset = 0;
+    else if (doc->yoffset > spread_h - display->h) doc->yoffset = spread_h - display->h;
+    ox = (spread_w < display->w ? (display->w - spread_w) / 2 : 0) - doc->xoffset;
+    oy = (spread_h < display->h ? (display->h - spread_h) / 2 : 0) - doc->yoffset;
+    if (vertical) {
+        RenderLogicalSpreadPage(rtd, display, lp, ox + (spread_w - lw) / 2,
+            oy, lw, lh, scale, failed_page);
+        RenderLogicalSpreadPage(rtd, display, rp, ox + (spread_w - rw) / 2,
+            oy + lh, rw, rh, scale, failed_page);
+    } else {
+        RenderLogicalSpreadPage(rtd, display, lp, ox, oy + (spread_h - lh) / 2,
+            lw, lh, scale, failed_page);
+        RenderLogicalSpreadPage(rtd, display, rp, ox + lw, oy + (spread_h - rh) / 2,
+            rw, rh, scale, failed_page);
+    }
+    g_logical_frame_flip = doc->mirrored
+        ? ((doc->rotation & 1) ? SDL_FLIP_HORIZONTAL : SDL_FLIP_VERTICAL)
+        : SDL_FLIP_NONE;
+    return 1;
+}
+
 static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *failed_page)
 {
 	Green_Document *doc = rtd->doc;
@@ -1380,7 +1497,9 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 				rtd->night ? 0x10 : rtd->c_background.r,
 				rtd->night ? 0x10 : rtd->c_background.g,
 				rtd->night ? 0x10 : rtd->c_background.b));
-			(void)RenderLogicalPDFPage(rtd, display, failed_page);
+			if (!(rtd->side_by_side && doc->page_count > 1
+				&& RenderLogicalPDFSpread(rtd, display, failed_page)))
+				(void)RenderLogicalPDFPage(rtd, display, failed_page);
 		}
 		Present();
 		return *failed_page >= 0 ? -1 : 0;
@@ -1938,6 +2057,14 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			Green_SaveSettings(rtd);
 			*flags |= FLAG_RENDER;
 			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_UP:
+			if (doc && rtd->side_by_side && doc->page_count > 1) {
+				rtd->spread_vertical = !rtd->spread_vertical;
+				doc->xoffset = doc->yoffset = 0;
+				Green_SaveSettings(rtd);
+				*flags |= FLAG_RENDER;
+			}
+			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
 			if (doc && rtd->side_by_side && doc->page_count > 1) {
 				g_spread_order_reversed = !g_spread_order_reversed;
@@ -2227,7 +2354,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					if (g_select_button_held)
 					{
 						if (button == SDL_CONTROLLER_BUTTON_B || button == SDL_CONTROLLER_BUTTON_X
-							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
+							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_DPAD_UP
+			|| button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
 							|| button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
 						{
 							g_select_chord_used = true;

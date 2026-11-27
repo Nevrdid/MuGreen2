@@ -828,44 +828,82 @@ static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h )
 	return 1;
 }
 
-/* Scroll in screen directions while keeping document reading order across page edges.
- * A page turn is only triggered by movement along the document's vertical axis. */
+/* Scroll in screen directions and change pages at the corresponding edges. */
 static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 {
 	Green_Document *doc = rtd->doc;
-	int max_x, max_y, doc_max_y, doc_dy, page_step, next_page;
+	int max_x, max_y, doc_max_y, doc_dy, page_step, next_page = 0;
+	int rotation = doc->rotation & 3;
 
 	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
-	doc_max_y = (doc->rotation & 1) ? max_x : max_y;
+	doc_max_y = (rotation & 1) ? max_x : max_y;
 
-	switch (doc->rotation & 3)
+	if (sx)
 	{
-		case 1: doc_dy = -sx; break;
-		case 2: doc_dy = doc->mirrored ? sy : -sy; break;
-		case 3: doc_dy = sx; break;
-		default: doc_dy = doc->mirrored ? -sy : sy; break;
+		bool at_edge = false;
+
+		/* Physical left/right edges map to different document axes after rotation. */
+		switch (rotation)
+		{
+			case 1:
+				at_edge = sx < 0 ? doc->yoffset >= max_x : doc->yoffset <= 0;
+				break;
+			case 2:
+				at_edge = sx < 0 ? doc->xoffset >= max_x : doc->xoffset <= 0;
+				break;
+			case 3:
+				at_edge = sx < 0 ? doc->yoffset <= 0 : doc->yoffset >= max_x;
+				break;
+			default:
+				at_edge = sx < 0 ? doc->xoffset <= 0 : doc->xoffset >= max_x;
+				break;
+		}
+
+		if (at_edge)
+		{
+			/* Left goes backward at 0/270 degrees, forward at 90/180. */
+			next_page = sx < 0
+				? ((rotation == 1 || rotation == 2) ? 1 : -1)
+				: ((rotation == 1 || rotation == 2) ? -1 : 1);
+			page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+			if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
+				return 0;
+
+			/* The beginning of a page is always its unrotated top-left corner. */
+			doc->xoffset = 0;
+			doc->yoffset = 0;
+			Green_ValidateOffset( doc, w, h );
+			return 1;
+		}
 	}
-
-	/* Only the reading-order edges advance or rewind the document. */
-	if (doc_dy > 0 && doc->yoffset >= doc_max_y)
-		next_page = 1;
-	else if (doc_dy < 0 && doc->yoffset <= 0)
-		next_page = -1;
 	else
-		next_page = 0;
-
-	if (next_page)
 	{
-		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
-		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
-			return 0;
+		switch (rotation)
+		{
+			case 1: doc_dy = 0; break;
+			case 2: doc_dy = doc->mirrored ? sy : -sy; break;
+			case 3: doc_dy = 0; break;
+			default: doc_dy = doc->mirrored ? -sy : sy; break;
+		}
 
-		/* Enter the new page at the matching reading-order edge. */
-		Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
-		doc_max_y = (doc->rotation & 1) ? max_x : max_y;
-		doc->yoffset = doc_dy > 0 ? 0 : doc_max_y;
-		Green_ValidateOffset( doc, w, h );
-		return 1;
+		/* Vertical movement follows the document's reading-order axis. */
+		if (doc_dy > 0 && doc->yoffset >= doc_max_y)
+			next_page = 1;
+		else if (doc_dy < 0 && doc->yoffset <= 0)
+			next_page = -1;
+
+		if (next_page)
+		{
+			page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+			if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
+				return 0;
+
+			Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
+			doc_max_y = (rotation & 1) ? max_x : max_y;
+			doc->yoffset = doc_dy > 0 ? 0 : doc_max_y;
+			Green_ValidateOffset( doc, w, h );
+			return 1;
+		}
 	}
 
 	Green_ScrollRelative( doc, sx, sy, w, h, 0 );

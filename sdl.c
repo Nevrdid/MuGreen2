@@ -1187,12 +1187,18 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	doc->xoffset = old_x;
 	doc->yoffset = old_y;
 
-	/* Do not turn a non-scrollable axis into an immediate page-change key.
-	 * The current page must have real overflow on the axis being panned. */
-	if ((logical_dx < 0 && max_x > 0 && old_x == 0)
-		|| (logical_dx > 0 && max_x > 0 && old_x == max_x)
-		|| (logical_dy < 0 && max_y > 0 && old_y == 0)
-		|| (logical_dy > 0 && max_y > 0 && old_y == max_y)) {
+	/* A scrollable axis changes page only after its corresponding edge
+	 * has been reached. An exactly fitting axis has no scroll range, so it
+	 * is already at either edge. A smaller page is not treated as an edge:
+	 * that avoids turning ordinary non-scrollable space into a page key. */
+	if ((logical_dx < 0 && ((max_x > 0 && old_x == 0)
+			|| page_w == display->w))
+		|| (logical_dx > 0 && ((max_x > 0 && old_x == max_x)
+			|| page_w == display->w))
+		|| (logical_dy < 0 && ((max_y > 0 && old_y == 0)
+			|| page_h == display->h))
+		|| (logical_dy > 0 && ((max_y > 0 && old_y == max_y)
+			|| page_h == display->h))) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
 			/* Left/Up are the L1 (previous) direction; Right/Down

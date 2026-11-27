@@ -1522,7 +1522,6 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		g_page_indicator_page = rtd->doc->page_cur;
 	}
 	else
-	else
 		memset( &state_snapshot, 0, sizeof( state_snapshot ) );
 	
 	do
@@ -1617,7 +1616,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			fprintf( stderr, "MuGreen2: SDL event wait failed: %s\n", SDL_GetError() );
 			exit_status = GREEN_EXIT_EVENT;
 			flags |= FLAG_QUIT;
-			continue;
+				continue;
+			}
 		}
 		
 		do

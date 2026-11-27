@@ -1044,7 +1044,7 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	return NORMAL;
 }
 
-/* Apply Select+button shortcuts directly, without synthesizing keyboard events. */
+/* Apply Select+button shortcuts directly from controller input. */
 static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 {
 	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;

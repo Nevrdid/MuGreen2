@@ -203,6 +203,7 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 	}
 	d->ctx = ctx;
 	d->list_page = -1;
+	fz_var(password_required);
 	fz_try(ctx)
 	{
 		d->doc = fz_open_document(ctx, p);

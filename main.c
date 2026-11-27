@@ -44,7 +44,7 @@ const char	*help_text =
 "    -display-rotation=<degrees> rotate the complete display: 0, 90, 180 or 270\n"
 "    -rtl                        start in right-to-left reading order\n"
 "    -ltr                        start in left-to-right reading order\n"
-"    -controller-layout=<mode>   face buttons: nintendo (default) or xbox\n"
+"    -controller-layout=<mode>   face buttons: xbox (default) or nintendo\n"
 "    -no-control-rotation        keep controls fixed when rotating the reader\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
@@ -137,7 +137,7 @@ int	main( int argc, char *argv[] )
 	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
 	rtd.spread_vertical = false;
-	rtd.xbox_layout = false;
+	rtd.xbox_layout = true;
 	rtd.controls_rotate = true;
 	rtd.night = false;
 	rtd.right_to_left = false;

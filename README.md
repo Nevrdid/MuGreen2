@@ -71,7 +71,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    ARCH=aarch64 ./build-sdl2.sh
    ```
 
-   SDL2 is built statically and installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. The Makefile uses `sdl2-config --static-libs`, so the SDL2 shared library does not need to be deployed. For a native build, use `ARCH=native ./build-sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release. The default release has a pinned SHA-256; other versions require an explicit `SDL2_SHA256`. Cross-builds fail if KMSDRM, EGL or GLES2 support is not detected.
+   SDL2 is built as a shared library and installed under `sdl2/aarch64/`, `sdl2/armhf/`, or `sdl2/native/`, keeping each architecture separate. The Makefile uses `sdl2-config --libs` and dynamically links against `libSDL2-2.0.so.0`. The target must provide a compatible SDL2 runtime library. For a native build, use `ARCH=native ./build-sdl2.sh`; this explicitly ignores an inherited `CROSS_COMPILE`. The script builds from the SDL2 2.30.8 release by default; set `SDL2_VER` to select another release. The default release has a pinned SHA-256; other versions require an explicit `SDL2_SHA256`. Cross-builds fail if KMSDRM, EGL or GLES2 support is not detected.
 
 2. Build the trimmed static MuPDF libraries:
 
@@ -83,13 +83,15 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
 
    By default, the installed headers and libraries are kept separately in `mupdf/aarch64/`, `mupdf/armhf/`, and `mupdf/native/`. Building one architecture therefore won't overwrite another architecture's installed MuPDF files. Set `MUPDF_PREFIX` to override the MuPDF install location. `PREFIX` is reserved for the application install target in the Makefile.
 
-3. Build MuGreen2 against the matching MuPDF and SDL2 builds:
+3. Build MuGreen2 against the matching MuPDF and SDL2 development files:
 
    ```sh
    make ARCH=aarch64 MUPDF=mupdf/aarch64 SDL2_CONFIG="$PWD/sdl2/aarch64/bin/sdl2-config"
    ```
 
-   For native builds, use `make ARCH=native MUPDF=mupdf/native SDL2_CONFIG="$PWD/sdl2/native/bin/sdl2-config"`. The Makefile forces the host compiler for `ARCH=native`. Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between cross-builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`. Set `SDL2_PREFIX` when you need to override the SDL2 dependency install location.
+   For native builds, use `make ARCH=native MUPDF=mupdf/native SDL2_CONFIG="$PWD/sdl2/native/bin/sdl2-config"`. The Makefile forces the host compiler for `ARCH=native`. Keep `ARCH`, `CROSS_COMPILE`, and `SYSROOT` consistent between cross-builds. The compiler's reported sysroot is used automatically unless `SYSROOT` is explicitly set. The Makefile selects `mupdf/$(ARCH)` automatically; you can override this with `MUPDF=/path/to/mupdf`.
+
+**Runtime compatibility matters:** SDL2 2.x uses the `libSDL2-2.0.so.0` SONAME, but that alone does not guarantee that an application built against a newer SDL2 can run with an older one; newer SDL APIs may be missing from the older runtime. For each handheld target, build MuGreen2 against the SDL2 headers and library version that the target actually provides (from its sysroot / SDK), and point `SDL2_CONFIG` at that matching `sdl2-config`. Alternatively, if you use the SDL2 built by `build-sdl2.sh`, deploy that exact shared SDL2 runtime alongside the application or install it on the device. Do not assume the device's preinstalled SDL2 is interchangeable without checking its version. The SDL2 build script defaults to 2.30.8; set `SDL2_VER` to match the target's SDL2 release when building a replacement.
 
 4. Install the executable (optional):
 

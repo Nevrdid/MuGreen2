@@ -1128,9 +1128,17 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 			return 0;
 	}
 
-	/* Match the physical left/right shoulder mapping at every rotation. */
-	if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
+	/* Horizontal D-pad directions follow the physical L1/R1 mapping.
+	 * Vertical directions have their own reading-axis mapping: Up/Down
+	 * retain previous/next at 90 degrees, and reverse at 270 degrees.
+	 * At 180 degrees both axes reverse. */
+	if (button == SDL_CONTROLLER_BUTTON_DPAD_UP
+		|| button == SDL_CONTROLLER_BUTTON_DPAD_DOWN) {
+		if ((doc->rotation & 3) == 2 || (doc->rotation & 3) == 3)
+			page_delta = -page_delta;
+	} else if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2) {
 		page_delta = -page_delta;
+	}
 	if (rtd->right_to_left)
 		page_delta = -page_delta;
 	return page_delta;
@@ -1201,17 +1209,15 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			|| page_h <= display->h))) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
-			/* Left/Up are the L1 (previous) direction; Right/Down
-			 * are the R1 (next) direction. Choose the entry corner from
-			 * that reading direction, not the signed page index delta:
-			 * rotation and RTL can both invert that delta. */
+			/* The destination corner follows the actual page transition:
+			 * next starts top-left; previous starts top-right. This remains
+			 * correct when rotation or RTL reverses a physical button's delta. */
 			fit_doc = *doc;
 			fit_doc.rotation = 0;
 			scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
 			doc->xoffset = 0;
 			doc->yoffset = 0;
-			if ((button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
-					|| button == SDL_CONTROLLER_BUTTON_DPAD_UP)
+			if (page_delta < 0
 				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
 					&page_w, &page_h)
 				&& page_w > display->w)

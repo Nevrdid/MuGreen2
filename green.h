@@ -60,6 +60,7 @@ typedef struct {
 	unsigned char bb, side_by_side;
 	bool night;
 	bool right_to_left;
+	bool spread_vertical;
 } Green_RTD;
 
 pb_open_result Green_Open(Green_RTD *rtd, const char *filename, char *message, size_t message_size);

@@ -1215,6 +1215,14 @@ static SDL_GameController *OpenFirstController( void )
 	return NULL;
 }
 
+static bool DocumentStateEqual( const Green_Document *a, const Green_Document *b )
+{
+	return a->page_cur == b->page_cur && a->xoffset == b->xoffset
+		&& a->yoffset == b->yoffset && a->rotation == b->rotation
+		&& a->mirrored == b->mirrored && a->fit_method == b->fit_method
+		&& a->finescale == b->finescale;
+}
+
 int	Green_SDL_Main( Green_RTD *rtd )
 {
 	SDL_GameController	*controller = NULL;
@@ -1222,6 +1230,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	SDL_Event	event;
 	unsigned short	flags = FLAG_RENDER;
 	unsigned char	event_count;
+	Green_Document state_snapshot;
+	bool state_dirty = false;
+	Uint32 state_save_at = 0;
 	
 	if (SDL_Init( SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER ))
 	{
@@ -1274,12 +1285,21 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	}
 	if (Green_IsDocValid( rtd))
 		Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
-	
+	if (Green_IsDocValid( rtd))
+		state_snapshot = *rtd->doc;
+	else
+		memset( &state_snapshot, 0, sizeof( state_snapshot ) );
 	
 	do
 	{
 		if ((flags & FLAG_QUIT))
 			break;
+		if (Green_IsDocValid( rtd) && !DocumentStateEqual( &state_snapshot, rtd->doc ))
+		{
+			state_snapshot = *rtd->doc;
+			state_dirty = true;
+			state_save_at = SDL_GetTicks() + 750;
+		}
 		if (flags&FLAG_RENDER)
 		{
 			Render( rtd );
@@ -1299,6 +1319,21 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					HelpStepScroll( g_list_nav_dir, HelpMaxScroll( display ) );
 				g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
 				flags |= FLAG_RENDER;
+				continue;
+			}
+		}
+		else if (state_dirty)
+		{
+			Uint32 now = SDL_GetTicks();
+			int timeout = SDL_TICKS_PASSED( now, state_save_at ) ? 0 : (int)(state_save_at - now);
+			if (!SDL_WaitEventTimeout( &event, timeout ))
+			{
+				if (SDL_TICKS_PASSED( SDL_GetTicks(), state_save_at ))
+				{
+					if (Green_IsDocValid( rtd))
+						Green_SaveDocumentState( rtd->doc );
+					state_dirty = false;
+				}
 				continue;
 			}
 		}

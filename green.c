@@ -29,121 +29,6 @@
 #include "green.h"
 
 
-typedef struct
-{
-	char	*uri;
-	int	page;		/* 0-based */
-	double	finescale;	/* zoom multiplier; 1 = fit only */
-	int	xoffset, yoffset;
-	int	rotation;
-	bool	mirrored;
-	Green_FitMethod	fit_method;
-	bool	extended_state;
-}	LastPageEntry;
-
-static LastPageEntry	*g_last_pages = NULL;
-static int	g_last_page_count = 0;
-static bool	g_last_pages_loaded = false;
-
-
-static char	*LastPagesPath( void )
-{
-	static char	path[512];
-	const char	*home = getenv( "HOME" );
-	
-	if (!home || !*home)
-		return NULL;
-	if (snprintf( path, sizeof( path ), "%s/.green.pages", home ) >= (int)sizeof( path ))
-		return NULL;
-	return path;
-}
-
-
-static void	LoadLastPagesFile( void )
-{
-	FILE	*file;
-	char	*path = LastPagesPath();
-	char	line[4096];
-
-	if (g_last_pages_loaded)
-		return;
-	g_last_pages_loaded = true;
-	if (!path || !(file = fopen( path, "r" )))
-		return;
-
-	while (fgets( line, sizeof( line ), file ))
-	{
-		char	*uri, *end;
-		int	page, x = 0, y = 0, rotation = 0, mirrored = 0, fit = WIDTH;
-		bool	extended_state = false;
-		double	finescale = 1.0;
-		int	used = 0, fields;
-		LastPageEntry	*tmp;
-
-		if (line[0] == '#' || line[0] == '\n')
-			continue;
-
-		/* Current format: page scale x y rotation mirrored fit URI. */
-		fields = sscanf( line, "%d %lf %d %d %d %d %d %n",
-			&page, &finescale, &x, &y, &rotation, &mirrored, &fit, &used );
-		if (fields == 7 && used > 0)
-		{
-			uri = line + used;
-			extended_state = true;
-		}
-		else
-		{
-			/* Backward compatibility: old format was page [scale] URI. */
-			used = 0;
-			fields = sscanf( line, "%d %lf %n", &page, &finescale, &used );
-			if (fields == 2 && used > 0)
-				uri = line + used;
-			else
-			{
-				used = 0;
-				fields = sscanf( line, "%d %n", &page, &used );
-				if (fields != 1 || used <= 0)
-					continue;
-				finescale = 1.0;
-				uri = line + used;
-			}
-		}
-		if (page < 1 || finescale <= 0)
-			continue;
-		while (*uri == ' ' || *uri == '\t') uri++;
-		end = uri + strlen( uri );
-		while (end > uri && (end[-1] == '\n' || end[-1] == '\r')) *--end = 0;
-		if (!*uri) continue;
-
-		tmp = realloc( g_last_pages, (g_last_page_count + 1) * sizeof( *g_last_pages ) );
-		if (!tmp) break;
-		g_last_pages = tmp;
-		memset( &g_last_pages[g_last_page_count], 0, sizeof( *g_last_pages ) );
-		g_last_pages[g_last_page_count].uri = strdup( uri );
-		if (!g_last_pages[g_last_page_count].uri) break;
-		g_last_pages[g_last_page_count].page = page - 1;
-		g_last_pages[g_last_page_count].finescale = finescale;
-		g_last_pages[g_last_page_count].xoffset = x;
-		g_last_pages[g_last_page_count].yoffset = y;
-		g_last_pages[g_last_page_count].rotation = ((rotation % 4) + 4) % 4;
-		g_last_pages[g_last_page_count].mirrored = mirrored != 0;
-		g_last_pages[g_last_page_count].fit_method = fit >= NATURAL && fit <= PAGE ? (Green_FitMethod)fit : WIDTH;
-		g_last_pages[g_last_page_count].extended_state = extended_state;
-		g_last_page_count++;
-	}
-	fclose( file );
-}
-
-static int	FindLastPageEntry( const char *uri )
-{
-	int	i;
-	
-	for (i = 0; i < g_last_page_count; i++)
-		if (!strcmp( g_last_pages[i].uri, uri ))
-			return i;
-	return -1;
-}
-
 /* Per-document state lives below XDG_DATA_HOME (or ~/.local/share).
  * Two independent 64-bit hashes keep filenames short; the URI is stored
  * inside each file and checked on load to detect the vanishingly unlikely
@@ -279,34 +164,9 @@ static void	StoreLastPage( Green_Document *doc, bool flush )
 
 static void	RestoreLastPage( Green_Document *doc )
 {
-	int idx;
 	if (!doc || !doc->uri)
 		return;
-
-	/* New per-document state takes precedence. */
-	if (LoadDocumentState( doc ))
-		return;
-
-	/* One-time compatibility path: import the matching entry from the
-	 * legacy ~/.green.pages index. Keep that file untouched as a backup.
-	 */
-	LoadLastPagesFile();
-	idx = FindLastPageEntry( doc->uri );
-	if (idx < 0)
-		return;
-	if (g_last_pages[idx].page >= 0 && g_last_pages[idx].page < doc->page_count)
-		doc->page_cur = g_last_pages[idx].page;
-	if (g_last_pages[idx].finescale > 0)
-		doc->finescale = g_last_pages[idx].finescale;
-	if (g_last_pages[idx].extended_state)
-	{
-		doc->xoffset = g_last_pages[idx].xoffset;
-		doc->yoffset = g_last_pages[idx].yoffset;
-		doc->rotation = g_last_pages[idx].rotation;
-		doc->mirrored = g_last_pages[idx].mirrored;
-		doc->fit_method = g_last_pages[idx].fit_method;
-	}
-	SaveDocumentState( doc );
+	LoadDocumentState( doc );
 	return;
 }
 
@@ -416,7 +276,6 @@ void	Green_SaveAllLastPages( Green_RTD *rtd )
 	if (rtd->doc)
 		StoreLastPage( rtd->doc, false );
 	
-	SaveLastPagesFile();
 	Green_SaveSettings( rtd );
 	return;
 }

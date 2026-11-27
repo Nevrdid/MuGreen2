@@ -7,6 +7,6 @@ if [ "$#" -ne 1 ]; then
     exit 2
 fi
 
-# Set GREEN_ROTATE180=1 in the environment for an upside-down panel.
-export GREEN_ROTATE180="${GREEN_ROTATE180:-0}"
-exec "${MUGREEN2_BIN:-mugreen2}" "$1"
+# Set MUGREEN2_DISPLAY_ROTATION to 180 for an upside-down panel.
+display_rotation="${MUGREEN2_DISPLAY_ROTATION:-0}"
+exec "${MUGREEN2_BIN:-mugreen2}" "-display-rotation=$display_rotation" "$1"

@@ -118,13 +118,11 @@ inline static int Green_GotoPage(Green_Document *doc, int page, bool set_offset)
 }
 inline static void Green_RotateRight(Green_Document *doc)
 {
-	if (doc->mirrored) doc->rotation = (doc->rotation + 3) % 4;
-	else doc->rotation = (doc->rotation + 1) % 4;
+	doc->rotation = (doc->rotation + 1) % 4;
 }
 inline static void Green_RotateLeft(Green_Document *doc)
 {
-	if (doc->mirrored) doc->rotation = (doc->rotation + 1) % 4;
-	else doc->rotation = (doc->rotation + 3) % 4;
+	doc->rotation = (doc->rotation + 3) % 4;
 }
 inline static void Green_MirrorH(Green_Document *doc)
 {

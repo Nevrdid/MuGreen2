@@ -11,12 +11,14 @@ A safety snapshot of the fully tested parallel implementation is preserved on `e
 - A separate transparent ARGB layer holds the TOC, help panel and page indicator. It follows presentation rotation but is not mirrored with PDF content.
 - The complete content and UI layers are rotated once during SDL presentation. Reader rotation and physical display mounting correction remain independent.
 - Document mirroring is represented as a source texture flip before the final presentation transform.
-- Controller directions are converted from physical input directions into logical page directions at the navigation boundary.
+- Controller button-down and button-up events pass through one input-normalisation layer before normal reading, Select chords, help, or TOC handling. D-pad directions and A/B/X/Y are rotated with the reader; Start, Select, Guide, and shoulders remain fixed.
+- The default Nintendo-labelled face-button layout is retained. `-controller-layout=xbox` swaps A/B and X/Y before applying reader rotation; `-controller-layout=nintendo` selects the default explicitly.
 
 ## Controls and startup options
 
 - `Select + Left`: rotate reader clockwise.
 - `Select + Right`: rotate reader anti-clockwise.
+- `-controller-layout=nintendo|xbox`: select the face-button convention at launch (Nintendo is the default).
 - `Select + Up`: toggle vertical/horizontal spread stacking (dual-page mode).
 - `Select + Down`: manually reverse facing-page order.
 - `Select + L1`: toggle dual-page mode.
@@ -36,6 +38,10 @@ The old `GREEN_ROTATE180`, `GREEN_TEST_LOGICAL_FRAME` and `GREEN_TEST_LOGICAL_PD
 ```sh
 ./mugreen2 -rotation=0 -display-rotation=180 /path/to/document.pdf
 ```
+
+## Rotation-aware controller mapping
+
+Implemented on this branch; build and handheld verification are pending. The input layer applies the face-button permutation and D-pad rotation once, before routing events to the reader, TOC, help panel, and Select shortcuts. The Xbox layout swap is applied before reader rotation. Verify all four reader rotations, both layouts, and press/release behaviour on the handheld.
 
 ## Temporary action feedback
 

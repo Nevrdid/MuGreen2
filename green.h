@@ -51,6 +51,7 @@ int Green_Open(Green_RTD *rtd, char *uri);
 int Green_SDL_Main(Green_RTD *rtd);
 void Green_Close(Green_RTD *rtd);
 void Green_SaveAllLastPages(Green_RTD *rtd);
+void Green_SaveDocumentState(Green_Document *doc);
 void Green_LoadSettings(Green_RTD *rtd);
 void Green_SaveSettings(Green_RTD *rtd);
 double Green_Fit(Green_Document *doc, int width, int height);

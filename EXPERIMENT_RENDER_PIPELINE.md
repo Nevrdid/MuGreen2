@@ -15,12 +15,12 @@ GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 /path/to/document.pdf
 For a panel mounted upside down, also test:
 
 ```sh
-GREEN_TEST_LOGICAL_FRAME=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
+GREEN_TEST_LOGICAL_FRAME=1 -display-rotation=180 ./mugreen2 /path/to/document.pdf
 ```
 
 The test pattern bypasses PDF rendering and the normal UI. It still opens the document so the reader's existing rotation control can change the test orientation.
 
-**Device result:** the user confirmed that the complete pattern rotates correctly through the tested reader orientations and that `GREEN_ROTATE180=1` adds the expected startup 180-degree correction. One test-pattern label was misplaced inside the black centre area; this is a cosmetic label-coordinate issue, not a reported presentation-transform failure.
+**Device result:** the user confirmed that the complete pattern rotates correctly through the tested reader orientations and that `-display-rotation=180` adds the expected startup 180-degree correction. One test-pattern label was misplaced inside the black centre area; this is a cosmetic label-coordinate issue, not a reported presentation-transform failure.
 
 ## Stage 2 — single-page PDF rendering proof
 
@@ -32,11 +32,18 @@ Run:
 GREEN_TEST_LOGICAL_PDF=1 ./mugreen2 /path/to/document.pdf
 ```
 
-Optionally combine with the hardware correction:
+Optionally combine with the independent physical-display correction:
 
 ```sh
-GREEN_TEST_LOGICAL_PDF=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
+GREEN_TEST_LOGICAL_PDF=1 ./mugreen2 -display-rotation=180 /path/to/document.pdf
 ```
+
+Startup orientation options are `-rotation=0|90|180|270` for the reader and
+`-display-rotation=0|90|180|270` for the complete presented frame. Use
+`-rtl` or `-ltr` to select the initial reading direction. Reader rotation
+takes precedence over the saved per-document rotation; command-line reading
+direction takes precedence over the saved global preference. Display rotation
+is independent and does not change document navigation direction.
 
 In this probe:
 - **B / A (SDL button names)** retain the reader's existing rotate / reset actions. Physical labels depend on the controller's SDL mapping; on the user's Nintendo-layout controller, physical **A** rotates and physical **B** resets the view.
@@ -83,7 +90,7 @@ The normal renderer remains the default when neither test variable is enabled. T
 6. Pan with each D-pad direction at all four rotations. Movement should follow the physical direction pressed, including when holding a direction to repeat. The first press that reaches an edge should only clamp; a further press should change page if that axis has real overflow.
 7. On a page change, verify that next pages start at logical top-left and previous pages at logical top-right. Confirm Left/Right follow L1/R1, and Up/Down follow their documented vertical mapping (previous/next at 0° and 90°, next/previous at 180° and 270°), including RTL.
 8. Repeat the panning and page-edge checks with mirroring enabled, if desired, to check that the direction mapping follows the mirrored content.
-9. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
+9. Repeat with `-display-rotation=180` and confirm it adds only the physical panel correction.
 10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
 This remains an experimental rendering path, not a replacement for the existing renderer. Single-page rendering, zoom, panning, page-edge transitions, and facing-page spreads have been build-tested and device-tested by the user. The first UI-overlay layer is now implemented but still needs build/device verification. Complete mirror/rotation coverage and performance comparison remain outstanding. Keep the experiment isolated until those areas are validated, then compare complexity and behaviour against the existing implementation before considering any merge.
@@ -115,4 +122,4 @@ The first overlay migration slice is implemented on this branch:
 - L2/R2 ten-page skip bindings are active in the logical-PDF path as well as the legacy path; logical offsets are clamped against the current single-page or spread geometry.
 - The existing renderer's overlay implementation is unchanged.
 
-**User verification:** page indicator and help panel passed all tested orientations; mirroring and the remaining overlay checks were reported correct. The TOC edge-following adjustment and restored L2/R2 handling need a rebuild/device check. Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with GREEN_ROTATE180=1 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.
+**User verification:** page indicator and help panel passed all tested orientations; mirroring and the remaining overlay checks were reported correct. The TOC edge-following adjustment and restored L2/R2 handling need a rebuild/device check. Test the page indicator, TOC placement and navigation, help panel placement and scrolling at 0°, 90°, 180° and 270°. Repeat with document mirroring enabled to confirm that text and controls remain readable and are not mirrored, and with -display-rotation=180 to confirm panel correction. Also verify the legacy renderer remains unchanged when GREEN_TEST_LOGICAL_PDF is unset.

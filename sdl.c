@@ -1278,9 +1278,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		{
 			SDL_RendererInfo info;
 			const char *video_driver = SDL_GetCurrentVideoDriver();
-			fprintf( stderr, "SDL video driver: %s\\n", video_driver ? video_driver : "(none)" );
+			fprintf( stderr, "SDL video driver: %s\n", video_driver ? video_driver : "(none)" );
 			if (SDL_GetRendererInfo( g_renderer, &info ) == 0)
-				fprintf( stderr, "SDL renderer: %s (flags=0x%08x, max texture=%dx%d)\\n",
+				fprintf( stderr, "SDL renderer: %s (flags=0x%08x, max texture=%dx%d)\n",
 					info.name ? info.name : "(unknown)", info.flags, info.max_texture_width, info.max_texture_height );
 			else
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );

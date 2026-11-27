@@ -224,9 +224,9 @@ static void AtomicWriteText( const char *path, const char *content )
 	size_t length;
 
 	if (!path || !content
-		|| snprintf( temporary, sizeof( temporary ), "%s.tmp.%ld", path, (long)getpid() ) >= (int)sizeof( temporary ))
+		|| snprintf( temporary, sizeof( temporary ), "%s.tmp.XXXXXX", path ) >= (int)sizeof( temporary ))
 		return;
-	fd = open( temporary, O_WRONLY | O_CREAT | O_EXCL, 0600 );
+	fd = mkstemp( temporary );
 	if (fd < 0)
 		return;
 	file = fdopen( fd, "w" );
@@ -312,7 +312,10 @@ static char *PathToURI( const char *path )
 {
 	static const char hex[] = "0123456789ABCDEF";
 	size_t i, n = 0, len = strlen( path );
-	char *uri = malloc( 5 + len * 3 + 1 );
+	char *uri;
+	if (len > (SIZE_MAX - 6) / 3)
+		return NULL;
+	uri = malloc( 5 + len * 3 + 1 );
 	if (!uri)
 		return NULL;
 	memcpy( uri, "file:", 5 );
@@ -455,6 +458,20 @@ static char	*SettingsPath( void )
 	return path;
 }
 
+static bool ParseBooleanSetting( const char *line, const char *key, bool *value )
+{
+	size_t n = strlen( key );
+	if (strncmp( line, key, n ))
+		return false;
+	if ((line[n] == '0' || line[n] == '1')
+		&& (line[n + 1] == '\\n' || line[n + 1] == '\\r' || line[n + 1] == 0))
+	{
+		*value = line[n] == '1';
+		return true;
+	}
+	return false;
+}
+
 void	Green_LoadSettings( Green_RTD *rtd )
 {
 	FILE	*file;
@@ -470,10 +487,8 @@ void	Green_LoadSettings( Green_RTD *rtd )
 	
 	while (fgets( line, sizeof( line ), file ))
 	{
-		if (!strncmp( line, "night=", 6 ))
-			rtd->night = (line[6] != '0');
-		else if (!strncmp( line, "right_to_left=", 14 ))
-			rtd->right_to_left = (line[14] != '0');
+		(void)ParseBooleanSetting( line, "night=", &rtd->night );
+		(void)ParseBooleanSetting( line, "right_to_left=", &rtd->right_to_left );
 	}
 	
 	fclose( file );

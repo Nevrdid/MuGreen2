@@ -851,7 +851,7 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 		moved = doc->xoffset != old_x || doc->yoffset != old_y;
 		fprintf( stderr,
 			"[MuGreen2 nav] rotation=%d mirrored=%d sx=%d page=%d "
-			"offset=(%d,%d)->(%d,%d) scroll_region=(%d,%d) moved=%d\\n",
+			"offset=(%d,%d)->(%d,%d) scroll_region=(%d,%d) moved=%d\n",
 			rotation, doc->mirrored, sx, old_page, old_x, old_y,
 			doc->xoffset, doc->yoffset, max_x, max_y, moved );
 		if (moved)
@@ -867,7 +867,7 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			int changed = Green_GotoPage( doc, target_page, false );
 			fprintf( stderr,
 				"[MuGreen2 nav] edge reached: direction=%d step=%d target=%d "
-				"goto_result=%d\\n",
+				"goto_result=%d\n",
 				next_page, page_step, target_page, changed );
 			if (!changed)
 				return 0;

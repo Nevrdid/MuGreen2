@@ -964,7 +964,7 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 				next_page = sx < 0 ? ((rotation == 1 || rotation == 2) ? 1 : -1)
 					: ((rotation == 1 || rotation == 2) ? -1 : 1);
 				if (rtd->right_to_left) next_page = -next_page;
-				if (!Green_GotoPage(doc, doc->page_cur + next_page * 2, false)) return 0;
+				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + next_page * 2, false)) return 0;
 				doc->xoffset = doc->yoffset = 0;
 				return 1;
 			}
@@ -1267,14 +1267,14 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			if (!doc) break;
 			if (rtd->side_by_side && doc->page_count > 1) {
-				if (!Green_GotoPage(doc, doc->page_cur + (rtd->right_to_left ? 2 : -2), false)) break;
+				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + (rtd->right_to_left ? 2 : -2), false)) break;
 				ClampSpreadOffset(rtd, display->w, display->h);
 			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? 1 : -1), vw, display->h, rtd->right_to_left)) break;
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			if (!doc) break;
 			if (rtd->side_by_side && doc->page_count > 1) {
-				if (!Green_GotoPage(doc, doc->page_cur + (rtd->right_to_left ? -2 : 2), false)) break;
+				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + (rtd->right_to_left ? -2 : 2), false)) break;
 				ClampSpreadOffset(rtd, display->w, display->h);
 			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? -1 : 1), vw, display->h, rtd->right_to_left)) break;
 			*flags |= FLAG_RENDER; break;

@@ -5,6 +5,8 @@ mugreen2
 # MuPDF build workspace and generated prefixes
 mupdf/
 mupdf-build/
+sdl2/
+sdl2-build/
 prefix/
 *.a
 

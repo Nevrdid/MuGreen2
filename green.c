@@ -156,12 +156,6 @@ static void SaveDocumentState( Green_Document *doc )
 		remove( temporary );
 }
 
-static void	StoreLastPage( Green_Document *doc, bool flush )
-{
-	(void)flush;
-	SaveDocumentState( doc );
-}
-
 static void	RestoreLastPage( Green_Document *doc )
 {
 	if (!doc || !doc->uri)
@@ -262,7 +256,7 @@ void	Green_Close( Green_RTD *rtd )
 	if (!rtd || !rtd->doc)
 		return;
 	doc = rtd->doc;
-	StoreLastPage( doc, true );
+	SaveDocumentState( doc );
 	pb_close( doc->doc );
 	free( doc->uri );
 	free( doc );
@@ -274,7 +268,7 @@ void	Green_SaveAllLastPages( Green_RTD *rtd )
 	if (!rtd)
 		return;
 	if (rtd->doc)
-		StoreLastPage( rtd->doc, false );
+		SaveDocumentState( rtd->doc );
 	
 	Green_SaveSettings( rtd );
 	return;

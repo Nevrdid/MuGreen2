@@ -549,13 +549,10 @@ static int	DrawUtf8( SDL_Surface *display, int x, int y, int max_w, int line_h,
 
 static int	ViewWidth( Green_RTD *rtd )
 {
-	SDL_Surface	*display = DrawSurface();
-	
-	if (rtd->side_by_side && Green_IsDocValid( rtd)
-		&& rtd->doc->page_count > 1)
-		return display->w / 2;
-	
-	return display->w;
+	(void)rtd;
+	/* Facing-page mode scrolls and zooms one continuous spread across the
+	 * complete display, not two independently clipped half-width viewports. */
+	return DrawSurface()->w;
 }
 
 static void	FreeTOC( TOCNode *node )
@@ -1251,7 +1248,8 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			if (!doc)
 				break;
 			Green_RotateRight( doc );
-			Green_ValidateOffset( doc, display->w, display->h );
+			if (rtd->side_by_side && doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
+			else Green_ValidateOffset(doc, display->w, display->h);
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -1289,13 +1287,13 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;
-			if (doc) SetPageStart( doc, rtd->right_to_left, ViewWidth( rtd ), display->h );
+			if (doc) { if (doc->page_count > 1) doc->xoffset = doc->yoffset = 0; else SetPageStart(doc, rtd->right_to_left, ViewWidth(rtd), display->h); }
 			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
-			if (doc) Green_ValidateOffset( doc, ViewWidth( rtd ), display->h );
+			if (doc) { doc->xoffset = doc->yoffset = 0; if (rtd->side_by_side && doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h); else Green_ValidateOffset(doc, display->w, display->h); }
 			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER; break;
 		default: break;
@@ -1400,8 +1398,10 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		}
 		display = DrawSurface();
 	}
-	if (Green_IsDocValid( rtd))
-		Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
+	if (Green_IsDocValid(rtd)) {
+		if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
+		else Green_ValidateOffset(rtd->doc, display->w, display->h);
+	}
 	if (Green_IsDocValid( rtd))
 		state_snapshot = *rtd->doc;
 	else
@@ -1606,7 +1606,10 @@ if (flags & FLAG_RENDER)
 								break;
 							}
 							display = DrawSurface();
-							if (Green_IsDocValid( rtd )) Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
+							if (Green_IsDocValid(rtd)) {
+								if (rtd->side_by_side && rtd->doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h);
+								else Green_ValidateOffset(rtd->doc, display->w, display->h);
+							}
 						}
 						flags |= FLAG_RENDER;
 					}

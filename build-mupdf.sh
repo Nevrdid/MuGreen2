@@ -27,7 +27,7 @@ if [ "${SYSROOT+x}" != x ]; then
  if [ "$SYSROOT" = "/" ]; then SYSROOT=; fi
 fi
 SYSROOT=${SYSROOT-}
-PREFIX=${PREFIX:-/opt/mupdf-${ARCH}}
+PREFIX=${PREFIX:-$PWD/mupdf/$ARCH}
 WORK=${WORK:-$PWD/mupdf-build}
 CLEAN=${CLEAN:-1}
 case "$ARCH" in

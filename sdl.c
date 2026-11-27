@@ -134,6 +134,110 @@ static const char	*g_help_lines[] = {
 };
 #define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
 
+
+/* Combined-spread geometry: offsets are device pixels from the spread's
+ * leading top-left corner, allowing either page to move across the viewport. */
+static int GetSpreadMetrics(Green_RTD *rtd, int vw, int vh, double *scale,
+	int *lp, int *rp, int *lw, int *lh, int *rw, int *rh)
+{
+	Green_Document *doc = rtd->doc;
+	if (!rtd->side_by_side || doc->page_count < 2) return 0;
+	if (doc->page_cur % 2 == 0) {
+		if (rtd->right_to_left) { *lp = doc->page_cur + 1; *rp = doc->page_cur; }
+		else { *lp = doc->page_cur; *rp = doc->page_cur + 1; }
+	} else {
+		if (rtd->right_to_left) { *lp = doc->page_cur; *rp = doc->page_cur - 1; }
+		else { *lp = doc->page_cur - 1; *rp = doc->page_cur; }
+	}
+	if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count) return 0;
+	*scale = Green_Fit(doc, vw / 2, vh) * doc->finescale;
+	if (pb_device_size(doc->doc, *lp, (float)*scale, doc->rotation & 3, lw, lh)
+		|| pb_device_size(doc->doc, *rp, (float)*scale, doc->rotation & 3, rw, rh)) return 0;
+	return 1;
+}
+
+static void ClampSpreadOffset(Green_RTD *rtd, int vw, int vh)
+{
+	int lp, rp, lw, lh, rw, rh, sw, sh;
+	double scale;
+	Green_Document *doc = rtd->doc;
+	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) return;
+	sw = lw + rw; sh = lh > rh ? lh : rh;
+	if (doc->xoffset < 0) doc->xoffset = 0;
+	if (doc->yoffset < 0) doc->yoffset = 0;
+	if (sw <= vw) doc->xoffset = 0;
+	else if (doc->xoffset > sw - vw) doc->xoffset = sw - vw;
+	if (sh <= vh) doc->yoffset = 0;
+	else if (doc->yoffset > sh - vh) doc->yoffset = sh - vh;
+}
+
+static void RenderSpreadPage(Green_RTD *rtd, int page, int px, int py,
+	int pw, int ph, double scale, int *failed_page)
+{
+	Green_Document *doc = rtd->doc;
+	SDL_Surface *display = DrawSurface();
+	SDL_Rect clip;
+	int x1 = px < 0 ? 0 : px, y1 = py < 0 ? 0 : py;
+	int x2 = px + pw > display->w ? display->w : px + pw;
+	int y2 = py + ph > display->h ? display->h : py + ph;
+	int sx, sy;
+	const char *error = NULL;
+	if (x1 >= x2 || y1 >= y2) return;
+	clip.x = x1; clip.y = y1; clip.w = x2 - x1; clip.h = y2 - y1;
+	sx = x1 - px; sy = y1 - py;
+	if (doc->mirrored) sy = ph - sy - clip.h;
+	if (pb_render(doc->doc, page, (float)scale, doc->rotation & 3,
+		doc->mirrored, rtd->night, sx, sy, clip.w, clip.h, PB_FMT_XRGB8888,
+		DstPixel(display, clip.x, clip.y), display->pitch))
+		error = pb_error_message(doc->doc);
+	else g_rendered_content_this_frame = true;
+	if (error) {
+		SDL_FillRect(display, &clip, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
+		DrawString(display, clip.x + 8, clip.y + 8, "Page cannot be rendered",
+			SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
+		SDL_SetClipRect(display, &clip);
+		DrawString(display, clip.x + 8, clip.y + 30, error, SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
+		SDL_SetClipRect(display, NULL);
+		fprintf(stderr, "MuGreen2: rendering failed on page %d: %s\n", page + 1, error);
+		if (*failed_page < 0) *failed_page = page;
+	} else if (pb_page_has_warnings(doc->doc, page)) {
+		SDL_Rect marker = { x2 - 18, y1 + 4, 14, 14 };
+		if (marker.x >= x1) {
+			SDL_FillRect(display, &marker, SDL_MapRGB(display->format, 0xD0, 0x90, 0x20));
+			DrawString(display, marker.x + 3, marker.y + 1, "!", SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
+		}
+		if (pb_take_page_warning(doc->doc, page)) {
+			char msg[256];
+			snprintf(msg, sizeof(msg), "Page %d contains content that MuPDF could not fully interpret", page + 1);
+			Green_LogMessage(msg); fprintf(stderr, "MuGreen2: %s\n", msg);
+		}
+	}
+}
+
+static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
+{
+	Green_Document *doc = rtd->doc;
+	int lp, rp, lw, lh, rw, rh, old_sw, old_sh, new_sw, new_sh;
+	double scale, anchor_x, anchor_y, old_fs = doc->finescale;
+	int margin_x, margin_y;
+	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) return;
+	old_sw = lw + rw; old_sh = lh > rh ? lh : rh;
+	anchor_x = doc->xoffset + vw / 2.0 - (old_sw < vw ? (vw - old_sw) / 2.0 : 0);
+	anchor_y = doc->yoffset + vh / 2.0 - (old_sh < vh ? (vh - old_sh) / 2.0 : 0);
+	if (new_fs < 0.1) new_fs = 0.1;
+	if (new_fs > 8.0) new_fs = 8.0;
+	doc->finescale = new_fs;
+	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
+		doc->finescale = old_fs; return;
+	}
+	new_sw = lw + rw; new_sh = lh > rh ? lh : rh;
+	margin_x = new_sw < vw ? (vw - new_sw) / 2 : 0;
+	margin_y = new_sh < vh ? (vh - new_sh) / 2 : 0;
+	doc->xoffset = (int)(anchor_x - vw / 2.0 + margin_x + 0.5);
+	doc->yoffset = (int)(anchor_y - vh / 2.0 + margin_y + 0.5);
+	ClampSpreadOffset(rtd, vw, vh);
+}
+
 static int	ViewWidth( Green_RTD *rtd );
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
@@ -769,11 +873,16 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	if (!Green_IsDocValid(rtd)) { Present(); return 0; }
 	doc = rtd->doc;
 	if (rtd->side_by_side && doc->page_count > 1) {
-		int left_page, right_page;
-		if (doc->page_cur % 2 == 0) {
-			if (rtd->right_to_left) { left_page = doc->page_cur + 1; right_page = doc->page_cur; }
-			else { left_page = doc->page_cur; right_page = doc->page_cur + 1; }
-		} else {
+		int lp, rp, lw, lh, rw, rh;
+		if (GetSpreadMetrics(rtd, display->w, display->h, &tscale, &lp, &rp, &lw, &lh, &rw, &rh)) {
+			int sw = lw + rw, sh = lh > rh ? lh : rh;
+			int ox, oy;
+			ClampSpreadOffset(rtd, display->w, display->h);
+			ox = (sw < display->w ? (display->w - sw) / 2 : 0) - doc->xoffset;
+			oy = (sh < display->h ? (display->h - sh) / 2 : 0) - doc->yoffset;
+			RenderSpreadPage(rtd, lp, ox, oy + (sh - lh) / 2, lw, lh, tscale, failed_page);
+			RenderSpreadPage(rtd, rp, ox + lw, oy + (sh - rh) / 2, rw, rh, tscale, failed_page);
+		} else { {
 			if (rtd->right_to_left) { left_page = doc->page_cur; right_page = doc->page_cur - 1; }
 			else { left_page = doc->page_cur - 1; right_page = doc->page_cur; }
 		}
@@ -849,6 +958,27 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 	Green_Document *doc = rtd->doc;
 	int max_x, max_y, doc_max_x, doc_max_y, doc_dy, page_step, next_page = 0;
 	int rotation = doc->rotation & 3;
+
+	if (rtd->side_by_side && doc->page_count > 1)
+	{
+		int lp, rp, lw, lh, rw, rh, old_x = doc->xoffset, old_y = doc->yoffset;
+		double scale;
+		if (GetSpreadMetrics(rtd, DrawSurface()->w, DrawSurface()->h, &scale, &lp, &rp, &lw, &lh, &rw, &rh))
+		{
+			doc->xoffset += sx; doc->yoffset += sy;
+			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
+			if (doc->xoffset != old_x || doc->yoffset != old_y) return 1;
+			if (sx) {
+				next_page = sx < 0 ? ((rotation == 1 || rotation == 2) ? 1 : -1)
+					: ((rotation == 1 || rotation == 2) ? -1 : 1);
+				if (rtd->right_to_left) next_page = -next_page;
+				if (!Green_GotoPage(doc, doc->page_cur + next_page * 2, false)) return 0;
+				doc->xoffset = doc->yoffset = 0;
+				return 1;
+			}
+			return 0;
+		}
+	}
 
 	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
 	doc_max_x = (rotation & 1) ? max_y : max_x;
@@ -1439,13 +1569,13 @@ if (flags & FLAG_RENDER)
 					else if (button == SDL_CONTROLLER_BUTTON_X && g_y_held)
 					{
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
-						{ Green_Document *doc = rtd->doc; Green_Zoom( doc, ViewWidth( rtd ), display->h, doc->finescale / rtd->zoomstep ); flags |= FLAG_RENDER; }
+						{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
 						g_y_held = false;
 					}
 					else if (button == SDL_CONTROLLER_BUTTON_Y && g_x_held)
 					{
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
-					{ Green_Document *doc = rtd->doc; Green_Zoom( doc, ViewWidth( rtd ), display->h, doc->finescale * rtd->zoomstep ); flags |= FLAG_RENDER; }
+					{ Green_Document *doc = rtd->doc; if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
 						g_x_held = false;
 					}
 					break;

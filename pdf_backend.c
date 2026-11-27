@@ -143,7 +143,7 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 	struct stat st;
 	int saved_errno;
 	int password_required = 0;
-	int caught_error = FZ_ERROR_GENERIC;
+	int tracking_alloc_failed = 0;
 
 	if (out)
 		*out = NULL;
@@ -228,7 +228,6 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 	}
 	fz_catch(ctx)
 	{
-		caught_error = fz_caught(ctx);
 		copy_message(message, message_size, fz_caught_message(ctx));
 		if (d->doc)
 			fz_drop_document(ctx, d->doc);

@@ -213,6 +213,8 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 			fz_throw(ctx, FZ_ERROR_GENERIC, "document requires a password");
 		}
 		d->page_count = fz_count_pages(ctx, d->doc);
+		if (d->page_count <= 0)
+			fz_throw(ctx, FZ_ERROR_GENERIC, "document has no pages");
 	}
 	fz_catch(ctx)
 	{
@@ -289,6 +291,10 @@ static int ensure_page(pb_doc *d, int pageno)
 		fz_display_list *l;
 		page = fz_load_page(ctx, d->doc, pageno);
 		d->bounds = fz_bound_page(ctx, page);
+		if (!isfinite(d->bounds.x0) || !isfinite(d->bounds.y0)
+			|| !isfinite(d->bounds.x1) || !isfinite(d->bounds.y1)
+			|| d->bounds.x1 <= d->bounds.x0 || d->bounds.y1 <= d->bounds.y0)
+			fz_throw(ctx, FZ_ERROR_GENERIC, "page has an empty or invalid MediaBox");
 		l = fz_new_display_list_from_page(ctx, page);
 		d->list = l;
 		d->list_page = pageno;

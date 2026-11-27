@@ -44,6 +44,7 @@ typedef struct {
 	double step, zoomstep;
 	unsigned char bb, side_by_side;
 	bool night;
+	bool right_to_left;
 } Green_RTD;
 
 int Green_Open(Green_RTD *rtd, char *uri);

@@ -14,7 +14,7 @@
 - Source: https://github.com/libsdl-org/SDL
 - License: zlib License.
 - `build-sdl2.sh` downloads the SDL2 2.30.8 source release and verifies its pinned SHA-256 checksum before extraction.
-- SDL2 is built as a static library (`--disable-shared --enable-static`) and installed under `sdl2/<architecture>/` by default. The install location is controlled by `SDL2_PREFIX`.
+- SDL2 is built as a shared library (`--enable-shared --disable-static`) and installed under `sdl2/<architecture>/` by default. The install location is controlled by `SDL2_PREFIX`. MuGreen2 links dynamically using `sdl2-config --libs` and requires the target runtime's `libSDL2-2.0.so.0`.
 - AArch64 and ARMHF builds explicitly enable KMSDRM and EGL/OpenGL ES 2, and disable X11, Wayland, Vulkan and audio backends. They require the matching target sysroot to provide DRM, GBM, EGL and GLES development headers and libraries. These platform libraries are not bundled into SDL2 or the application; they must be present on the target device.
 - The native build retains SDL2 host-detected video backends for desktop development.
 

@@ -89,7 +89,7 @@ The MuPDF build script downloads the MuPDF 1.24.11 source release and builds the
 
 ## Saved settings
 
-The night-mode preference remains global and is stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions. The old `~/.green.pages` index is read as a migration source when no new state file exists. It is left untouched, and matching entries are imported automatically the first time each PDF is opened.
+The night-mode preference remains global and is stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
 
 ## Licensing
 

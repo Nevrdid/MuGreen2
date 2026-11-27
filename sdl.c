@@ -281,6 +281,9 @@ static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
 static int	ViewWidth( Green_RTD *rtd );
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
+static SDL_Surface *CreateOverlaySurface(SDL_Surface *display, int rotation);
+static void CompositeOverlay(SDL_Surface *display, SDL_Surface *overlay, int rotation);
+static void RenderHelpContent(SDL_Surface *display);
 
 static void RenderHelp(SDL_Surface *display)
 {

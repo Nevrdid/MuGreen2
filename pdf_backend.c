@@ -7,7 +7,11 @@
  * on the target: if a signature differs in your version, the compiler will point at it. */
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <mupdf/fitz.h>
 #include "pdf_backend.h"
 
@@ -24,6 +28,7 @@ struct pb_doc {
 	fz_context	*ctx;
 	fz_document	*doc;
 	int		page_count;
+	char		last_error[256];
 	/* cached page */
 	fz_display_list	*list;
 	int		list_page;
@@ -122,27 +127,78 @@ static char *uri_to_path(const char *u)
 	return r;
 }
 
-pb_doc *pb_open(const char *path)
+static void copy_message(char *out, size_t size, const char *message)
+{
+	if (out && size)
+		snprintf(out, size, "%s", message ? message : "unspecified error");
+}
+
+pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t message_size)
 {
 	pb_doc *d;
 	char *p;
 	fz_context *ctx;
+	struct stat st;
+	int saved_errno;
+	int password_required = 0;
 
+	if (out)
+		*out = NULL;
+	if (message && message_size)
+		message[0] = 0;
+	if (!path || !out)
+	{
+		copy_message(message, message_size, "invalid document path");
+		return PB_OPEN_INVALID_ARGUMENT;
+	}
 	p = uri_to_path(path);
 	if (!p)
-		return NULL;
+	{
+		copy_message(message, message_size, "out of memory while resolving document path");
+		return PB_OPEN_NO_MEMORY;
+	}
+	if (stat(p, &st))
+	{
+		saved_errno = errno;
+		copy_message(message, message_size, strerror(saved_errno));
+		free(p);
+		if (saved_errno == ENOENT || saved_errno == ENOTDIR)
+			return PB_OPEN_NOT_FOUND;
+		if (saved_errno == EACCES || saved_errno == EPERM)
+			return PB_OPEN_NOT_READABLE;
+		return PB_OPEN_IO_ERROR;
+	}
+	if (!S_ISREG(st.st_mode))
+	{
+		copy_message(message, message_size, "path is not a regular file");
+		free(p);
+		return PB_OPEN_NOT_REGULAR;
+	}
+	if (access(p, R_OK))
+	{
+		saved_errno = errno;
+		copy_message(message, message_size, strerror(saved_errno));
+		free(p);
+		if (saved_errno == EACCES || saved_errno == EPERM)
+			return PB_OPEN_NOT_READABLE;
+		if (saved_errno == ENOENT || saved_errno == ENOTDIR)
+			return PB_OPEN_NOT_FOUND;
+		return PB_OPEN_IO_ERROR;
+	}
 	ctx = ctx_acquire();
 	if (!ctx)
 	{
+		copy_message(message, message_size, "could not initialise MuPDF");
 		free(p);
-		return NULL;
+		return PB_OPEN_BACKEND_ERROR;
 	}
 	d = calloc(1, sizeof(*d));
 	if (!d)
 	{
+		copy_message(message, message_size, "out of memory allocating document");
 		free(p);
 		ctx_release();
-		return NULL;
+		return PB_OPEN_NO_MEMORY;
 	}
 	d->ctx = ctx;
 	d->list_page = -1;
@@ -150,20 +206,37 @@ pb_doc *pb_open(const char *path)
 	{
 		d->doc = fz_open_document(ctx, p);
 		if (fz_needs_password(ctx, d->doc))
-			fz_throw(ctx, FZ_ERROR_GENERIC, "password protected");
+		{
+			password_required = 1;
+			fz_throw(ctx, FZ_ERROR_GENERIC, "document requires a password");
+		}
 		d->page_count = fz_count_pages(ctx, d->doc);
 	}
 	fz_catch(ctx)
 	{
+		copy_message(message, message_size, fz_caught_message(ctx));
 		if (d->doc)
 			fz_drop_document(ctx, d->doc);
 		free(d);
 		free(p);
 		ctx_release();
-		return NULL;
+		return password_required ? PB_OPEN_PASSWORD_REQUIRED : PB_OPEN_INVALID_DOCUMENT;
 	}
 	free(p);
-	return d;
+	*out = d;
+	return PB_OPEN_OK;
+}
+
+const char *pb_error_message(pb_doc *d)
+{
+	return d && d->last_error[0] ? d->last_error : "unspecified MuPDF rendering error";
+}
+
+static void set_error(pb_doc *d, const char *message)
+{
+	if (d)
+		snprintf(d->last_error, sizeof(d->last_error), "%s",
+			message ? message : "unspecified MuPDF error");
 }
 
 static void drop_list(pb_doc *d)
@@ -196,7 +269,10 @@ static int ensure_page(pb_doc *d, int pageno)
 	int ok = 1;
 
 	if (pageno < 0 || pageno >= d->page_count)
+	{
+		set_error(d, "page index is out of range");
 		return -1;
+	}
 	if (d->list && d->list_page == pageno)
 		return 0;
 	drop_list(d);
@@ -213,7 +289,12 @@ static int ensure_page(pb_doc *d, int pageno)
 	fz_always(ctx)
 		fz_drop_page(ctx, page);
 	fz_catch(ctx)
+	{
+		set_error(d, fz_caught_message(ctx));
 		ok = 0;
+	}
+	if (ok)
+		d->last_error[0] = 0;
 	return ok ? 0 : -1;
 }
 
@@ -285,18 +366,32 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 	uint8_t *buf;
 	int bpitch, W, H, ok = 1;
 
-	if (!d || !dst || w <= 0 || h <= 0 || ensure_page(d, page))
+	if (!d)
+		return -1;
+	d->last_error[0] = 0;
+	if (!dst || w <= 0 || h <= 0)
+	{
+		set_error(d, "invalid render target or dimensions");
+		return -1;
+	}
+	if (ensure_page(d, page))
 		return -1;
 	ctx = d->ctx;
 	ctm = make_ctm(d, scale, rotation, mirrored, &W, &H);
 	if (x < 0 || y < 0 || x + w > W || y + h > H)
+	{
+		set_error(d, "render rectangle is outside the page bounds");
 		return -1;
+	}
 	ctm = fz_concat(ctm, fz_translate((float)-x, (float)-y));
 
 	if (fmt == PB_FMT_XRGB8888)
 	{
 		if (((uintptr_t)dst & 3) || (pitch & 3) || pitch < w * 4)
+		{
+			set_error(d, "invalid XRGB8888 destination alignment or pitch");
 			return -1;
+		}
 		buf = dst;
 		bpitch = pitch;
 	}
@@ -304,12 +399,18 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 	{
 		size_t need = (size_t)w * h * 4;
 		if (pitch < w * 2)
+		{
+			set_error(d, "invalid RGB565 destination pitch");
 			return -1;
+		}
 		if (need > g_scratch_sz)
 		{
 			uint8_t *n = realloc(g_scratch, need);
 			if (!n)
+			{
+				set_error(d, "out of memory allocating render buffer");
 				return -1;
+			}
 			g_scratch = n;
 			g_scratch_sz = need;
 		}
@@ -336,7 +437,10 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 		fz_drop_pixmap(ctx, pix);
 	}
 	fz_catch(ctx)
+	{
+		set_error(d, fz_caught_message(ctx));
 		ok = 0;
+	}
 	if (!ok)
 		return -1;
 	if (fmt == PB_FMT_RGB565)

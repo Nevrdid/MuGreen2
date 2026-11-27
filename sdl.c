@@ -90,8 +90,11 @@ static Uint32	g_list_nav_next = 0;
 #define LIST_NAV_DELAY_MS	300
 #define LIST_NAV_RATE_MS	100
 #define PAGE_INDICATOR_DURATION_MS	1200
+#define ACTION_OVERLAY_DURATION_MS	1400
 static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
+static char	g_action_message[80] = "";
+static Uint32	g_action_message_until = 0;
 static int	g_overlay_rotation = 0;
 /* SDL presents the logical content framebuffer with one final transform. */
 static SDL_RendererFlip	g_content_flip = SDL_FLIP_NONE;
@@ -1379,6 +1382,31 @@ render_error:
 	return -1;
 }
 
+static void ShowActionMessage(const char *message)
+{
+	snprintf(g_action_message, sizeof(g_action_message), "%s", message);
+	g_action_message_until = SDL_GetTicks() + ACTION_OVERLAY_DURATION_MS;
+}
+
+static void RenderActionMessage(SDL_Surface *display)
+{
+	SDL_Rect box;
+	int text_w = (int)strlen(g_action_message) * 12;
+	Uint32 bg = SDL_MapRGB(display->format, 0x18, 0x18, 0x20);
+	Uint32 fg = SDL_MapRGB(display->format, 0xF0, 0xF0, 0xF0);
+
+	box.w = text_w + 24;
+	if (box.w > display->w - 16) box.w = display->w - 16;
+	if (box.w < 1) return;
+	box.h = 28;
+	box.x = (display->w - box.w) / 2;
+	box.y = display->h - box.h - 8;
+	SDL_FillRect(display, &box, bg);
+	SDL_SetClipRect(display, &box);
+	DrawString(display, box.x + 12, box.y + 7, g_action_message, fg);
+	SDL_SetClipRect(display, NULL);
+}
+
 static void RenderLogicalPageIndicator(SDL_Surface *display, Green_RTD *rtd,
 	Green_Document *doc)
 {
@@ -1470,6 +1498,9 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 			&& g_page_indicator_until
 			&& !SDL_TICKS_PASSED(SDL_GetTicks(), g_page_indicator_until))
 			RenderLogicalPageIndicator(g_overlay_fb, rtd, rtd->doc);
+		if (g_state == NORMAL && g_action_message[0] && g_action_message_until
+			&& !SDL_TICKS_PASSED(SDL_GetTicks(), g_action_message_until))
+			RenderActionMessage(g_overlay_fb);
 	}
 	Present();
 	return *failed_page >= 0 ? -1 : 0;
@@ -1786,6 +1817,7 @@ static RState NormalInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 			doc->fit_method = WIDTH;
 			doc->finescale = 1;
 			doc->xoffset = doc->yoffset = 0;
+			ShowActionMessage("View reset");
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -1820,6 +1852,7 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
 			rtd->night = !rtd->night;
+			ShowActionMessage(rtd->night ? "Night mode ON" : "Night mode OFF");
 			Green_SaveSettings(rtd);
 			*flags |= FLAG_RENDER;
 			break;
@@ -1827,10 +1860,13 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
 			if (doc)
 			{
-				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT) {
 					Green_RotateRight(doc);
-				else
+					ShowActionMessage("Rotation +90 degrees");
+				} else {
 					Green_RotateLeft(doc);
+					ShowActionMessage("Rotation -90 degrees");
+				}
 				doc->xoffset = doc->yoffset = 0;
 				*flags |= FLAG_RENDER;
 			}
@@ -1839,6 +1875,7 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 			if (doc && rtd->side_by_side && doc->page_count > 1)
 			{
 				rtd->spread_vertical = !rtd->spread_vertical;
+				ShowActionMessage(rtd->spread_vertical ? "Vertical spread" : "Horizontal spread");
 				doc->xoffset = doc->yoffset = 0;
 				Green_SaveSettings(rtd);
 				*flags |= FLAG_RENDER;
@@ -1848,20 +1885,28 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 			if (doc && rtd->side_by_side && doc->page_count > 1)
 			{
 				g_spread_order_reversed = !g_spread_order_reversed;
+				ShowActionMessage(g_spread_order_reversed ? "Pages swapped" : "Page order restored");
 				doc->xoffset = doc->yoffset = 0;
 				*flags |= FLAG_RENDER;
 			}
 			break;
 		case SDL_CONTROLLER_BUTTON_Y:
-			if (doc) Green_MirrorH(doc);
+			if (doc) {
+				Green_MirrorH(doc);
+				ShowActionMessage(doc->mirrored ? "Horizontal mirror ON" : "Horizontal mirror OFF");
+			}
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_X:
-			if (doc) Green_MirrorV(doc);
+			if (doc) {
+				Green_MirrorV(doc);
+				ShowActionMessage(doc->mirrored ? "Vertical mirror ON" : "Vertical mirror OFF");
+			}
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;
+			ShowActionMessage(rtd->right_to_left ? "Manga mode ON" : "Manga mode OFF");
 			if (doc)
 			{
 				if (rtd->side_by_side && doc->page_count > 1)
@@ -1874,6 +1919,7 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
+			ShowActionMessage(rtd->side_by_side ? "Dual-page mode ON" : "Dual-page mode OFF");
 			if (doc)
 				doc->xoffset = doc->yoffset = 0;
 			Green_SaveSettings(rtd);
@@ -2030,6 +2076,12 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			g_page_indicator_until = 0;
 			if (g_state == NORMAL) flags |= FLAG_RENDER;
 		}
+		if (g_action_message_until && SDL_TICKS_PASSED(SDL_GetTicks(), g_action_message_until))
+		{
+			g_action_message_until = 0;
+			g_action_message[0] = '\0';
+			if (g_state == NORMAL) flags |= FLAG_RENDER;
+		}
 		if (Green_IsDocValid(rtd) && rtd->doc->page_cur != g_page_indicator_page)
 		{
 			g_page_indicator_page = rtd->doc->page_cur;
@@ -2077,6 +2129,11 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			if (g_page_indicator_until)
 			{
 				int remaining = SDL_TICKS_PASSED(now, g_page_indicator_until) ? 0 : (int)(g_page_indicator_until - now);
+				if (timeout < 0 || remaining < timeout) timeout = remaining;
+			}
+			if (g_action_message_until)
+			{
+				int remaining = SDL_TICKS_PASSED(now, g_action_message_until) ? 0 : (int)(g_action_message_until - now);
 				if (timeout < 0 || remaining < timeout) timeout = remaining;
 			}
 			if (timeout >= 0)

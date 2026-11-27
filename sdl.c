@@ -1113,9 +1113,14 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 		if (rotation != g_reader_rotation)
 		{
 			int ow, oh;
-			if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) == 0
-				&& CreateFramebuffer((rotation & 1) ? oh : ow, (rotation & 1) ? ow : oh) == 0)
-				g_reader_rotation = rotation;
+			if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) != 0
+				|| CreateFramebuffer((rotation & 1) ? oh : ow, (rotation & 1) ? ow : oh) != 0)
+			{
+				fprintf(stderr, "MuGreen2: logical framebuffer resize failed: %s\\n", SDL_GetError());
+				*failed_page = rtd->doc->page_cur;
+				return -1;
+			}
+			g_reader_rotation = rotation;
 		}
 		display = DrawSurface();
 		RenderLogicalPipelineTestFrame(display);

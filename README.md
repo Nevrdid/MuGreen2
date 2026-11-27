@@ -136,11 +136,22 @@ A sample shell launcher is provided at `examples/launch-mugreen2.sh`.
 
 Both dependency build scripts verify pinned SHA-256 checksums before extracting their default source releases: MuPDF 1.24.11 and SDL2 2.30.8. Other MuPDF versions require an explicit `MUPDF_SHA256` value. Network access is required for the first download. Checksum verification is performed when the archive is extracted; if the corresponding source directory already exists, the script reuses it without re-verifying the extracted tree. Remove that directory to force a fresh, verified extraction.
 
-## Saved settings
+## Saved settings and document state
 
-The night-mode, right-to-left reading, and dual-page preferences remain global and are stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
+Global preferences (night mode, right-to-left reading, and dual-page mode) are stored in `<datadir>/settings`. Per-document reading state is stored in `<datadir>/documents/`.
 
-Document paths are converted to file URIs with reserved characters, percent signs, spaces, and non-ASCII bytes percent-encoded. State files are strictly parsed and invalid values are ignored; restored zoom is bounded to a fine-scale range of 0.05–20.0, and negative scroll offsets are reset before the display bounds are applied. State writes use a private temporary file, fsync, and atomic rename. While reading, changes are saved after a 750 ms idle period, as well as when the document closes or the application exits. Global settings use the same atomic-write procedure.
+The data directory is selected in this order:
+
+1. `MUGREEN2_DATA_DIR`, when set (relative paths are resolved against the current working directory).
+2. `$XDG_DATA_HOME/mugreen2`, when `XDG_DATA_HOME` is an absolute path.
+3. `$HOME/.local/share/mugreen2`, when `HOME` is an absolute path.
+4. `.mugreen2-data/` beside the running executable, as a last resort.
+
+The selected directory is created with user-only permissions where possible. If no writable location is available, MuGreen2 prints one warning to stderr and continues without saving settings or document state. For launchers and read-only system installations, set `MUGREEN2_DATA_DIR` to a writable per-user or per-device directory.
+
+Document paths are canonicalised with `realpath()` before being converted to file URIs, so equivalent paths (including paths containing `.` or `..`) share the same state. If canonicalisation fails, an absolute-path fallback is used. URI-reserved characters, percent signs, spaces, and non-ASCII bytes are percent-encoded. Each document state file stores its URI to guard against hash collisions.
+
+State files are strictly parsed and invalid values are ignored; restored zoom is bounded to a fine-scale range of 0.05–20.0, and negative scroll offsets are reset before the display bounds are applied. State writes use a private temporary file, fsync, and atomic rename. While reading, changes are saved after a 750 ms idle period, as well as when the document closes or the application exits. Global settings use the same atomic-write procedure.
 
 ## Licensing
 

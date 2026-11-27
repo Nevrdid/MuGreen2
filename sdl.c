@@ -2076,6 +2076,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				}
 				fprintf(stderr, "MuGreen2: page %d is incomplete; showing an error placeholder.\n", failed_page + 1);
 			}
+			/* Render may recreate the logical framebuffer after a reader rotation. */
+			display = DrawSurface();
 			g_has_presented_frame = true;
 			flags ^= FLAG_RENDER;
 		}

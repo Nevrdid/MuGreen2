@@ -41,12 +41,16 @@ GREEN_TEST_LOGICAL_PDF=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
 In this probe:
 - **B** rotates the reader clockwise (the existing implementation's rotation binding).
 - **L1 / R1** move to the previous / next page.
-- **D-pad** pans the current page in physical screen directions, transformed into logical page coordinates; movement clamps at page edges and does not change pages.
-- Holding a D-pad direction uses the existing repeat timing.
 - **L2 / R2** are ignored in this probe; the normal ten-page skip action is intentionally disabled.
 - **A** resets the page to the width-fit view and returns the pan to the origin.
 - Zoom shortcuts are disabled in this probe because the existing zoom-anchor calculations still assume the physical/rotated viewport.
 - Mirroring is translated to a pre-presentation SDL flip so its existing post-rotation vertical-mirror result can be retained; panning direction is transformed through the same flip.
+
+## Stage 3 — logical-coordinate single-page panning
+
+The same `GREEN_TEST_LOGICAL_PDF=1` probe now supports D-pad panning. Physical D-pad directions are transformed through the inverse reader rotation and the source mirror flip, so movement should follow the direction pressed on the handheld. The current page is panned in logical coordinates and clamped at its edges; reaching an edge does not change pages. Existing D-pad hold-repeat timing is reused.
+
+This stage still uses one page at a time. Page-edge transitions and preserving the pan anchor when changing pages remain disabled.
 
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
 - page-edge transitions or page-change scroll anchoring;
@@ -68,4 +72,4 @@ The normal renderer remains the default when neither test variable is enabled. T
 7. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
 8. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
-This stage is not a replacement for the existing renderer and must not be merged based only on the test-pattern result. Build and device verification are still required before proceeding to scrolling, zoom, spreads, or overlays.
+This stage is not a replacement for the existing renderer and must not be merged based only on the test-pattern result. Build and device verification are still required before proceeding to page-edge transitions, zoom, spreads, or overlays.

@@ -40,6 +40,9 @@ const char	*help_text =
 "    -fit=<mode>                 initial fit: none, width, height or page\n"
 "    -step=<fraction>            scroll step as a fraction of the viewport (default: 0.9)\n"
 "    -zoomstep=<fraction>        zoom increment as a fraction (default: 1/5)\n"
+"    -rotation=<degrees>         initial reader rotation: 0, 90, 180 or 270\n"
+"    -rtl                        start in right-to-left reading order\n"
+"    -ltr                        start in left-to-right reading order\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
 "    -width=<width>              to specify the window width (in pixels)\n"
@@ -133,6 +136,8 @@ int	main( int argc, char *argv[] )
 	rtd.spread_vertical = false;
 	rtd.night = false;
 	rtd.right_to_left = false;
+	rtd.startup_rotation = 0;
+	rtd.startup_rotation_set = false;
 	Green_LoadSettings( &rtd );
 	
 	for (i = 1; i < argc; i++)
@@ -165,6 +170,26 @@ int	main( int argc, char *argv[] )
 			else
 				err = -1;
 		}
+		else if (!strncmp( opt, "rotation=", 9 ))
+		{
+			opt += 9;
+			if (!strcmp( opt, "0" ))
+				rtd.startup_rotation = 0;
+			else if (!strcmp( opt, "90" ))
+				rtd.startup_rotation = 1;
+			else if (!strcmp( opt, "180" ))
+				rtd.startup_rotation = 2;
+			else if (!strcmp( opt, "270" ))
+				rtd.startup_rotation = 3;
+			else
+				err = -1;
+			if (!err)
+				rtd.startup_rotation_set = true;
+		}
+		else if (!strcmp( opt, "rtl" ))
+			rtd.right_to_left = true;
+		else if (!strcmp( opt, "ltr" ))
+			rtd.right_to_left = false;
 		else if (!strncmp( opt, "step=", 5 ))
 		{
 			opt += 5;

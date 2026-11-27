@@ -143,11 +143,11 @@ MuGreen2 uses stable non-zero exit codes so launchers can distinguish common fai
 | 6 | Other document-opening failure (I/O, memory, or MuPDF initialisation) |
 | 7 | SDL initialisation failure |
 | 8 | SDL window, renderer, or initial framebuffer setup failure |
-| 9 | PDF page rendering failure |
+| 9 | Initial PDF page rendering failure |
 | 10 | SDL event-wait failure |
 | 11 | Framebuffer resize failure |
 
-Document-opening and page-rendering failures also print a diagnostic to standard error.
+Document-opening failures print a diagnostic to standard error. A page that fails after the reader has displayed a valid frame is replaced with an on-screen error placeholder; navigation remains available. If the first frame cannot be rendered, the reader exits with code 9 and advances the saved position past the failed page where possible.
 
 ## Display environment
 

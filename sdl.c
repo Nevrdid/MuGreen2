@@ -1054,9 +1054,13 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 		case SDL_CONTROLLER_BUTTON_A:
 			rtd->night = !rtd->night; Green_SaveSettings( rtd ); *flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_Y:
-			if (doc) Green_MirrorH( doc ); *flags |= FLAG_RENDER; break;
+			if (doc) Green_MirrorH( doc );
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_X:
-			if (doc) Green_MirrorV( doc ); *flags |= FLAG_RENDER; break;
+			if (doc) Green_MirrorV( doc );
+			*flags |= FLAG_RENDER;
+			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
 			if (doc) Green_ValidateOffset( doc, ViewWidth( rtd ), display->h );
@@ -1200,6 +1204,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 							else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
 							else if (g_state == HELP) g_state = HelpInput( button, &flags );
 						}
+						else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
+						else if (g_state == HELP) g_state = HelpInput( button, &flags );
 						break;
 					}
 					if (button == SDL_CONTROLLER_BUTTON_X && g_state == NORMAL) g_y_held = true;
@@ -1246,9 +1252,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					{
 						bool left = event.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
 						bool *held = left ? &g_l2_held : &g_r2_held;
-					bool down = event.caxis.value > 16000;
-					if (down && !*held && !g_select_button_held && g_state == NORMAL && Green_IsDocValid( rtd ))
-						SkipPages( rtd->doc, rtd, left ? -10 : 10, ViewWidth( rtd ), display->h, &flags );
+						bool down = event.caxis.value > 16000;
+						if (down && !*held && !g_select_button_held && g_state == NORMAL && Green_IsDocValid( rtd ))
+							SkipPages( rtd->doc, rtd, left ? -10 : 10, ViewWidth( rtd ), display->h, &flags );
 						*held = down;
 					}
 					break;

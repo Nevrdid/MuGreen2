@@ -61,6 +61,8 @@ typedef struct {
 	bool night;
 	bool right_to_left;
 	bool spread_vertical;
+	/* Controller face-button convention; false = Nintendo, true = Xbox. */
+	bool xbox_layout;
 	/* Explicit command-line startup overrides; applied after restoring document state. */
 	int startup_rotation;
 	bool startup_rotation_set;

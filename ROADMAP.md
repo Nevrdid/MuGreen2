@@ -13,7 +13,7 @@ This roadmap tracks implementation scope and verification status. Items are not 
 
 ## Phase 2 — State, persistence, and failure robustness
 
-**Status: In progress — final hardening batch planned.**
+**Status: In progress — Batch A implemented; local verification pending.**
 
 Already implemented:
 - Strict document-state parsing and validation.
@@ -23,7 +23,7 @@ Already implemented:
 - URI-safe state identity encoding.
 - Global night-mode, right-to-left, and dual-page preferences.
 - Dual-page preference is saved immediately when toggled.
-- Legacy URI migration code and its documentation were removed.
+- Legacy URI migration code and its documentation were removed.\n- Unified settings/document-state storage under one resolved data directory.\n- Global settings now use `<datadir>/settings`; no legacy `~/.green.settings` migration or fallback is retained.\n- Canonicalised existing document paths with `realpath()` before URI encoding, with an absolute-path fallback.
 
 User verification:
 - Document state survives forced termination after the debounce fix.

@@ -287,7 +287,7 @@ static bool LoadDocumentState( Green_Document *doc )
 		fclose( file );
 		return false;
 	}
-	version = line[8] - '0';
+	version = line[9] - '0';
 	/* A truncated URI must never be accepted as a different document. */
 	if (!strchr( saved_uri, '\n' ) && !feof( file ))
 	{

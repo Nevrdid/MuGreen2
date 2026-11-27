@@ -13,7 +13,7 @@ This roadmap tracks implementation scope and verification status. Items are not 
 
 ## Phase 2 — State, persistence, and failure robustness
 
-**Status: In progress — Batch A verified; Batch B partially verified by the user; Batch C pending.**
+**Status: In progress — Batch A verified; Batch B partially verified by the user; Batch C implemented and awaiting local verification.**
 
 Already implemented:
 - Strict document-state parsing and validation.
@@ -51,7 +51,8 @@ User verification:
 Remaining hardening batches:
 - **Batch A — implemented and verified by the user:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
 - **Batch B — implementation complete; verification partial:** show an on-screen placeholder for page render failures and keep navigation alive; classify document-open failures (missing, unreadable, invalid/unsupported, password-protected, and other backend/I/O failures); provide stable process exit codes and document them in the README. See the outstanding test list above.
-- **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3. MuPDF soft content/image errors are captured through `fz_cookie` during display-list construction and replay, logged once per page, and marked in the page view. Open and render failures are also appended to `<datadir>/mugreen2.log` when the data directory is writable.
+- **Batch C — implemented; local verification pending:** `-width` and `-height` now accept only decimal digits in the range `0..65535`, rejecting empty, signed, non-numeric, and out-of-range values before narrowing to `unsigned short`; `0` retains automatic display sizing. README documents `SDL_GAMECONTROLLERCONFIG` (newline-separated entries) and `SDL_GAMECONTROLLERCONFIG_FILE` (mapping database path), including the requirement to set them before launch. The controller detection/banner implementation remains in Phase 3.
+- **Batch C tests still outstanding:** build with the target toolchain; verify both dimensions accept `0`, `1`, and `65535`; verify `65536`, negative values, empty values, alphabetic input, and trailing characters are rejected with usage exit code `1`; confirm zero dimensions still select the display's automatic dimensions. Verify a known unmapped controller becomes recognised with a valid custom mapping supplied through each environment variable.
 
 No legacy settings/state migration is planned unless a concrete production requirement appears.
 

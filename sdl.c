@@ -80,8 +80,8 @@ static bool	g_y_held = false;
 static bool	g_l2_held = false;
 static bool	g_r2_held = false;
 
-/* Panel mounted upside down: rotate the finished frame by 180° when presenting (GREEN_ROTATE180=1) */
-static int	g_rotate180 = 0;
+/* Physical display mounting correction, independent of document rotation. */
+static int	g_display_rotation = 0;
 
 /* Hold D-pad to repeat reading scroll or TOC/help navigation. */
 static int	g_list_nav_dir = 0;
@@ -317,7 +317,7 @@ static int	HelpMaxScrollForHeight( int height );
 /* ---- SDL2 display ----
  * All drawing goes into g_fb, an off-screen XRGB8888 surface (so the PDF backend can render straight into it,
  * whatever pixel format the window/driver uses). Present() uploads it to a streaming texture and shows it.
- * GREEN_ROTATE180=1 rotates the final image by 180 degrees (panels mounted upside down), nothing else changes. */
+ * display_rotation rotates the final image independently of document controls. */
 static SDL_Window	*g_window = NULL;
 static SDL_Renderer	*g_renderer = NULL;
 static SDL_Texture	*g_texture = NULL;
@@ -434,7 +434,7 @@ static void	Present( void )
 	{
 		int ow, oh;
 		SDL_Rect dst;
-		double angle = (double)((g_reader_rotation * 90 + (g_rotate180 ? 180 : 0)) % 360);
+		double angle = (double)(((g_reader_rotation + g_display_rotation) & 3) * 90);
 		if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) == 0)
 		{
 			/* The destination rectangle has logical dimensions. SDL rotates it
@@ -452,7 +452,7 @@ static void	Present( void )
 		}
 	}
 	else
-		SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, g_rotate180 ? 180.0 : 0.0, NULL, SDL_FLIP_NONE );
+		SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, (double)(g_display_rotation * 90), NULL, SDL_FLIP_NONE );
 	SDL_RenderPresent( g_renderer );
 }
 
@@ -1666,7 +1666,8 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 		{
 			int ow, oh;
 			if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) != 0
-				|| CreateFramebuffer((rotation & 1) ? oh : ow, (rotation & 1) ? ow : oh) != 0)
+				|| CreateFramebuffer(((rotation + g_display_rotation) & 1) ? oh : ow,
+					((rotation + g_display_rotation) & 1) ? ow : oh) != 0)
 			{
 				fprintf(stderr, "MuGreen2: logical framebuffer resize failed: %s\n", SDL_GetError());
 				*failed_page = rtd->doc->page_cur;
@@ -2393,11 +2394,10 @@ int	Green_SDL_Main( Green_RTD *rtd )
 
 	/* SDL2: window + renderer, drawing goes into an off-screen XRGB8888 framebuffer (see Present) */
 	{
-		const char	*rot = getenv( "GREEN_ROTATE180" );
 		Uint32	wflags = SDL_WINDOW_RESIZABLE;
 		int	ww = rtd->width, wh = rtd->height, ow, oh;
 		
-		g_rotate180 = rot && atoi( rot );
+		g_display_rotation = rtd->display_rotation & 3;
 		{
 			const char *test = getenv("GREEN_TEST_LOGICAL_FRAME");
 			const char *pdf_test = getenv("GREEN_TEST_LOGICAL_PDF");
@@ -2442,8 +2442,10 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) ||
-			CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? oh : ow,
-				(g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? ow : oh))
+			CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test)
+				&& ((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
+				(g_logical_frame_test || g_logical_pdf_test)
+				&& ((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
 		{
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
@@ -2700,8 +2702,10 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
-							if (CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? oh : ow,
-								(g_logical_frame_test || g_logical_pdf_test) && (g_reader_rotation & 1) ? ow : oh))
+							if (CreateFramebuffer((g_logical_frame_test || g_logical_pdf_test)
+								&& ((g_reader_rotation + g_display_rotation) & 1) ? oh : ow,
+								(g_logical_frame_test || g_logical_pdf_test)
+								&& ((g_reader_rotation + g_display_rotation) & 1) ? ow : oh))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;

@@ -24,6 +24,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
+#include <math.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include "green.h"
@@ -104,56 +107,197 @@ static char *DocumentStatePath( const char *uri, char *path, size_t size )
 	return path;
 }
 
+#define GREEN_MIN_FINESCale 0.05
+#define GREEN_MAX_FINESCale 20.0
+
+static double ClampFineScale( double scale )
+{
+	if (!isfinite( scale ) || scale < GREEN_MIN_FINESCale)
+		return GREEN_MIN_FINESCale;
+	if (scale > GREEN_MAX_FINESCale)
+		return GREEN_MAX_FINESCale;
+	return scale;
+}
+
+static char *SkipSpace( char *p )
+{
+	while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')
+		p++;
+	return p;
+}
+
+/* Parse the complete state record without scanf's undefined behaviour for
+ * out-of-range integer conversions, and reject missing or trailing fields. */
+static bool ParseDocumentState( char *line, int *page, double *scale,
+	int *x, int *y, int *rotation, int *mirrored, int *fit )
+{
+	char *p = line, *end;
+	long values[6];
+	double d;
+	int i;
+
+	p = SkipSpace( p );
+	errno = 0;
+	values[0] = strtol( p, &end, 10 );
+	if (end == p || errno == ERANGE || values[0] < INT_MIN || values[0] > INT_MAX)
+		return false;
+	p = SkipSpace( end );
+	errno = 0;
+	d = strtod( p, &end );
+	if (end == p || errno == ERANGE || !isfinite( d ))
+		return false;
+	p = end;
+	for (i = 1; i < 6; i++)
+	{
+		p = SkipSpace( p );
+		errno = 0;
+		values[i] = strtol( p, &end, 10 );
+		if (end == p || errno == ERANGE || values[i] < INT_MIN || values[i] > INT_MAX)
+			return false;
+		p = end;
+	}
+	p = SkipSpace( p );
+	if (*p)
+		return false;
+	*page = (int)values[0];
+	*scale = d;
+	*x = (int)values[1];
+	*y = (int)values[2];
+	*rotation = (int)values[3];
+	*mirrored = (int)values[4];
+	*fit = (int)values[5];
+	return true;
+}
+
 static bool LoadDocumentState( Green_Document *doc )
 {
-	char path[1200], saved_uri[4096], line[256];
+	char path[1200], saved_uri[8192], line[512];
 	FILE *file;
 	int page, x, y, rotation, mirrored, fit;
+	double scale;
 
 	if (!DocumentStatePath( doc->uri, path, sizeof( path )) || !(file = fopen( path, "r" )))
 		return false;
 	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\n" )
 		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
 	{
-		fclose( file);
+		fclose( file );
+		return false;
+	}
+	/* A truncated URI must never be accepted as a different document. */
+	if (!strchr( saved_uri, '\n' ) && !feof( file ))
+	{
+		fclose( file );
 		return false;
 	}
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
-	if (strcmp( saved_uri, doc->uri ) || fscanf( file, "%d %lf %d %d %d %d %d",
-		&page, &doc->finescale, &x, &y, &rotation, &mirrored, &fit ) != 7)
+	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
+		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit ))
 	{
 		fclose( file );
 		return false;
 	}
 	fclose( file );
-	if (page < 1 || page > doc->page_count || doc->finescale <= 0)
+	if (page < 1 || page > doc->page_count
+		|| scale <= 0 || mirrored < 0 || mirrored > 1
+		|| fit < NATURAL || fit > PAGE)
 		return false;
+
 	doc->page_cur = page - 1;
-	doc->xoffset = x;
-	doc->yoffset = y;
+	doc->finescale = ClampFineScale( scale );
+	doc->xoffset = x < 0 ? 0 : x;
+	doc->yoffset = y < 0 ? 0 : y;
 	doc->rotation = ((rotation % 4) + 4) % 4;
 	doc->mirrored = mirrored != 0;
-	doc->fit_method = fit >= NATURAL && fit <= PAGE ? (Green_FitMethod)fit : WIDTH;
+	doc->fit_method = (Green_FitMethod)fit;
 	return true;
+}
+
+/* Write through a private temporary file, sync its contents, then atomically
+ * replace the destination. Syncing the parent directory makes the rename
+ * durable across a sudden power loss on filesystems that support it. */
+static void AtomicWriteText( const char *path, const char *content )
+{
+	char temporary[1240], directory[1200], *slash;
+	int fd, dirfd;
+	FILE *file;
+	size_t length;
+
+	if (!path || !content
+		|| snprintf( temporary, sizeof( temporary ), "%s.tmp.%ld", path, (long)getpid() ) >= (int)sizeof( temporary ))
+		return;
+	fd = open( temporary, O_WRONLY | O_CREAT | O_EXCL, 0600 );
+	if (fd < 0)
+		return;
+	file = fdopen( fd, "w" );
+	if (!file)
+	{
+		close( fd );
+		unlink( temporary );
+		return;
+	}
+	length = strlen( content );
+	if (fwrite( content, 1, length, file ) != length
+		|| fflush( file ) || fsync( fileno( file )))
+	{
+		fclose( file );
+		unlink( temporary );
+		return;
+	}
+	if (fclose( file ))
+	{
+		unlink( temporary );
+		return;
+	}
+	if (rename( temporary, path ))
+	{
+		unlink( temporary );
+		return;
+	}
+
+	if (snprintf( directory, sizeof( directory ), "%s", path ) >= (int)sizeof( directory ))
+		return;
+	slash = strrchr( directory, '/' );
+	if (!slash)
+		strcpy( directory, "." );
+	else if (slash == directory)
+		slash[1] = 0;
+	else
+		*slash = 0;
+	dirfd = open( directory, O_RDONLY
+#ifdef O_DIRECTORY
+		| O_DIRECTORY
+#endif
+	);
+	if (dirfd >= 0)
+	{
+		(void)fsync( dirfd );
+		close( dirfd );
+	}
 }
 
 static void SaveDocumentState( Green_Document *doc )
 {
-	char path[1200], temporary[1240];
-	FILE *file;
+	char path[1200], content[9000];
+	double scale;
 	if (!doc || !DocumentStatePath( doc->uri, path, sizeof( path )))
 		return;
-	if (snprintf( temporary, sizeof( temporary ), "%s.tmp.%ld", path, (long)getpid() ) >= (int)sizeof( temporary ))
+	scale = ClampFineScale( doc->finescale );
+	if (snprintf( content, sizeof( content ),
+		"MUGREEN2 1\n%s\n%d %.6f %d %d %d %d %d\n",
+		doc->uri, doc->page_cur + 1, scale,
+		doc->xoffset < 0 ? 0 : doc->xoffset,
+		doc->yoffset < 0 ? 0 : doc->yoffset,
+		((doc->rotation % 4) + 4) % 4,
+		doc->mirrored ? 1 : 0,
+		doc->fit_method >= NATURAL && doc->fit_method <= PAGE ? (int)doc->fit_method : WIDTH ) >= (int)sizeof( content ))
 		return;
-	file = fopen( temporary, "w" );
-	if (!file) return;
-	fprintf( file, "MUGREEN2 1\n%s\n%d %.6f %d %d %d %d %d\n",
-		doc->uri, doc->page_cur + 1,
-		doc->finescale > 0 ? doc->finescale : 1.0,
-		doc->xoffset, doc->yoffset, doc->rotation,
-		doc->mirrored ? 1 : 0, (int)doc->fit_method );
-	if (fclose( file ) || rename( temporary, path ))
-		remove( temporary );
+	AtomicWriteText( path, content );
+}
+
+void Green_SaveDocumentState( Green_Document *doc )
+{
+	SaveDocumentState( doc );
 }
 
 static void	RestoreLastPage( Green_Document *doc )
@@ -164,29 +308,54 @@ static void	RestoreLastPage( Green_Document *doc )
 	return;
 }
 
-char*	FilenameToURI( char *filename )
+static char *PathToURI( const char *path )
 {
-	const char	*prefix = "file:";
-	char	abs = filename[0] == '/',
-		*wd = abs ? NULL : getcwd( NULL, 0 ),
-		*uri = malloc( strlen( prefix ) + strlen( filename ) + 1
-			+ (abs ? 0 : strlen( wd ) + 1) );
-	
-	if (!uri || !(abs || wd))
-	{
-		free( uri );
-		free( wd );
+	static const char hex[] = "0123456789ABCDEF";
+	size_t i, n = 0, len = strlen( path );
+	char *uri = malloc( 5 + len * 3 + 1 );
+	if (!uri)
 		return NULL;
-	}
-	
-	if (abs)
-		sprintf( uri, "%s%s", prefix, filename ); 
-	else
+	memcpy( uri, "file:", 5 );
+	for (i = 0; i < len; i++)
 	{
-		sprintf( uri, "%s%s/%s", prefix, wd, filename );
-		free( wd );
+		unsigned char c = (unsigned char)path[i];
+		/* Keep URI path separators and unreserved bytes; escape delimiters,
+		 * percent signs, spaces, and non-ASCII bytes. */
+		if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+			|| (c >= '0' && c <= '9') || c == '-' || c == '.' || c == '_'
+			|| c == '~' || c == '/')
+			uri[5 + n++] = (char)c;
+		else
+		{
+			uri[5 + n++] = '%';
+			uri[5 + n++] = hex[c >> 4];
+			uri[5 + n++] = hex[c & 15];
+		}
 	}
-	
+	uri[5 + n] = 0;
+	return uri;
+}
+
+char* FilenameToURI( char *filename )
+{
+	char *cwd = NULL, *absolute = NULL, *uri;
+	size_t len;
+	if (!filename || !*filename)
+		return NULL;
+	if (filename[0] == '/')
+		return PathToURI( filename );
+	cwd = getcwd( NULL, 0 );
+	if (!cwd)
+		return NULL;
+	len = strlen( cwd ) + strlen( filename ) + 2;
+	absolute = malloc( len );
+	if (absolute)
+		snprintf( absolute, len, "%s/%s", cwd, filename );
+	free( cwd );
+	if (!absolute)
+		return NULL;
+	uri = PathToURI( absolute );
+	free( absolute );
 	return uri;
 }
 
@@ -569,6 +738,7 @@ void	Green_Zoom( Green_Document *doc, int width, int height, double new_fs )
 	int	old_w, old_h, new_w, new_h;
 	
 	old_tscale = Green_Fit(doc, width, height) * doc->finescale;
+	new_fs = ClampFineScale( new_fs );
 	doc->finescale = new_fs;
 	new_tscale = Green_Fit(doc, width, height) * new_fs;
 	Green_GetDimension( doc, doc->page_cur, &old_w, &old_h, old_tscale, doc->rotation % 2 );

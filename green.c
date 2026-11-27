@@ -192,7 +192,7 @@ static bool LoadDocumentState( Green_Document *doc )
 	}
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
 	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
-		|| (!strchr( line, '\\n' ) && !feof( file ))
+		|| (!strchr( line, '\n' ) && !feof( file ))
 		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit )
 		|| fgetc( file ) != EOF || ferror( file ))
 	{
@@ -466,8 +466,8 @@ static bool ParseBooleanSetting( const char *line, const char *key, bool *value 
 	if (strncmp( line, key, n ))
 		return false;
 	if ((line[n] == '0' || line[n] == '1')
-		&& (line[n + 1] == '\\n' || line[n + 1] == 0
-			|| (line[n + 1] == '\\r' && (line[n + 2] == '\\n' || line[n + 2] == 0))))
+		&& (line[n + 1] == '\n' || line[n + 1] == 0
+			|| (line[n + 1] == '\r' && (line[n + 2] == '\n' || line[n + 2] == 0))))
 	{
 		*value = line[n] == '1';
 		return true;

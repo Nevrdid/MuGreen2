@@ -698,6 +698,19 @@ double	Green_Fit( Green_Document *doc, int w, int h )
 	return 1;
 }
 
+/* Calculate fit in the unrotated logical page coordinate system used by the
+ * SDL renderer, without changing the document's saved reader rotation. */
+double Green_FitLogical( Green_Document *doc, int w, int h )
+{
+	Green_Document logical_doc;
+
+	if (!doc)
+		return 1;
+	logical_doc = *doc;
+	logical_doc.rotation = 0;
+	return Green_Fit( &logical_doc, w, h );
+}
+
 void	Green_ScrollRelative( Green_Document *doc, int x, int y, int w, int h, int bb_flag )
 {
 	unsigned char	bb_mode;

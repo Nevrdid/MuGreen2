@@ -235,7 +235,7 @@ int	main( int argc, char *argv[] )
 				snprintf( log_message, sizeof( log_message ), "Cannot open '%s': %s",
 					pdf_file, open_error[0] ? open_error : "unknown error" );
 				Green_LogMessage( log_message );
-				fprintf( stderr, "MuGreen2: %s\\n", log_message );
+				fprintf( stderr, "MuGreen2: %s\n", log_message );
 			}
 			return exit_code;
 		}

@@ -27,6 +27,19 @@
 #define GREEN_FULLSCREEN 0x0001
 
 typedef enum { NATURAL, WIDTH, HEIGHT, PAGE } Green_FitMethod;
+
+/* Stable process exit codes; see README.md. */
+#define GREEN_EXIT_USAGE 1
+#define GREEN_EXIT_FILE_NOT_FOUND 2
+#define GREEN_EXIT_FILE_UNREADABLE 3
+#define GREEN_EXIT_INVALID_DOCUMENT 4
+#define GREEN_EXIT_PASSWORD_REQUIRED 5
+#define GREEN_EXIT_OPEN_ERROR 6
+#define GREEN_EXIT_SDL_INIT 7
+#define GREEN_EXIT_DISPLAY 8
+#define GREEN_EXIT_RENDER 9
+#define GREEN_EXIT_EVENT 10
+#define GREEN_EXIT_RESIZE 11
 typedef struct { unsigned char r, g, b, a; } Green_RGBA;
 typedef struct {
 	pb_doc *doc;
@@ -49,7 +62,7 @@ typedef struct {
 	bool right_to_left;
 } Green_RTD;
 
-int Green_Open(Green_RTD *rtd, char *uri);
+pb_open_result Green_Open(Green_RTD *rtd, const char *filename, char *message, size_t message_size);
 int Green_SDL_Main(Green_RTD *rtd);
 void Green_Close(Green_RTD *rtd);
 void Green_SaveAllLastPages(Green_RTD *rtd);

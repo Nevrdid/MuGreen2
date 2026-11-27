@@ -293,20 +293,8 @@ static void RenderHelpContent(SDL_Surface *display);
 
 static void RenderHelp(SDL_Surface *display)
 {
-	SDL_Surface *overlay;
-	if (!g_help_active) return;
-	if (g_logical_pipeline) {
+	if (g_help_active)
 		RenderHelpContent(display);
-		return;
-	}
-	overlay = CreateOverlaySurface(display, g_overlay_rotation);
-	if (!overlay) {
-		RenderHelpContent(display);
-		return;
-	}
-	RenderHelpContent(overlay);
-	CompositeOverlay(display, overlay, g_overlay_rotation);
-	SDL_FreeSurface(overlay);
 }
 
 static RState	HelpInput( Uint8 button, unsigned short *flags );
@@ -933,25 +921,9 @@ static void RenderTOCContent(SDL_Surface *display, int rotation)
 
 static void RenderTOC(SDL_Surface *display, Green_RTD *rtd)
 {
-	SDL_Surface *overlay;
 	(void)rtd;
-	if (!g_toc_active) return;
-	if (g_logical_pipeline) {
-		/* Anchor the TOC to the logical left edge. The final presentation
-		 * rotation moves that edge with the handheld, rather than pinning
-		 * the panel to the physical screen's left side. */
+	if (g_toc_active)
 		RenderTOCContent(display, 0);
-		return;
-	}
-	overlay = CreateOverlaySurface(display, g_overlay_rotation);
-	if (!overlay)
-	{
-		RenderTOCContent(display, 0);
-		return;
-	}
-	RenderTOCContent(overlay, g_overlay_rotation);
-	CompositeOverlay(display, overlay, g_overlay_rotation);
-	SDL_FreeSurface(overlay);
 }
 
 static int	FindParentIndex( TOCNode *target )
@@ -1863,64 +1835,55 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 	return 1;
 }
 
-static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, int h, unsigned short *flags )
+static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
+	int w, int h, unsigned short *flags)
 {
-	int	page;
-	
+	int page, max_x, max_y;
+
+	(void)w;
+	(void)h;
 	if (!doc)
 		return;
-	
 	page = doc->page_cur + (rtd->right_to_left ? -delta : delta);
-	if (page < 0)
-		page = 0;
-	else if (page >= doc->page_count)
-		page = doc->page_count - 1;
-	
-	if (page == doc->page_cur)
+	if (page < 0) page = 0;
+	else if (page >= doc->page_count) page = doc->page_count - 1;
+	if (page == doc->page_cur || !Green_GotoPage(doc, page, false))
 		return;
 
-	if (g_logical_pipeline) {
-		if (Green_GotoPage(doc, page, false)) {
-			int lp, rp, lw, lh, rw, rh, vertical, max_x, max_y;
-			double scale;
-			if (rtd->side_by_side && doc->page_count > 1
-				&& GetLogicalSpreadMetrics(rtd, DrawSurface(), &scale,
-					&lp, &rp, &lw, &lh, &rw, &rh, &vertical)) {
-				int spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
-				int spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
-				max_x = spread_w > DrawSurface()->w ? spread_w - DrawSurface()->w : 0;
-				max_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
-			} else {
-				Green_Document fit_doc = *doc;
-				int page_w, page_h;
-				fit_doc.rotation = 0;
-				scale = Green_Fit(&fit_doc, DrawSurface()->w, DrawSurface()->h)
-					* doc->finescale;
-				if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
-					&page_w, &page_h)) {
-					*flags |= FLAG_RENDER;
-					return;
-				}
-				max_x = page_w > DrawSurface()->w ? page_w - DrawSurface()->w : 0;
-				max_y = page_h > DrawSurface()->h ? page_h - DrawSurface()->h : 0;
-			}
-			if (doc->xoffset < 0) doc->xoffset = 0;
-			if (doc->yoffset < 0) doc->yoffset = 0;
-			if (doc->xoffset > max_x) doc->xoffset = max_x;
-			if (doc->yoffset > max_y) doc->yoffset = max_y;
-			*flags |= FLAG_RENDER;
+	if (rtd->side_by_side && doc->page_count > 1)
+	{
+		int lp, rp, lw, lh, rw, rh, vertical;
+		double scale;
+		if (GetLogicalSpreadMetrics(rtd, DrawSurface(), &scale,
+			&lp, &rp, &lw, &lh, &rw, &rh, &vertical))
+		{
+			int spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+			int spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+			max_x = spread_w > DrawSurface()->w ? spread_w - DrawSurface()->w : 0;
+			max_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
 		}
-		return;
+		else max_x = max_y = 0;
 	}
-	
-	if (rtd->side_by_side && doc->page_count > 1) {
-		if (Green_GotoPage(doc, page, false)) {
-			ClampSpreadOffset(rtd, DrawSurface()->w, DrawSurface()->h);
+	else
+	{
+		Green_Document fit_doc = *doc;
+		int page_w, page_h;
+		fit_doc.rotation = 0;
+		if (pb_device_size(doc->doc, doc->page_cur,
+			(float)(Green_Fit(&fit_doc, DrawSurface()->w, DrawSurface()->h)
+				* doc->finescale), 0, &page_w, &page_h))
+		{
 			*flags |= FLAG_RENDER;
+			return;
 		}
-	} else if (GotoPageKeepView(doc, page, w, h, rtd->right_to_left))
-		*flags |= FLAG_RENDER;
-	return;
+		max_x = page_w > DrawSurface()->w ? page_w - DrawSurface()->w : 0;
+		max_y = page_h > DrawSurface()->h ? page_h - DrawSurface()->h : 0;
+	}
+	if (doc->xoffset < 0) doc->xoffset = 0;
+	if (doc->yoffset < 0) doc->yoffset = 0;
+	if (doc->xoffset > max_x) doc->xoffset = max_x;
+	if (doc->yoffset > max_y) doc->yoffset = max_y;
+	*flags |= FLAG_RENDER;
 }
 
 static void	HelpStepScroll( int dir, int max_scroll )
@@ -2054,16 +2017,19 @@ static void RenderHelpContent(SDL_Surface *display)
 		DrawString( display, display->w - 50, display->h - 18, "more", dim_col );
 }
 
-static RState	HelpInput( Uint8 button, unsigned short *flags )
+static RState HelpInput(Uint8 button, unsigned short *flags)
 {
 	SDL_Surface *display = DrawSurface();
-	int max_scroll = HelpMaxScrollForHeight(g_logical_pipeline
-		? display->h : OrientedDisplayHeight(display, g_overlay_rotation));
+	int max_scroll = HelpMaxScrollForHeight(display->h);
 	int dir;
+
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
-			ListNavStop(); g_help_active = false; *flags |= FLAG_RENDER; return NORMAL;
+			ListNavStop();
+			g_help_active = false;
+			*flags |= FLAG_RENDER;
+			return NORMAL;
 		default:
 			dir = HelpScrollDirection(button);
 			if (dir)
@@ -2098,96 +2064,63 @@ static RState	OpenTOCPanel( Green_RTD *rtd, unsigned short *flags )
 	return TOC;
 }
 
-static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
+static RState NormalInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 {
-	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
+	Green_Document *doc = Green_IsDocValid(rtd) ? rtd->doc : NULL;
 	SDL_Surface *display = DrawSurface();
-	int vw = ViewWidth( rtd ), hstep = (int)(vw * rtd->step);
-	if (g_logical_pipeline && doc) {
-		switch (button) {
-			case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-			case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-				if (rtd->side_by_side && doc->page_count > 1) {
-					if (ScrollLogicalPDFSpread(rtd, display, button)) *flags |= FLAG_RENDER;
-				} else if (ScrollLogicalPDFPage(rtd, display, button)) *flags |= FLAG_RENDER;
-				break;
-			case SDL_CONTROLLER_BUTTON_A:
-				doc->fit_method = WIDTH;
-				doc->finescale = 1;
-				doc->xoffset = doc->yoffset = 0;
-				*flags |= FLAG_RENDER;
-				break;
-			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: {
-				int page_delta = LogicalPDFPageDelta(rtd, button);
-				if (rtd->side_by_side && doc->page_count > 1) {
-					if (LogicalSpreadPageTurn(rtd, display, page_delta)) *flags |= FLAG_RENDER;
-				} else if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true))
-					*flags |= FLAG_RENDER;
-				break;
-			}
-			default:
-				break;
-		}
-		return NORMAL;
-	}
+
+	if (!doc)
+		return button == SDL_CONTROLLER_BUTTON_START
+			? OpenTOCPanel(rtd, flags) : NORMAL;
+
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			if (!doc) break;
-			if (ScrollDocument( rtd, 0, -(int)(display->h * rtd->step), vw, display->h ))
-				*flags |= FLAG_RENDER;
-			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			if (!doc) break;
-			if (ScrollDocument( rtd, 0, (int)(display->h * rtd->step), vw, display->h ))
-				*flags |= FLAG_RENDER;
-			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
-			if (!doc) break;
-			if (ScrollDocument( rtd, -hstep, 0, vw, display->h ))
-				*flags |= FLAG_RENDER;
-			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-			if (!doc) break;
-			if (ScrollDocument( rtd, hstep, 0, vw, display->h ))
+			if (rtd->side_by_side && doc->page_count > 1)
+			{
+				if (ScrollLogicalPDFSpread(rtd, display, button))
+					*flags |= FLAG_RENDER;
+			}
+			else if (ScrollLogicalPDFPage(rtd, display, button))
 				*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_A:
-			if (!doc)
-				break;
 			doc->fit_method = WIDTH;
 			doc->finescale = 1;
 			doc->xoffset = doc->yoffset = 0;
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
-			if (!doc) break;
-			if (rtd->side_by_side && doc->page_count > 1) {
-				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + (rtd->right_to_left ? 2 : -2), false)) break;
-				ClampSpreadOffset(rtd, display->w, display->h);
-			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? 1 : -1), vw, display->h, rtd->right_to_left)) break;
-			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
-			if (!doc) break;
-			if (rtd->side_by_side && doc->page_count > 1) {
-				if (!Green_GotoPage(doc, (doc->page_cur / 2) * 2 + (rtd->right_to_left ? -2 : 2), false)) break;
-				ClampSpreadOffset(rtd, display->w, display->h);
-			} else if (!GotoPageKeepView(doc, doc->page_cur + (rtd->right_to_left ? -1 : 1), vw, display->h, rtd->right_to_left)) break;
-			*flags |= FLAG_RENDER; break;
-		case SDL_CONTROLLER_BUTTON_START: return OpenTOCPanel( rtd, flags );
-		default: break;
+		{
+			int page_delta = LogicalPDFPageDelta(rtd, button);
+			if (rtd->side_by_side && doc->page_count > 1)
+			{
+				if (LogicalSpreadPageTurn(rtd, display, page_delta))
+					*flags |= FLAG_RENDER;
+			}
+			else if (page_delta && Green_GotoPage(doc,
+				doc->page_cur + page_delta, true))
+				*flags |= FLAG_RENDER;
+			break;
+		}
+		case SDL_CONTROLLER_BUTTON_START:
+			return OpenTOCPanel(rtd, flags);
+		default:
+			break;
 	}
 	return NORMAL;
 }
 
 /* Apply Select+button shortcuts directly from controller input. */
-static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
+static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 {
-	Green_Document *doc = Green_IsDocValid( rtd ) ? rtd->doc : NULL;
+	Green_Document *doc = Green_IsDocValid(rtd) ? rtd->doc : NULL;
 	SDL_Surface *display = DrawSurface();
+
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
@@ -2197,23 +2130,19 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-			if (doc) {
+			if (doc)
+			{
 				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
 					Green_RotateRight(doc);
 				else
 					Green_RotateLeft(doc);
 				doc->xoffset = doc->yoffset = 0;
-				if (!g_logical_pipeline) {
-					if (rtd->side_by_side && doc->page_count > 1)
-						ClampSpreadOffset(rtd, display->w, display->h);
-					else
-						Green_ValidateOffset(doc, display->w, display->h);
-				}
 				*flags |= FLAG_RENDER;
 			}
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			if (g_logical_pipeline && doc && rtd->side_by_side && doc->page_count > 1) {
+			if (doc && rtd->side_by_side && doc->page_count > 1)
+			{
 				rtd->spread_vertical = !rtd->spread_vertical;
 				doc->xoffset = doc->yoffset = 0;
 				Green_SaveSettings(rtd);
@@ -2221,42 +2150,42 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			}
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			if (doc && rtd->side_by_side && doc->page_count > 1) {
+			if (doc && rtd->side_by_side && doc->page_count > 1)
+			{
 				g_spread_order_reversed = !g_spread_order_reversed;
 				doc->xoffset = doc->yoffset = 0;
-				if (!g_logical_pipeline)
-					ClampSpreadOffset(rtd, display->w, display->h);
 				*flags |= FLAG_RENDER;
 			}
 			break;
 		case SDL_CONTROLLER_BUTTON_Y:
-			if (doc) Green_MirrorH( doc );
+			if (doc) Green_MirrorH(doc);
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_X:
-			if (doc) Green_MirrorV( doc );
+			if (doc) Green_MirrorV(doc);
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;
-			if (doc) { if (rtd->side_by_side && doc->page_count > 1) doc->xoffset = doc->yoffset = 0; else SetPageStart(doc, rtd->right_to_left, ViewWidth(rtd), display->h); }
-			Green_SaveSettings( rtd );
+			if (doc)
+			{
+				if (rtd->side_by_side && doc->page_count > 1)
+					doc->xoffset = doc->yoffset = 0;
+				else
+					SetPageStart(doc, rtd->right_to_left, display->w, display->h);
+			}
+			Green_SaveSettings(rtd);
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
-			if (doc) {
+			if (doc)
 				doc->xoffset = doc->yoffset = 0;
-				if (!g_logical_pipeline) {
-					if (rtd->side_by_side && doc->page_count > 1)
-						ClampSpreadOffset(rtd, display->w, display->h);
-					else
-						Green_ValidateOffset(doc, display->w, display->h);
-				}
-			}
-			Green_SaveSettings( rtd );
-			*flags |= FLAG_RENDER; break;
-		default: break;
+			Green_SaveSettings(rtd);
+			*flags |= FLAG_RENDER;
+			break;
+		default:
+			break;
 	}
 }
 static SDL_GameController *OpenFirstController( void )

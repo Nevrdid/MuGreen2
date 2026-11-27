@@ -298,14 +298,20 @@ static const unsigned char bitmap_font[][7] = {
 /* Draw the window [xoff,xoff+dest.w) x [yoff,yoff+dest.h) of page page_num into the display at dest.
  * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
  * so the window origin is converted here. */
-void	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff, int page_num, double tscale )
+static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
+	int page_num, double tscale, int *failed_page )
 {
 	Green_Document	*doc = rtd->doc;
 	SDL_Surface	*display = DrawSurface();
 	int	W, H, xd, yd, w, h, rot = doc->rotation & 3;
 	
-	if (dest.w <= 0 || dest.h <= 0 || pb_device_size( doc->doc, page_num, (float)tscale, rot, &W, &H ))
-		return;
+	if (dest.w <= 0 || dest.h <= 0)
+		return 0;
+	if (pb_device_size( doc->doc, page_num, (float)tscale, rot, &W, &H ))
+	{
+		*failed_page = page_num;
+		return -1;
+	}
 	
 	switch (rot)
 	{
@@ -328,13 +334,17 @@ void	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff, int page_num
 	if (yd + h > H)
 		h = H - yd;
 	if (w <= 0 || h <= 0)
-		return;
+		return 0;
 	
 	/* 32-bit XRGB surface: the backend renders straight into it (no copy, no per-pixel conversion) */
-	pb_render( doc->doc, page_num, (float)tscale, rot, doc->mirrored, rtd->night, xd, yd, w, h,
-		PB_FMT_XRGB8888, DstPixel( display, dest.x, dest.y ), display->pitch );
+	if (pb_render( doc->doc, page_num, (float)tscale, rot, doc->mirrored, rtd->night, xd, yd, w, h,
+		PB_FMT_XRGB8888, DstPixel( display, dest.x, dest.y ), display->pitch ))
+	{
+		*failed_page = page_num;
+		return -1;
+	}
 	
-	return;
+	return 0;
 }
 
 // Draw a single character using bitmap font
@@ -732,7 +742,7 @@ static RState	TOCInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	return TOC;
 }
 
-void	Render( Green_RTD *rtd )
+static int	Render( Green_RTD *rtd, int *failed_page )
 {
 	Green_Document	*doc;
 	SDL_Surface	*display = DrawSurface();
@@ -750,7 +760,7 @@ void	Render( Green_RTD *rtd )
 	if (!Green_IsDocValid( rtd))
 	{
 		Present();
-		return;
+		return 0;
 	}
 	
 	doc = rtd->doc;
@@ -793,13 +803,13 @@ void	Render( Green_RTD *rtd )
 			rect.h = h > display->h ? display->h : h;
 			rect.x = (display->w / 2 - rect.w) / 2;
 			rect.y = (display->h - rect.h) / 2;
-			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale );
+			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale, failed_page )) return -1;
 			
 			rect.w = w2 > display->w / 2 ? display->w / 2 : w2;
 			rect.h = h2 > display->h ? display->h : h2;
 			rect.x = display->w / 2 + (display->w / 2 - rect.w) / 2;
 			rect.y = (display->h - rect.h) / 2;
-			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale );
+			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale, failed_page )) return -1;
 		}
 		else
 		{
@@ -809,7 +819,7 @@ void	Render( Green_RTD *rtd )
 			rect.h = h > display->h ? display->h : h;
 			rect.x = (display->w - rect.w) / 2;
 			rect.y = (display->h - rect.h) / 2;
-			RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale );
+			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page )) return -1;
 		}
 	}
 	else
@@ -830,7 +840,7 @@ void	Render( Green_RTD *rtd )
 	
 	
 	Present();
-	return;
+	return 0;
 }
 
 static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
@@ -1246,11 +1256,12 @@ int	Green_SDL_Main( Green_RTD *rtd )
 	Green_Document state_snapshot;
 	bool state_dirty = false;
 	Uint32 state_save_at = 0;
+	int exit_status = 0;
 	
 	if (SDL_Init( SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER ))
 	{
 		fprintf( stderr, "SDL_Init failed: %s\n", SDL_GetError() );
-		return 1;
+		return GREEN_EXIT_SDL_INIT;
 	}
 	
 	/* Open a recognized SDL GameController; hot-plug is also supported below. */
@@ -1303,7 +1314,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
 			SDL_Quit();
-			return 2;
+			return GREEN_EXIT_DISPLAY;
 		}
 		display = DrawSurface();
 	}
@@ -1333,9 +1344,17 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				Green_SaveDocumentState( rtd->doc );
 			state_dirty = false;
 		}
-if (flags&FLAG_RENDER)
+if (flags & FLAG_RENDER)
 		{
-			Render( rtd );
+			int failed_page = rtd->doc ? rtd->doc->page_cur : 0;
+			if (Render( rtd, &failed_page ))
+			{
+				fprintf( stderr, "MuGreen2: rendering failed on page %d: %s\n",
+					failed_page + 1, pb_error_message( rtd->doc->doc ) );
+				exit_status = GREEN_EXIT_RENDER;
+				flags |= FLAG_QUIT;
+				continue;
+			}
 			flags ^= FLAG_RENDER;
 		}
 		
@@ -1364,8 +1383,10 @@ if (flags&FLAG_RENDER)
 		}
 		else if (!SDL_WaitEvent( &event ))
 		{
-			SDL_Quit();
-			return -1;
+			fprintf( stderr, "MuGreen2: SDL event wait failed: %s\n", SDL_GetError() );
+			exit_status = GREEN_EXIT_EVENT;
+			flags |= FLAG_QUIT;
+			continue;
 		}
 		
 		do
@@ -1484,7 +1505,12 @@ if (flags&FLAG_RENDER)
 						if (ow != display->w || oh != display->h)
 						{
 							if (CreateFramebuffer( ow, oh ))
-							{ SDL_Quit(); fprintf( stderr, "Resize failed: %s\n", SDL_GetError() ); return -5; }
+							{
+								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
+								exit_status = GREEN_EXIT_RESIZE;
+								flags |= FLAG_QUIT;
+								break;
+							}
 							display = DrawSurface();
 							if (Green_IsDocValid( rtd )) Green_ValidateOffset( rtd->doc, ViewWidth( rtd ), display->h );
 						}
@@ -1514,5 +1540,5 @@ if (flags&FLAG_RENDER)
 	SDL_Quit();
 	
 	
-	return 0;
+	return exit_status;
 }

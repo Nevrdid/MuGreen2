@@ -96,7 +96,7 @@ Review current `main` before implementing any item; some listed functionality ma
 
 ## Phase 4 — Rendering and performance
 
-**Status: Logical renderer merged into `main` and core rendering/navigation/mirroring behaviour device-tested by the user. Temporary action-feedback overlay is implemented; its expiry/replacement behaviour still needs explicit device verification. Performance optimisation and the post-merge review below are planned, not implemented.**
+**Status: Logical renderer merged into `main` and core rendering/navigation/mirroring behaviour device-tested by the user. The Phase 4 code/documentation cleanup pass is implemented on `main`; a build after these cleanup edits is still pending. Temporary action-feedback overlay is implemented; its expiry/replacement behaviour still needs explicit device verification. Performance optimisation and the correctness review remain planned.**
 
 ### Completed and user-verified
 
@@ -137,14 +137,16 @@ The following items were identified during review of the merged renderer. They a
 
 #### Code and documentation cleanup
 
-- **Remove obsolete legacy helpers and fields** after confirming there are no external/internal callers: `Green_ScrollRelative`, `Green_Zoom`, `Green_GetScrollRegion`, `Green_ValidateOffset`, `Green_GetDimension`, and the `bb` field. They are reported unused by `sdl.c` and retain old rotation semantics.
-- Remove unused `g_overlay_rotation`, empty comment blocks and duplicate prototypes.
-- `RenderTOCContent` always receives rotation 0, making its physical-left-edge rotation logic dead; the TOC currently follows reader rotation. Either implement the intended physical-edge behaviour or remove the unused argument/branch and correct the comments and documentation.
-- Replace repeated `fit_doc.rotation = 0` setup with one `Green_FitLogical` helper.
-- Update `examples/launch-mugreen2.sh`: it still sets the obsolete `GREEN_ROTATE180` environment variable; use `-display-rotation=180` instead.
-- Resolve startup-override persistence semantics. `-rotation`, `-rtl` and `-ltr` are described as launch-only overrides, but appear to be saved at exit. Either prevent those CLI overrides from changing persistent preferences or document the actual persistence behaviour.
-- Reconcile controller-layout documentation: the README currently has conflicting Xbox/Nintendo defaults. Code and help default to Xbox. Add a clear physical-position-to-action table for each layout.
-- Keep the post-merge architecture and validation notes here; the standalone experiment-pipeline document is no longer needed after the merge.
+**Implemented on `main`; build verification after these edits is pending.**
+
+- Removed the obsolete rotation-aware legacy scrolling/zoom helpers and their declarations: `Green_ScrollRelative`, `Green_Zoom`, `Green_GetScrollRegion`, `Green_ValidateOffset` and `Green_GetDimension`. Removed the unused `bb` fields and their initialization/transfer.
+- Removed unused `g_overlay_rotation`, the duplicate `DrawString` prototype, stale renderer comments and excessive blank space.
+- Simplified `RenderTOCContent` to draw at the logical left edge; the final presentation transform rotates the TOC with the reader. Updated the code comment, README and Phase 3 TOC description to match.
+- Added `Green_FitLogical` and replaced the repeated temporary-document rotation resets in the SDL renderer.
+- Updated `examples/launch-mugreen2.sh` to pass `-display-rotation`, configurable through `MUGREEN2_DISPLAY_ROTATION`; the obsolete `GREEN_ROTATE180` variable is no longer used.
+- Documented the actual startup-override persistence: `-rotation` is saved in per-document state, while `-rtl`/`-ltr` are saved in global settings on exit.
+- Corrected both README controller-layout descriptions to make Xbox the default, and added a physical-position-to-action table for Nintendo and Xbox layouts.
+- Removed the obsolete `EXPERIMENT_RENDER_PIPELINE.md`; merged architecture and validation notes are retained in this roadmap.
 
 ## Phase 5 — Reader features
 

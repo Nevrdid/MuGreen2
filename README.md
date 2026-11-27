@@ -185,10 +185,14 @@ Document-opening failures print a diagnostic to standard error and append a mess
 
 ## Startup orientation
 
-Use `-rotation=0|90|180|270` to override the saved reader rotation for this launch.
+Use `-rotation=0|90|180|270` to set the initial reader rotation. The resulting
+rotation is saved in that document's reading state when the reader exits.
 Use `-display-rotation=0|90|180|270` to rotate the complete presented frame for
 the physical display mounting; this is independent of PDF rotation and controller
-navigation. Use `-rtl` or `-ltr` to override the saved initial reading direction.
+navigation. Use `-rtl` or `-ltr` to set the initial reading direction; that
+choice is saved in the global settings when the reader exits. These options
+override the corresponding restored values for the current launch and their
+effective values are persisted on exit.
 
 A sample shell launcher is provided at `examples/launch-mugreen2.sh`.
 

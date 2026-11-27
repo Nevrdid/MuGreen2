@@ -45,6 +45,7 @@ const char	*help_text =
 "    -rtl                        start in right-to-left reading order\n"
 "    -ltr                        start in left-to-right reading order\n"
 "    -controller-layout=<mode>   face buttons: nintendo (default) or xbox\n"
+"    -no-control-rotation        keep controls fixed when rotating the reader\n"
 "    -fullscreen                 to startup in fullscreen mode\n"
 "    -no-fullscreen              to startup in window mode\n"
 "    -width=<width>              to specify the window width (in pixels)\n"
@@ -137,6 +138,7 @@ int	main( int argc, char *argv[] )
 	rtd.side_by_side = 0;
 	rtd.spread_vertical = false;
 	rtd.xbox_layout = false;
+	rtd.controls_rotate = true;
 	rtd.night = false;
 	rtd.right_to_left = false;
 	rtd.startup_rotation = 0;
@@ -208,6 +210,8 @@ int	main( int argc, char *argv[] )
 			rtd.right_to_left = true;
 		else if (!strcmp( opt, "ltr" ))
 			rtd.right_to_left = false;
+		else if (!strcmp( opt, "no-control-rotation" ))
+			rtd.controls_rotate = false;
 		else if (!strncmp( opt, "controller-layout=", 18 ))
 		{
 			opt += 18;

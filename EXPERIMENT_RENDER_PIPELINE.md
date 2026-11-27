@@ -1,43 +1,65 @@
-# Experimental logical framebuffer proof
+# Experimental logical framebuffer pipeline
 
-This file documents an opt-in SDL presentation test on the `experiment-render-pipeline` branch. It is deliberately not the new PDF renderer.
+This experiment lives only on `experiment-render-pipeline`. It is deliberately isolated from `main`.
 
-## Purpose
+## Stage 1 — SDL presentation proof
 
-Prove that SDL can present a framebuffer whose dimensions follow the reader's logical orientation, rotating the complete frame once at presentation time. The test pattern makes the logical top, bottom, left, and right edges visible.
+The opt-in `GREEN_TEST_LOGICAL_FRAME=1` mode draws a labelled test pattern into a framebuffer whose dimensions follow the reader's logical orientation. SDL rotates the complete framebuffer once at presentation time.
 
-## Run
-
-Build this branch using the project's normal build instructions, then launch a PDF with:
+Run:
 
 ```sh
 GREEN_TEST_LOGICAL_FRAME=1 ./mugreen2 /path/to/document.pdf
 ```
 
-The test mode bypasses PDF page rendering and normal UI rendering. It still opens the document so the reader's existing Rotate Right control (A) can change the test orientation. The logical framebuffer is recreated with swapped width/height for 90° and 270° rotations.
-
-For a device with an upside-down mounted panel, also test:
+For a panel mounted upside down, also test:
 
 ```sh
 GREEN_TEST_LOGICAL_FRAME=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
 ```
 
-Unset `GREEN_TEST_LOGICAL_FRAME` (or set it to `0`) to run the normal renderer.
+The test pattern bypasses PDF rendering and the normal UI. It still opens the document so the reader's existing rotation control can change the test orientation.
 
-## What this proves — and what it does not
+**Device result:** the user confirmed that the complete pattern rotates correctly through the tested reader orientations and that `GREEN_ROTATE180=1` adds the expected startup 180-degree correction. One test-pattern label was misplaced inside the black centre area; this is a cosmetic label-coordinate issue, not a reported presentation-transform failure.
 
-It tests:
-- logical framebuffer dimensions for 0°, 90°, 180°, and 270°;
-- SDL's final whole-frame rotation and centring into the physical output;
-- combination with the existing optional 180° hardware correction;
-- resizing the logical framebuffer when reader rotation changes.
+## Stage 2 — single-page PDF rendering proof
 
-It does **not** test PDF rendering in logical coordinates, mirroring, fit/zoom, scrolling, dual-page layout, overlays, or performance of the proposed complete pipeline. Those remain later stages and must not be inferred from a successful test pattern.
+The opt-in `GREEN_TEST_LOGICAL_PDF=1` mode renders one real PDF page without asking MuPDF to rotate it. The PDF is drawn in the logical framebuffer using its unrotated page dimensions; SDL applies reader rotation to the completed framebuffer at presentation time.
 
-## Acceptance checks
+Run:
 
-- The four labelled edges remain correctly oriented relative to the reader's logical frame at every rotation.
-- The rotated image fills the physical output without stretching, clipping, or black borders on the target display.
-- Rotating the reader repeatedly between portrait and landscape orientations resizes the framebuffer without failure.
-- `GREEN_ROTATE180=1` adds exactly one further 180° correction.
-- With the environment variable disabled, the existing renderer's presentation remains unchanged.
+```sh
+GREEN_TEST_LOGICAL_PDF=1 ./mugreen2 /path/to/document.pdf
+```
+
+Optionally combine with the hardware correction:
+
+```sh
+GREEN_TEST_LOGICAL_PDF=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
+```
+
+In this probe:
+- **B** rotates the reader clockwise (the existing implementation's rotation binding).
+- **L1 / R1** move to the previous / next page.
+- **A** resets the page to the width-fit view.
+- Mirroring is translated to a pre-presentation SDL flip so its existing post-rotation vertical-mirror result can be retained.
+
+This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
+- D-pad scrolling, page-edge transitions, or scroll anchoring;
+- zoom anchoring and fit behaviour beyond the initial width-fit calculation;
+- dual-page/facing-page layout (the current page is shown alone);
+- TOC, help, page indicator, or other overlays;
+- all mirror/rotation combinations, window resizing, or performance.
+
+The normal renderer remains the default when neither test variable is enabled. The stage 1 test takes precedence if both variables are set.
+
+## What to check on device
+
+1. Use a PDF with clear page orientation (ideally a page containing text and obvious top/bottom content).
+2. Compare 0°, 90°, 180°, and 270° reader orientations with the same PDF.
+3. Confirm text is upright and the page is not rotated twice or mirrored unexpectedly.
+4. Turn pages with L1/R1 and confirm the page remains correctly positioned.
+5. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
+6. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
+
+This stage is not a replacement for the existing renderer and must not be merged based only on the test-pattern result. Build and device verification are still required before proceeding to scrolling, zoom, spreads, or overlays.

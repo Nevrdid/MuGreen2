@@ -90,6 +90,7 @@ static Uint32	g_list_nav_next = 0;
 #define LIST_NAV_RATE_MS	50
 
 static bool	g_help_active = false;
+static bool	g_has_presented_frame = false;
 static int	g_help_scroll = 0;
 
 static const char	*g_help_lines[] = {
@@ -298,52 +299,47 @@ static const unsigned char bitmap_font[][7] = {
 /* Draw the window [xoff,xoff+dest.w) x [yoff,yoff+dest.h) of page page_num into the display at dest.
  * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
  * so the window origin is converted here. */
+void DrawString( SDL_Surface *display, int x, int y, const char *str, Uint32 color );
 static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
 	int page_num, double tscale, int *failed_page )
 {
-	Green_Document	*doc = rtd->doc;
-	SDL_Surface	*display = DrawSurface();
-	int	W, H, xd, yd, w, h, rot = doc->rotation & 3;
-	
-	if (dest.w <= 0 || dest.h <= 0)
-		return 0;
-	if (pb_device_size( doc->doc, page_num, (float)tscale, rot, &W, &H ))
-	{
-		*failed_page = page_num;
-		return -1;
+	Green_Document *doc = rtd->doc;
+	SDL_Surface *display = DrawSurface();
+	int W, H, xd, yd, w, h, rot = doc->rotation & 3;
+	const char *error = NULL;
+	SDL_Rect clip = dest;
+	if (dest.w <= 0 || dest.h <= 0) return 0;
+	if (pb_device_size(doc->doc, page_num, (float)tscale, rot, &W, &H))
+		error = pb_error_message(doc->doc);
+	else {
+		switch (rot) {
+		case 1: xd = W - yoff - dest.w; yd = xoff; break;
+		case 2: xd = W - xoff - dest.w; yd = H - yoff - dest.h; break;
+		case 3: xd = yoff; yd = H - xoff - dest.h; break;
+		default: xd = xoff; yd = yoff; break;
+		}
+		if (doc->mirrored) yd = H - yd - dest.h;
+		w = dest.w; h = dest.h;
+		if (xd < 0) xd = 0;
+		if (yd < 0) yd = 0;
+		if (xd + w > W) w = W - xd;
+		if (yd + h > H) h = H - yd;
+		if (w > 0 && h > 0 && pb_render(doc->doc, page_num, (float)tscale, rot,
+			doc->mirrored, rtd->night, xd, yd, w, h, PB_FMT_XRGB8888,
+			DstPixel(display, dest.x, dest.y), display->pitch))
+			error = pb_error_message(doc->doc);
 	}
-	
-	switch (rot)
-	{
-		case 1:	xd = W - yoff - dest.w;	yd = xoff;			break;
-		case 2:	xd = W - xoff - dest.w;	yd = H - yoff - dest.h;	break;
-		case 3:	xd = yoff;			yd = H - xoff - dest.h;	break;
-		default:	xd = xoff;			yd = yoff;			break;
+	if (error) {
+		SDL_FillRect(display, &dest, SDL_MapRGB(display->format, 0x28, 0x18, 0x18));
+		DrawString(display, dest.x + 8, dest.y + 8, "Page cannot be rendered",
+			SDL_MapRGB(display->format, 0xFF, 0x80, 0x80));
+		SDL_SetClipRect(display, &clip);
+		DrawString(display, dest.x + 8, dest.y + 30, error,
+			SDL_MapRGB(display->format, 0xE0, 0xE0, 0xE0));
+		SDL_SetClipRect(display, NULL);
+		fprintf(stderr, "MuGreen2: rendering failed on page %d: %s\n", page_num + 1, error);
+		if (*failed_page < 0) *failed_page = page_num;
 	}
-	if (doc->mirrored)
-		yd = H - yd - dest.h;
-	
-	w = dest.w;
-	h = dest.h;
-	if (xd < 0)
-		xd = 0;
-	if (yd < 0)
-		yd = 0;
-	if (xd + w > W)
-		w = W - xd;
-	if (yd + h > H)
-		h = H - yd;
-	if (w <= 0 || h <= 0)
-		return 0;
-	
-	/* 32-bit XRGB surface: the backend renders straight into it (no copy, no per-pixel conversion) */
-	if (pb_render( doc->doc, page_num, (float)tscale, rot, doc->mirrored, rtd->night, xd, yd, w, h,
-		PB_FMT_XRGB8888, DstPixel( display, dest.x, dest.y ), display->pitch ))
-	{
-		*failed_page = page_num;
-		return -1;
-	}
-	
 	return 0;
 }
 
@@ -744,103 +740,52 @@ static RState	TOCInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 
 static int	Render( Green_RTD *rtd, int *failed_page )
 {
-	Green_Document	*doc;
-	SDL_Surface	*display = DrawSurface();
-	SDL_Rect	rect;
-	double	tscale;
-	int	w, h, w2, h2;
-	
-	rect.x = rect.y = 0;
-	rect.w = display->w;
-	rect.h = display->h;
-	if (rtd->night)
-		SDL_FillRect( display, &rect, SDL_MapRGB( display->format, 0x10, 0x10, 0x10 ) );
-	else
-		SDL_FillRect( display, &rect, SDL_MapRGB( display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b ));
-	if (!Green_IsDocValid( rtd))
-	{
-		Present();
-		return 0;
-	}
-	
+	Green_Document *doc;
+	SDL_Surface *display = DrawSurface();
+	SDL_Rect rect;
+	double tscale;
+	int w, h, w2, h2;
+	*failed_page = -1;
+	rect.x = rect.y = 0; rect.w = display->w; rect.h = display->h;
+	if (rtd->night) SDL_FillRect(display, &rect, SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
+	else SDL_FillRect(display, &rect, SDL_MapRGB(display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b));
+	if (!Green_IsDocValid(rtd)) { Present(); return 0; }
 	doc = rtd->doc;
-	
-	if (rtd->side_by_side && doc->page_count > 1)
-	{
+	if (rtd->side_by_side && doc->page_count > 1) {
 		int left_page, right_page;
-		
-		/* Keep page pairs in document order, but place the first page
-		 * on the right for right-to-left manga reading. */
-		if (doc->page_cur % 2 == 0)
-		{
-			if (rtd->right_to_left) {
-				left_page = doc->page_cur + 1;
-				right_page = doc->page_cur;
-			} else {
-				left_page = doc->page_cur;
-				right_page = doc->page_cur + 1;
-			}
+		if (doc->page_cur % 2 == 0) {
+			if (rtd->right_to_left) { left_page = doc->page_cur + 1; right_page = doc->page_cur; }
+			else { left_page = doc->page_cur; right_page = doc->page_cur + 1; }
+		} else {
+			if (rtd->right_to_left) { left_page = doc->page_cur; right_page = doc->page_cur - 1; }
+			else { left_page = doc->page_cur - 1; right_page = doc->page_cur; }
 		}
-		else
-		{
-			if (rtd->right_to_left) {
-				left_page = doc->page_cur;
-				right_page = doc->page_cur - 1;
-			} else {
-				left_page = doc->page_cur - 1;
-				right_page = doc->page_cur;
-			}
+		if (left_page >= 0 && right_page < doc->page_count) {
+			tscale = Green_Fit(doc, display->w / 2, display->h) * doc->finescale;
+			Green_GetDimension(doc, left_page, &w, &h, tscale, doc->rotation % 2);
+			Green_GetDimension(doc, right_page, &w2, &h2, tscale, doc->rotation % 2);
+			rect.w = w > display->w / 2 ? display->w / 2 : w; rect.h = h > display->h ? display->h : h;
+			rect.x = (display->w / 2 - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale, failed_page);
+			rect.w = w2 > display->w / 2 ? display->w / 2 : w2; rect.h = h2 > display->h ? display->h : h2;
+			rect.x = display->w / 2 + (display->w / 2 - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale, failed_page);
+		} else {
+			tscale = Green_Fit(doc, display->w, display->h) * doc->finescale;
+			Green_GetDimension(doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2);
+			rect.w = w > display->w ? display->w : w; rect.h = h > display->h ? display->h : h;
+			rect.x = (display->w - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+			RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 		}
-		
-		if (left_page >= 0 && right_page < doc->page_count)
-		{
-			tscale = Green_Fit( doc, display->w / 2, display->h ) * doc->finescale;
-			
-			Green_GetDimension( doc, left_page, &w, &h, tscale, doc->rotation % 2 );
-			Green_GetDimension( doc, right_page, &w2, &h2, tscale, doc->rotation % 2 );
-			
-			rect.w = w > display->w / 2 ? display->w / 2 : w;
-			rect.h = h > display->h ? display->h : h;
-			rect.x = (display->w / 2 - rect.w) / 2;
-			rect.y = (display->h - rect.h) / 2;
-			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, left_page, tscale, failed_page )) return -1;
-			
-			rect.w = w2 > display->w / 2 ? display->w / 2 : w2;
-			rect.h = h2 > display->h ? display->h : h2;
-			rect.x = display->w / 2 + (display->w / 2 - rect.w) / 2;
-			rect.y = (display->h - rect.h) / 2;
-			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, right_page, tscale, failed_page )) return -1;
-		}
-		else
-		{
-			tscale = Green_Fit( doc, display->w, display->h ) * doc->finescale;
-			Green_GetDimension( doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2 );
-			rect.w = w > display->w ? display->w : w;
-			rect.h = h > display->h ? display->h : h;
-			rect.x = (display->w - rect.w) / 2;
-			rect.y = (display->h - rect.h) / 2;
-			if (RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page )) return -1;
-		}
+	} else {
+		tscale = Green_Fit(doc, display->w, display->h) * doc->finescale;
+		Green_GetDimension(doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2);
+		rect.w = w > display->w ? display->w : w; rect.h = h > display->h ? display->h : h;
+		rect.x = (display->w - rect.w) / 2; rect.y = (display->h - rect.h) / 2;
+		RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 	}
-	else
-	{
-		tscale = Green_Fit( doc, display->w, display->h ) * doc->finescale;
-		Green_GetDimension( doc, doc->page_cur, &w, &h, tscale, doc->rotation % 2 );
-		rect.w = w > display->w ? display->w : w;
-		rect.h = h > display->h ? display->h : h;
-		rect.x = (display->w - rect.w) / 2;
-		rect.y = (display->h - rect.h) / 2;
-		RenderPage( rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale );
-	}
-	
-	// Render table of contents panel if active
-	RenderTOC( display, rtd );
-	
-	RenderHelp( display );
-	
-	
-	Present();
-	return 0;
+	RenderTOC(display, rtd); RenderHelp(display); Present();
+	return *failed_page >= 0 ? -1 : 0;
 }
 
 static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
@@ -1349,12 +1294,18 @@ if (flags & FLAG_RENDER)
 			int failed_page = rtd->doc ? rtd->doc->page_cur : 0;
 			if (Render( rtd, &failed_page ))
 			{
-				fprintf( stderr, "MuGreen2: rendering failed on page %d: %s\n",
-					failed_page + 1, pb_error_message( rtd->doc->doc ) );
-				exit_status = GREEN_EXIT_RENDER;
-				flags |= FLAG_QUIT;
-				continue;
+				if (!g_has_presented_frame)
+				{
+					if (failed_page + 1 < rtd->doc->page_count) rtd->doc->page_cur = failed_page + 1;
+					else if (failed_page > 0) rtd->doc->page_cur = failed_page - 1;
+					Green_SaveDocumentState(rtd->doc);
+					exit_status = GREEN_EXIT_RENDER;
+					flags |= FLAG_QUIT;
+					continue;
+				}
+				fprintf(stderr, "MuGreen2: page %d is incomplete; showing an error placeholder.\n", failed_page + 1);
 			}
+			g_has_presented_frame = true;
 			flags ^= FLAG_RENDER;
 		}
 		

@@ -1192,13 +1192,13 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	 * is already at either edge. A smaller page is not treated as an edge:
 	 * that avoids turning ordinary non-scrollable space into a page key. */
 	if ((logical_dx < 0 && ((max_x > 0 && old_x == 0)
-			|| page_w == display->w))
+			|| page_w <= display->w))
 		|| (logical_dx > 0 && ((max_x > 0 && old_x == max_x)
-			|| page_w == display->w))
+			|| page_w <= display->w))
 		|| (logical_dy < 0 && ((max_y > 0 && old_y == 0)
-			|| page_h == display->h))
+			|| page_h <= display->h))
 		|| (logical_dy > 0 && ((max_y > 0 && old_y == max_y)
-			|| page_h == display->h))) {
+			|| page_h <= display->h))) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
 			/* Left/Up are the L1 (previous) direction; Right/Down

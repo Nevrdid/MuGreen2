@@ -360,37 +360,27 @@ int pb_page_size(pb_doc *d, int page, float *w, float *h)
 	return 0;
 }
 
-/* page space -> device space (scale, rotate clockwise, origin at top-left, optional vertical flip) */
-static fz_matrix make_ctm(pb_doc *d, float scale, int rot, int mirrored, int *W, int *H)
+/* Convert unrotated page coordinates to device pixels. Presentation
+ * rotation and mirroring belong to the SDL logical-frame pipeline. */
+static fz_matrix make_ctm(pb_doc *d, float scale, int *W, int *H)
 {
-	float pw = d->bounds.x1 - d->bounds.x0, ph = d->bounds.y1 - d->bounds.y0;
+	float pw = d->bounds.x1 - d->bounds.x0;
+	float ph = d->bounds.y1 - d->bounds.y0;
 	fz_matrix m = fz_translate(-d->bounds.x0, -d->bounds.y0);
-	fz_rect r;
-	float fw, fh;
 
 	m = fz_concat(m, fz_scale(scale, scale));
-	m = fz_concat(m, fz_rotate((float)(rot & 3) * 90.0f));
-	r = fz_transform_rect(fz_make_rect(0, 0, pw, ph), m);
-	m = fz_concat(m, fz_translate(-r.x0, -r.y0));
-	fw = r.x1 - r.x0;
-	fh = r.y1 - r.y0;
-	if (mirrored)
-	{
-		m = fz_concat(m, fz_scale(1, -1));
-		m = fz_concat(m, fz_translate(0, fh));
-	}
-	*W = (int)ceilf(fw);
-	*H = (int)ceilf(fh);
+	*W = (int)ceilf(pw * scale);
+	*H = (int)ceilf(ph * scale);
 	if (*W < 1) *W = 1;
 	if (*H < 1) *H = 1;
 	return m;
 }
 
-int pb_device_size(pb_doc *d, int page, float scale, int rotation, int *w, int *h)
+int pb_device_size(pb_doc *d, int page, float scale, int *w, int *h)
 {
 	if (!d || ensure_page(d, page))
 		return -1;
-	(void)make_ctm(d, scale, rotation, 0, w, h);
+	(void)make_ctm(d, scale, w, h);
 	return 0;
 }
 
@@ -409,7 +399,7 @@ static void bgra_to_565(const uint8_t *src, int sp, uint8_t *dst, int dp, int w,
 	}
 }
 
-int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int night,
+int pb_render(pb_doc *d, int page, float scale, int night,
               int x, int y, int w, int h, pb_format fmt, void *dst, int pitch)
 {
 	fz_context *ctx;
@@ -431,7 +421,7 @@ int pb_render(pb_doc *d, int page, float scale, int rotation, int mirrored, int 
 	if (ensure_page(d, page))
 		return -1;
 	ctx = d->ctx;
-	ctm = make_ctm(d, scale, rotation, mirrored, &W, &H);
+	ctm = make_ctm(d, scale, &W, &H);
 	if (x < 0 || y < 0 || x + w > W || y + h > H)
 	{
 		set_error(d, "render rectangle is outside the page bounds");

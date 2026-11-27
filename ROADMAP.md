@@ -13,7 +13,7 @@ This roadmap tracks implementation scope and verification status. Items are not 
 
 ## Phase 2 — State, persistence, and failure robustness
 
-**Status: In progress — Batch A implemented; local verification pending.**
+**Status: In progress — Batch A hardening implemented; local verification pending.**
 
 Already implemented:
 - Strict document-state parsing and validation.
@@ -27,13 +27,16 @@ Already implemented:
 - Unified settings/document-state storage under one resolved data directory.
 - Global settings now use `<datadir>/settings`; no legacy `~/.green.settings` migration or fallback is retained.
 - Canonicalised existing document paths with `realpath()` before URI encoding, with an absolute-path fallback.
+- Require selected data and document-state directories to be writable/searchable; an unusable explicit override is reported before default fallbacks are tried.
+- Treat command-line document arguments strictly as filesystem paths and normalize them through one path-to-identity function; cache the document-state directory after first resolution.
+- Document the canonical-path identity limitation: moving/renaming a file or opening it through another mount path starts fresh state.
 
 User verification:
 - Document state survives forced termination after the debounce fix.
 - Dual-page preference persistence still needs local rebuild/runtime confirmation.
 
 Remaining hardening batches:
-- **Batch A — implemented, needs local verification:** unified data directory, new settings path without legacy migration, and canonical document identity.
+- **Batch A — implemented, needs local verification:** unified data directory, new settings path without legacy migration, canonical document identity, writable-directory validation/fallback reporting, path-only input normalization, and cached document-state directory.
 - **Batch B — pending:** render failure reporting and classified open failures with documented exit codes.
 - **Batch C — pending:** validate width/height before conversion to `unsigned short` (preserve `0` for automatic size; accept `0..65535`) and document `SDL_GAMECONTROLLERCONFIG` / `SDL_GAMECONTROLLERCONFIG_FILE`. The controller detection/banner implementation remains in Phase 3.
 

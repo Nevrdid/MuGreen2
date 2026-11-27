@@ -123,7 +123,7 @@ static const char	*g_help_lines[] = {
 static int	ViewWidth( Green_RTD *rtd );
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
-static RState	HelpInput( SDL_Event *event, unsigned short *flags );
+static RState	HelpInput( Uint8 button, unsigned short *flags );
 static void	HelpStepScroll( int dir, int max_scroll );
 static int	HelpMaxScroll( SDL_Surface *display );
 
@@ -1175,7 +1175,11 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					{
 						g_start_button_held = true;
 						if (g_select_button_held) { g_exit_chord = true; flags |= FLAG_QUIT; }
-						else if (!g_exit_chord && g_state == NORMAL) g_state = OpenTOCPanel( rtd, &flags );
+						else if (!g_exit_chord)
+						{
+							if (g_state == NORMAL) g_state = OpenTOCPanel( rtd, &flags );
+							else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
+						}
 						break;
 					}
 					if (button == SDL_CONTROLLER_BUTTON_GUIDE)
@@ -1190,7 +1194,12 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					{
 						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
 							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
-						{ g_select_chord_used = true; SelectChord( rtd, button, &flags ); }
+						{
+							g_select_chord_used = true;
+							if (g_state == NORMAL) SelectChord( rtd, button, &flags );
+							else if (g_state == TOC) g_state = TOCInput( rtd, button, &flags );
+							else if (g_state == HELP) g_state = HelpInput( button, &flags );
+						}
 						break;
 					}
 					if (button == SDL_CONTROLLER_BUTTON_X && g_state == NORMAL) g_y_held = true;
@@ -1271,7 +1280,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						flags |= FLAG_RENDER;
 					break;
 				default:
-					/* Keyboard, mouse, and unrelated joystick events are intentionally ignored. */
+					/* Unrelated SDL events are ignored. */
 					break;
 			}
 

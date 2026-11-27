@@ -26,6 +26,10 @@
 #include <SDL_gamecontroller.h>
 #include "green.h"
 
+#ifndef MUGREEN2_VERSION
+#define MUGREEN2_VERSION "unknown"
+#endif
+
 
 #define FLAG_QUIT	0x0001
 #define FLAG_RENDER	0x0002
@@ -118,6 +122,11 @@ static const char	*g_help_lines[] = {
 	"Optional controls",
 	"",
 	"L2 / R2        Page jumps (if supported)",
+	"",
+	"About MuGreen2",
+	"Version " MUGREEN2_VERSION,
+	"License: AGPL-3.0-only",
+	"github.com/Nevrdid/MuGreen2",
 };
 #define HELP_LINE_COUNT	((int)(sizeof( g_help_lines ) / sizeof( g_help_lines[0] )))
 

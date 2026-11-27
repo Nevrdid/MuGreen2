@@ -93,6 +93,9 @@ static Uint32	g_list_nav_next = 0;
 static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
 static int	g_overlay_rotation = 0;
+/* Opt-in SDL-only proof of a rotation-aware logical framebuffer. */
+static bool	g_logical_frame_test = false;
+static int	g_reader_rotation = 0;
 
 static bool	g_help_active = false;
 /* Manual override for devices whose physical rotation direction differs. */
@@ -398,7 +401,22 @@ static void	Present( void )
 		return;
 	SDL_UpdateTexture( g_texture, NULL, g_fb->pixels, g_fb->pitch );
 	SDL_RenderClear( g_renderer );
-	SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, g_rotate180 ? 180.0 : 0.0, NULL, SDL_FLIP_NONE );
+	if (g_logical_frame_test)
+	{
+		int ow, oh;
+		SDL_Rect dst;
+		double angle = (double)((g_reader_rotation * 90 + (g_rotate180 ? 180 : 0)) % 360);
+		if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) == 0)
+		{
+			/* The destination rectangle has logical dimensions. SDL rotates it
+			 * around its centre, so its bounding box fills the physical output. */
+			dst.w = g_fb->w; dst.h = g_fb->h;
+			dst.x = (ow - dst.w) / 2; dst.y = (oh - dst.h) / 2;
+			SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL, SDL_FLIP_NONE);
+		}
+	}
+	else
+		SDL_RenderCopyEx( g_renderer, g_texture, NULL, NULL, g_rotate180 ? 180.0 : 0.0, NULL, SDL_FLIP_NONE );
 	SDL_RenderPresent( g_renderer );
 }
 
@@ -1058,15 +1076,53 @@ static RState TOCInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 	return TOC;
 }
 
+static void RenderLogicalPipelineTestFrame(SDL_Surface *display)
+{
+	SDL_Rect r;
+	int band = display->h / 7;
+	if (band < 24) band = 24;
+	SDL_FillRect(display, NULL, SDL_MapRGB(display->format, 0x20, 0x20, 0x28));
+	r.x = 0; r.y = 0; r.w = display->w; r.h = band;
+	SDL_FillRect(display, &r, SDL_MapRGB(display->format, 0xB0, 0x30, 0x30));
+	DrawString(display, 12, 8, "LOGICAL TOP", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
+	r.x = 0; r.y = band; r.w = band; r.h = display->h - 2 * band;
+	SDL_FillRect(display, &r, SDL_MapRGB(display->format, 0x30, 0x70, 0xB0));
+	DrawString(display, band + 8, band + 8, "LOGICAL LEFT", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
+	r.x = display->w - band; r.y = band; r.w = band; r.h = display->h - 2 * band;
+	SDL_FillRect(display, &r, SDL_MapRGB(display->format, 0x30, 0x90, 0x50));
+	DrawString(display, display->w - band + 4, band + 8, "RIGHT", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
+	r.x = 0; r.y = display->h - band; r.w = display->w; r.h = band;
+	SDL_FillRect(display, &r, SDL_MapRGB(display->format, 0xA0, 0x80, 0x20));
+	DrawString(display, 12, display->h - band + 8, "LOGICAL BOTTOM", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
+	DrawString(display, display->w / 2 - 60, display->h / 2 - 4,
+		"LOGICAL FRAME TEST", SDL_MapRGB(display->format, 0xFF, 0xFF, 0xFF));
+}
+
 static int	Render( Green_RTD *rtd, int *failed_page )
 {
 	Green_Document *doc;
-	SDL_Surface *display = DrawSurface();
+	SDL_Surface *display;
 	SDL_Rect rect;
 	double tscale;
 	int w, h;
 	*failed_page = -1;
 	g_rendered_content_this_frame = false;
+	if (g_logical_frame_test && Green_IsDocValid(rtd))
+	{
+		int rotation = rtd->doc->rotation & 3;
+		if (rotation != g_reader_rotation)
+		{
+			int ow, oh;
+			if (SDL_GetRendererOutputSize(g_renderer, &ow, &oh) == 0
+				&& CreateFramebuffer((rotation & 1) ? oh : ow, (rotation & 1) ? ow : oh) == 0)
+				g_reader_rotation = rotation;
+		}
+		display = DrawSurface();
+		RenderLogicalPipelineTestFrame(display);
+		Present();
+		return 0;
+	}
+	display = DrawSurface();
 	rect.x = rect.y = 0; rect.w = display->w; rect.h = display->h;
 	if (rtd->night) SDL_FillRect(display, &rect, SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
 	else SDL_FillRect(display, &rect, SDL_MapRGB(display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b));
@@ -1676,6 +1732,13 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		int	ww = rtd->width, wh = rtd->height, ow, oh;
 		
 		g_rotate180 = rot && atoi( rot );
+		{
+			const char *test = getenv("GREEN_TEST_LOGICAL_FRAME");
+			g_logical_frame_test = test && atoi(test) != 0;
+			g_reader_rotation = Green_IsDocValid(rtd) ? (rtd->doc->rotation & 3) : 0;
+			if (g_logical_frame_test)
+				fprintf(stderr, "MuGreen2: logical-frame presentation test enabled (PDF rendering bypassed)\\n");
+		}
 		if (rtd->flags & GREEN_FULLSCREEN)
 			wflags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
 		if (ww <= 0 || wh <= 0)
@@ -1708,7 +1771,9 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			else
 				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
-		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) || CreateFramebuffer( ow, oh ))
+		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) ||
+			CreateFramebuffer(g_logical_frame_test && (g_reader_rotation & 1) ? oh : ow,
+				g_logical_frame_test && (g_reader_rotation & 1) ? ow : oh))
 		{
 			fprintf( stderr, "SDL display setup failed: %s\n", SDL_GetError() );
 			if (controller) SDL_GameControllerClose( controller );
@@ -1945,7 +2010,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						int ow, oh; SDL_GetRendererOutputSize( g_renderer, &ow, &oh );
 						if (ow != display->w || oh != display->h)
 						{
-							if (CreateFramebuffer( ow, oh ))
+							if (CreateFramebuffer(g_logical_frame_test && (g_reader_rotation & 1) ? oh : ow,
+								g_logical_frame_test && (g_reader_rotation & 1) ? ow : oh))
 							{
 								fprintf( stderr, "MuGreen2: resize failed: %s\n", SDL_GetError() );
 								exit_status = GREEN_EXIT_RESIZE;

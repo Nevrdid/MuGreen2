@@ -1335,6 +1335,125 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     return 1;
 }
 
+static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
+    int page_delta)
+{
+    Green_Document *doc = rtd->doc;
+    int lp, rp, lw, lh, rw, rh, vertical, max_x, max_y, spread_w, spread_h;
+    double scale;
+    int pair = (doc->page_cur / 2) * 2;
+    int step = (rtd->right_to_left ? -2 : 2) * (page_delta > 0 ? 1 : -1);
+    if (!page_delta || !Green_GotoPage(doc, pair + step, true)) return 0;
+    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+        &lw, &lh, &rw, &rh, &vertical)) return 1;
+    spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+    spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    max_x = spread_w > display->w ? spread_w - display->w : 0;
+    max_y = spread_h > display->h ? spread_h - display->h : 0;
+    /* Enter next spreads at physical top-left and previous spreads at
+     * physical top-right, transformed into the logical framebuffer. */
+    switch (doc->rotation & 3) {
+        case 1:
+            doc->xoffset = 0;
+            doc->yoffset = page_delta > 0 ? max_y : 0;
+            break;
+        case 2:
+            doc->xoffset = page_delta > 0 ? max_x : 0;
+            doc->yoffset = max_y;
+            break;
+        case 3:
+            doc->xoffset = max_x;
+            doc->yoffset = page_delta > 0 ? 0 : max_y;
+            break;
+        default:
+            doc->xoffset = page_delta > 0 ? 0 : max_x;
+            doc->yoffset = 0;
+            break;
+    }
+    return 1;
+}
+
+static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
+{
+    Green_Document *doc = rtd->doc;
+    int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
+    int dx = 0, dy = 0, logical_dx, logical_dy, max_x, max_y, step;
+    int old_x, old_y, proposed_x, proposed_y;
+    double scale;
+    switch (button) {
+        case SDL_CONTROLLER_BUTTON_DPAD_LEFT: dx = -1; break;
+        case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: dx = 1; break;
+        case SDL_CONTROLLER_BUTTON_DPAD_UP: dy = -1; break;
+        case SDL_CONTROLLER_BUTTON_DPAD_DOWN: dy = 1; break;
+        default: return 0;
+    }
+    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+        &lw, &lh, &rw, &rh, &vertical)) return 0;
+    spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+    spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    switch (doc->rotation & 3) {
+        case 1: logical_dx = dy; logical_dy = -dx; break;
+        case 2: logical_dx = -dx; logical_dy = -dy; break;
+        case 3: logical_dx = -dy; logical_dy = dx; break;
+        default: logical_dx = dx; logical_dy = dy; break;
+    }
+    if (doc->mirrored) {
+        if (doc->rotation & 1) logical_dx = -logical_dx;
+        else logical_dy = -logical_dy;
+    }
+    max_x = spread_w > display->w ? spread_w - display->w : 0;
+    max_y = spread_h > display->h ? spread_h - display->h : 0;
+    old_x = doc->xoffset < 0 ? 0 : (doc->xoffset > max_x ? max_x : doc->xoffset);
+    old_y = doc->yoffset < 0 ? 0 : (doc->yoffset > max_y ? max_y : doc->yoffset);
+    doc->xoffset = old_x; doc->yoffset = old_y;
+    if ((logical_dx < 0 && old_x == 0) || (logical_dx > 0 && old_x == max_x)
+        || (logical_dy < 0 && old_y == 0) || (logical_dy > 0 && old_y == max_y)) {
+        return LogicalSpreadPageTurn(rtd, display, LogicalPDFPageDelta(rtd, button));
+    }
+    step = logical_dx ? (int)(display->w * rtd->step) : (int)(display->h * rtd->step);
+    if (step < 1) step = 1;
+    proposed_x = old_x + logical_dx * step;
+    proposed_y = old_y + logical_dy * step;
+    doc->xoffset = proposed_x < 0 ? 0 : (proposed_x > max_x ? max_x : proposed_x);
+    doc->yoffset = proposed_y < 0 ? 0 : (proposed_y > max_y ? max_y : proposed_y);
+    return doc->xoffset != old_x || doc->yoffset != old_y;
+}
+
+static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double factor)
+{
+    Green_Document *doc = rtd->doc;
+    int lp, rp, lw, lh, rw, rh, vertical, old_w, old_h, new_w, new_h;
+    double scale, old_fs = doc->finescale, anchor_x, anchor_y;
+    int old_x = doc->xoffset, old_y = doc->yoffset;
+    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+        &lw, &lh, &rw, &rh, &vertical)) return 0;
+    old_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+    old_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    anchor_x = old_x + display->w / 2.0
+        - (old_w < display->w ? (display->w - old_w) / 2.0 : 0);
+    anchor_y = old_y + display->h / 2.0
+        - (old_h < display->h ? (display->h - old_h) / 2.0 : 0);
+    doc->finescale *= factor;
+    if (doc->finescale < 0.05) doc->finescale = 0.05;
+    if (doc->finescale > 20.0) doc->finescale = 20.0;
+    if (doc->finescale == old_fs) return 0;
+    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+        &lw, &lh, &rw, &rh, &vertical)) {
+        doc->finescale = old_fs; return 0;
+    }
+    new_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
+    new_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    doc->xoffset = (int)(anchor_x - display->w / 2.0
+        + (new_w < display->w ? (display->w - new_w) / 2.0 : 0) + 0.5);
+    doc->yoffset = (int)(anchor_y - display->h / 2.0
+        + (new_h < display->h ? (display->h - new_h) / 2.0 : 0) + 0.5);
+    if (doc->xoffset < 0) doc->xoffset = 0;
+    else if (doc->xoffset > new_w - display->w) doc->xoffset = new_w - display->w;
+    if (doc->yoffset < 0) doc->yoffset = 0;
+    else if (doc->yoffset > new_h - display->h) doc->yoffset = new_h - display->h;
+    return 1;
+}
+
 static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
     int page, int px, int py, int pw, int ph, double scale, int *failed_page)
 {
@@ -1960,7 +2079,9 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
 			case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
 			case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
-				if (ScrollLogicalPDFPage(rtd, display, button)) *flags |= FLAG_RENDER;
+				if (rtd->side_by_side && doc->page_count > 1) {
+					if (ScrollLogicalPDFSpread(rtd, display, button)) *flags |= FLAG_RENDER;
+				} else if (ScrollLogicalPDFPage(rtd, display, button)) *flags |= FLAG_RENDER;
 				break;
 			case SDL_CONTROLLER_BUTTON_B:
 				Green_RotateRight(doc);
@@ -1976,7 +2097,9 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: {
 				int page_delta = LogicalPDFPageDelta(rtd, button);
-				if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true))
+				if (rtd->side_by_side && doc->page_count > 1) {
+					if (LogicalSpreadPageTurn(rtd, display, page_delta)) *flags |= FLAG_RENDER;
+				} else if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true))
 					*flags |= FLAG_RENDER;
 				break;
 			}
@@ -2058,7 +2181,7 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
-			if (doc && rtd->side_by_side && doc->page_count > 1) {
+			if (g_logical_pdf_test && doc && rtd->side_by_side && doc->page_count > 1) {
 				rtd->spread_vertical = !rtd->spread_vertical;
 				doc->xoffset = doc->yoffset = 0;
 				Green_SaveSettings(rtd);
@@ -2401,7 +2524,11 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
 						{
 							Green_Document *doc = rtd->doc;
-							if (g_logical_pdf_test) { if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER; }
+							if (g_logical_pdf_test) {
+						if (rtd->side_by_side && doc->page_count > 1) {
+							if (ZoomLogicalPDFSpread(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
+						} else if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
+					}
 							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale / rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale / rtd->zoomstep); flags |= FLAG_RENDER; }
 						}
 						g_y_held = false;
@@ -2411,7 +2538,11 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						if (g_state == NORMAL && Green_IsDocValid( rtd ))
 						{
 							Green_Document *doc = rtd->doc;
-							if (g_logical_pdf_test) { if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER; }
+							if (g_logical_pdf_test) {
+						if (rtd->side_by_side && doc->page_count > 1) {
+							if (ZoomLogicalPDFSpread(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
+						} else if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
+					}
 							else { if (rtd->side_by_side && doc->page_count > 1) ZoomSpread(rtd, display->w, display->h, doc->finescale * rtd->zoomstep); else Green_Zoom(doc, ViewWidth(rtd), display->h, doc->finescale * rtd->zoomstep); flags |= FLAG_RENDER; }
 						}
 						g_x_held = false;

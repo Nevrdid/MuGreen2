@@ -1072,7 +1072,8 @@ static void	RenderHelp( SDL_Surface *display )
 		else if (strncmp( line, "In ", 3 ) == 0
 			|| !strncmp( line, "Game controller controls", 24 )
 			|| !strncmp( line, "Hotkey shortcuts", 16 )
-			|| !strcmp( line, "Optional / unbound (NULL)" ))
+			|| !strcmp( line, "Optional / unbound (NULL)" )
+			|| !strcmp( line, "About MuGreen2" ))
 			DrawString( display, x0, y, line, title_col );
 		else
 			DrawString( display, x0, y, line, text_col );

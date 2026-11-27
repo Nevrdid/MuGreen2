@@ -62,7 +62,7 @@ static TOCEntry	*g_toc_entries = NULL;
 static int	g_toc_count = 0, g_toc_sel = 0;
 static bool	g_toc_active = false;
 
-/* Tap Select for help; hold it as a modifier for reader options. */
+/* Tap Select for help; hold it as the hotkey for reader shortcuts. */
 static bool	g_select_button_held = false;
 static bool	g_select_chord_used = false;
 static bool	g_start_button_held = false;
@@ -96,16 +96,16 @@ static const char	*g_help_lines[] = {
 	"L1 / R1        Previous / next page",
 	"L2 / R2        Jump -10 / +10 pages (optional)",
 	"Start          Toggle PDF table of contents",
-	"Select         Tap: help / hold: modifier",
-	"Select+Start   Exit reader (works without Guide)",
+	"Select         Tap: help / hold: Hotkey",
+	"Hotkey+Start   Exit reader (works without Guide)",
 	"Guide          Exit reader (optional)",
 	"",
-	"Select chords (hold Select first)",
+	"Hotkey shortcuts (hold Select first)",
 	"",
-	"Select+B       Toggle night mode",
-	"Select+X       Mirror horizontally",
-	"Select+Y       Mirror vertically",
-	"Select+L1      Toggle dual-page mode",
+	"Hotkey+B       Toggle night mode",
+	"Hotkey+X       Mirror horizontally",
+	"Hotkey+Y       Mirror vertically",
+	"Hotkey+L1      Toggle dual-page mode",
 	"",
 	"In document TOC",
 	"",
@@ -934,7 +934,7 @@ static void	RenderHelp( SDL_Surface *display )
 			DrawString( display, x0, y, line, title_col );
 		else if (strncmp( line, "In ", 3 ) == 0
 			|| !strncmp( line, "Game controller controls", 24 )
-			|| !strncmp( line, "Select chords", 13 )
+			|| !strncmp( line, "Hotkey shortcuts", 16 )
 			|| !strcmp( line, "Optional / unbound (NULL)" ))
 			DrawString( display, x0, y, line, title_col );
 		else

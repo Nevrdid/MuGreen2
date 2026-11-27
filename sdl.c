@@ -224,8 +224,8 @@ static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
 	old_sw = lw + rw; old_sh = lh > rh ? lh : rh;
 	anchor_x = doc->xoffset + vw / 2.0 - (old_sw < vw ? (vw - old_sw) / 2.0 : 0);
 	anchor_y = doc->yoffset + vh / 2.0 - (old_sh < vh ? (vh - old_sh) / 2.0 : 0);
-	if (new_fs < 0.1) new_fs = 0.1;
-	if (new_fs > 8.0) new_fs = 8.0;
+	if (!(new_fs >= 0.05)) new_fs = 0.05;
+	if (new_fs > 20.0) new_fs = 20.0;
 	doc->finescale = new_fs;
 	if (!GetSpreadMetrics(rtd, vw, vh, &scale, &lp, &rp, &lw, &lh, &rw, &rh)) {
 		doc->finescale = old_fs; return;

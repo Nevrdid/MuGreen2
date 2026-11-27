@@ -42,7 +42,7 @@ case "$ARCH" in
  armhf) ARCHFLAGS=${ARCHFLAGS:--march=armv7-a -mfpu=neon-vfpv4 -mfloat-abi=hard}; EXPECTED_FORMAT=${EXPECTED_FORMAT:-elf32-littlearm} ;;
  native) ARCHFLAGS=${ARCHFLAGS-}; EXPECTED_FORMAT= ;;
 esac
-case "$PREFIX" in
+case "$MUPDF_PREFIX" in
  "$SYSROOT"|"$SYSROOT"/usr|"$SYSROOT"/usr/)
   if [ "${ALLOW_SYSROOT_PREFIX:-0}" != 1 ]; then echo "PREFIX is inside the sysroot; use a separate prefix." >&2; exit 1; fi ;;
 esac
@@ -93,7 +93,7 @@ if [ -n "$EXPECTED_FORMAT" ]; then
  BAD=$("$OBJDUMP" -a build/release/libmupdf.a 2>/dev/null | grep "file format" | grep -vc "$EXPECTED_FORMAT" || true)
  if [ "$BAD" != 0 ]; then echo "ERROR: libmupdf.a has $BAD objects not matching $EXPECTED_FORMAT." >&2; exit 1; fi
 fi
-mkdir -p "$PREFIX/include" "$PREFIX/lib"
-cp -r include/mupdf "$PREFIX/include/"
-cp build/release/libmupdf.a build/release/libmupdf-third.a "$PREFIX/lib/"
-echo "MuPDF $MUPDF_VER ($ARCH) installed to $PREFIX"
+mkdir -p "$MUPDF_PREFIX/include" "$MUPDF_PREFIX/lib"
+cp -r include/mupdf "$MUPDF_PREFIX/include/"
+cp build/release/libmupdf.a build/release/libmupdf-third.a "$MUPDF_PREFIX/lib/"
+echo "MuPDF $MUPDF_VER ($ARCH) installed to $MUPDF_PREFIX"

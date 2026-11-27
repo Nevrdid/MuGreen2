@@ -12,13 +12,13 @@ A safety snapshot of the fully tested parallel implementation is preserved on `e
 - The complete content and UI layers are rotated once during SDL presentation. Reader rotation and physical display mounting correction remain independent.
 - Document mirroring is represented as a source texture flip before the final presentation transform.
 - Controller button-down and button-up events pass through one input-normalisation layer before normal reading, Select chords, help, or TOC handling. D-pad directions and A/B/X/Y are rotated with the reader; Start, Select, Guide, and shoulders remain fixed.
-- The default Nintendo-labelled face-button layout is retained. `-controller-layout=xbox` swaps A/B and X/Y before applying reader rotation; `-controller-layout=nintendo` selects the default explicitly.
+- The default face-button convention is Xbox. `-controller-layout=nintendo` swaps A/B and X/Y before applying reader rotation; `-controller-layout=xbox` selects Xbox explicitly. The selected convention is persisted in global settings as `xbox_layout=1` (Xbox) or `xbox_layout=0` (Nintendo).
 
 ## Controls and startup options
 
 - `Select + Left`: rotate reader clockwise.
 - `Select + Right`: rotate reader anti-clockwise.
-- `-controller-layout=nintendo|xbox`: select the face-button convention at launch (Nintendo is the default).
+- `-controller-layout=nintendo|xbox`: select the face-button convention at launch (Xbox is the default when no saved preference exists).
 - `Select + Up`: toggle vertical/horizontal spread stacking (dual-page mode).
 - `Select + Down`: manually reverse facing-page order.
 - `Select + L1`: toggle dual-page mode.

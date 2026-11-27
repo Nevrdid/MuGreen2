@@ -87,7 +87,7 @@ The build scripts support `ARCH=aarch64`, `ARCH=armhf`, and `ARCH=native`. Insta
    make install PREFIX=/usr/local
    ```
 
-   Set `DESTDIR` to stage installation into a package root. To keep debug symbols, use `make STRIP=true`; the default build strips the executable.
+   Set `DESTDIR` to stage installation into a package root. To keep debug symbols, use `make NOSTRIP=1`; the default build strips the executable.
 
 4. Run it with one PDF:
 

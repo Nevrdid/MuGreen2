@@ -1283,7 +1283,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 				fprintf( stderr, "SDL renderer: %s (flags=0x%08x, max texture=%dx%d)\\n",
 					info.name ? info.name : "(unknown)", info.flags, info.max_texture_width, info.max_texture_height );
 			else
-				fprintf( stderr, "SDL_GetRendererInfo failed: %s\\n", SDL_GetError() );
+				fprintf( stderr, "SDL_GetRendererInfo failed: %s\n", SDL_GetError() );
 		}
 		if (!g_window || !g_renderer || SDL_GetRendererOutputSize( g_renderer, &ow, &oh ) || CreateFramebuffer( ow, oh ))
 		{

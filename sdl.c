@@ -338,7 +338,7 @@ static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
 				char log_message[256];
 				snprintf(log_message, sizeof(log_message), "Page %d contains content that MuPDF could not fully interpret", page_num + 1);
 				Green_LogMessage(log_message);
-				fprintf(stderr, "MuGreen2: %s\\n", log_message);
+				fprintf(stderr, "MuGreen2: %s\n", log_message);
 			}
 		}
 	}

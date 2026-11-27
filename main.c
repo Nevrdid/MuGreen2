@@ -230,8 +230,13 @@ int	main( int argc, char *argv[] )
 				case PB_OPEN_IO_ERROR:
 				default: exit_code = GREEN_EXIT_OPEN_ERROR; break;
 			}
-			fprintf( stderr, "MuGreen2: cannot open '%s': %s\n", pdf_file,
-				open_error[0] ? open_error : "unknown error" );
+			{
+				char log_message[1024];
+				snprintf( log_message, sizeof( log_message ), "Cannot open '%s': %s",
+					pdf_file, open_error[0] ? open_error : "unknown error" );
+				Green_LogMessage( log_message );
+				fprintf( stderr, "MuGreen2: %s\\n", log_message );
+			}
 			return exit_code;
 		}
 	}

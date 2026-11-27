@@ -193,7 +193,7 @@ int	main( int argc, char *argv[] )
 		{
 			fprintf( stderr, "Unknown option!\n" );
 			PrintHelp();
-			return err;
+			return GREEN_EXIT_USAGE;
 		}
 	}
 	
@@ -206,15 +206,34 @@ int	main( int argc, char *argv[] )
 
 	if (pdf_count != 1)
 	{
-		fprintf( stderr, "Please provide exactly one PDF file.\n\n" );
+		fprintf( stderr, "MuGreen2: please provide exactly one PDF file.\n\n" );
 		PrintHelp();
-		return 1;
+		return GREEN_EXIT_USAGE;
 	}
 	pb_configure( mupdf_store_bytes, -1 );
-	if (Green_Open( &rtd, pdf_file ) < 0)
 	{
-		fprintf( stderr, "Failed to open: %s\n", pdf_file );
-		return 1;
+		char open_error[512];
+		pb_open_result result = Green_Open( &rtd, pdf_file, open_error, sizeof( open_error ) );
+		if (result != PB_OPEN_OK)
+		{
+			int exit_code;
+			switch (result)
+			{
+				case PB_OPEN_NOT_FOUND: exit_code = GREEN_EXIT_FILE_NOT_FOUND; break;
+				case PB_OPEN_NOT_READABLE: exit_code = GREEN_EXIT_FILE_UNREADABLE; break;
+				case PB_OPEN_INVALID_DOCUMENT:
+				case PB_OPEN_NOT_REGULAR: exit_code = GREEN_EXIT_INVALID_DOCUMENT; break;
+				case PB_OPEN_PASSWORD_REQUIRED: exit_code = GREEN_EXIT_PASSWORD_REQUIRED; break;
+				case PB_OPEN_INVALID_ARGUMENT:
+				case PB_OPEN_NO_MEMORY:
+				case PB_OPEN_BACKEND_ERROR:
+				case PB_OPEN_IO_ERROR:
+				default: exit_code = GREEN_EXIT_OPEN_ERROR; break;
+			}
+			fprintf( stderr, "MuGreen2: cannot open '%s': %s\n", pdf_file,
+				open_error[0] ? open_error : "unknown error" );
+			return exit_code;
+		}
 	}
 
 	return Green_SDL_Main( &rtd );

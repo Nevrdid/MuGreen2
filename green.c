@@ -219,13 +219,13 @@ static bool LoadDocumentState( Green_Document *doc )
 
 	if (!DocumentStatePath( doc->uri, path, sizeof( path )) || !(file = fopen( path, "r" )))
 		return false;
-	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\\n" )
+	if (!fgets( line, sizeof( line ), file ) || strcmp( line, "MUGREEN2 1\n" )
 		|| !fgets( saved_uri, sizeof( saved_uri ), file ))
 	{
 		fclose( file);
 		return false;
 	}
-	saved_uri[strcspn( saved_uri, "\\r\\n" )] = 0;
+	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
 	if (strcmp( saved_uri, doc->uri ) || fscanf( file, "%d %lf %d %d %d %d %d",
 		&page, &doc->finescale, &x, &y, &rotation, &mirrored, &fit ) != 7)
 	{
@@ -254,7 +254,7 @@ static void SaveDocumentState( Green_Document *doc )
 		return;
 	file = fopen( temporary, "w" );
 	if (!file) return;
-	fprintf( file, "MUGREEN2 1\\n%s\\n%d %.6f %d %d %d %d %d\\n",
+	fprintf( file, "MUGREEN2 1\n%s\n%d %.6f %d %d %d %d %d\n",
 		doc->uri, doc->page_cur + 1,
 		doc->finescale > 0 ? doc->finescale : 1.0,
 		doc->xoffset, doc->yoffset, doc->rotation,

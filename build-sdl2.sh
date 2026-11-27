@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build a static SDL2 for AArch64, ARMHF, or the native host.
+# Build a shared SDL2 for AArch64, ARMHF, or the native host.
 set -eu
 
 SDL2_VER=${SDL2_VER:-2.30.8}
@@ -115,7 +115,7 @@ if [ "$CLEAN" = 1 ]; then
  make distclean >/dev/null 2>&1 || true
 fi
 
-CONFIGURE_ARGS="--prefix=$SDL2_PREFIX --disable-rpath --disable-shared --enable-static"
+CONFIGURE_ARGS="--prefix=$SDL2_PREFIX --disable-rpath --enable-shared --disable-static"
 if [ "$HOST" != "$BUILD" ]; then
  CONFIGURE_ARGS="$CONFIGURE_ARGS --build=$BUILD --host=$HOST"
 fi

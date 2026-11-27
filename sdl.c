@@ -90,6 +90,8 @@ static Uint32	g_list_nav_next = 0;
 #define LIST_NAV_RATE_MS	50
 
 static bool	g_help_active = false;
+/* Manual override for devices whose physical rotation direction differs. */
+static bool	g_spread_order_reversed = false;
 static bool	g_has_presented_frame = false;
 static bool	g_rendered_content_this_frame = false;
 static int	g_help_scroll = 0;
@@ -110,7 +112,8 @@ static const char	*g_help_lines[] = {
 	"",
 	"Hotkey shortcuts (hold Select first)",
 	"",
-	"Hotkey+B       Toggle night mode",
+	"Hotkey+B       Toggle facing-page order (dual-page only)",
+	"Hotkey+A       Toggle night mode",
 	"Hotkey+X       Mirror horizontally",
 	"Hotkey+Y       Mirror vertically",
 	"Hotkey+L1      Toggle dual-page mode",
@@ -159,7 +162,8 @@ static int GetSpreadMetrics(Green_RTD *rtd, int vw, int vh, double *scale,
 	 * orientation, screen-space left and right are reversed relative to the
 	 * reader. Swap the spread slots so the logical reading order remains
 	 * left-to-right (or right-to-left) when viewed by the reader. */
-	if ((doc->rotation & 3) == 2) {
+	if ((((doc->rotation & 3) == 1) || ((doc->rotation & 3) == 2))
+		!= g_spread_order_reversed) {
 		int page = *lp;
 		*lp = *rp;
 		*rp = page;
@@ -1336,6 +1340,14 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 	{
 		case SDL_CONTROLLER_BUTTON_A:
 			rtd->night = !rtd->night; Green_SaveSettings( rtd ); *flags |= FLAG_RENDER; break;
+		case SDL_CONTROLLER_BUTTON_B:
+			if (doc && rtd->side_by_side && doc->page_count > 1) {
+				g_spread_order_reversed = !g_spread_order_reversed;
+				doc->xoffset = doc->yoffset = 0;
+				ClampSpreadOffset(rtd, display->w, display->h);
+				*flags |= FLAG_RENDER;
+			}
+			break;
 		case SDL_CONTROLLER_BUTTON_Y:
 			if (doc) Green_MirrorH( doc );
 			*flags |= FLAG_RENDER;
@@ -1577,8 +1589,8 @@ if (flags & FLAG_RENDER)
 					}
 					if (g_select_button_held)
 					{
-						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
-							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
+						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_B
+							|| button == SDL_CONTROLLER_BUTTON_X || button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
 							|| button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
 						{
 							g_select_chord_used = true;

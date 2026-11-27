@@ -1302,14 +1302,11 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
         return 0;
     *vertical = rtd->spread_vertical;
-    {
-        int rotation = doc->rotation & 3;
-        bool reverse_slots = rtd->spread_vertical
-            ? (rotation == 1 || rotation == 2)
-            : (rotation == 2 || rotation == 3);
-        if (reverse_slots != g_spread_order_reversed) {
-            int page = *lp; *lp = *rp; *rp = page;
-        }
+    /* Page order is determined by reading direction and the explicit
+     * manual override, not by reader rotation. The spread axis is already
+     * kept stable in the user's physical viewing orientation. */
+    if (g_spread_order_reversed) {
+        int page = *lp; *lp = *rp; *rp = page;
     }
     Green_PageSize(doc, *lp, &lpage_w, &lpage_h);
     Green_PageSize(doc, *rp, &rpage_w, &rpage_h);

@@ -651,6 +651,9 @@ double	Green_Fit( Green_Document *doc, int w, int h )
 	else
 		Green_PageSize( doc, doc->page_cur, &pwidth, &pheight );
 	
+	if (!isfinite(pwidth) || !isfinite(pheight) || pwidth <= 0 || pheight <= 0)
+		return 1;
+
 	if (doc->fit_method == WIDTH)
 		return w / pwidth;
 	else if (doc->fit_method == HEIGHT)

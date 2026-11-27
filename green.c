@@ -107,8 +107,8 @@ static char *DocumentStatePath( const char *uri, char *path, size_t size )
 	return path;
 }
 
-#define GREEN_MIN_FINESCale 0.05
-#define GREEN_MAX_FINESCale 20.0
+#define GREEN_MIN_FINE_SCALE 0.05
+#define GREEN_MAX_FINE_SCALE 20.0
 
 static double ClampFineScale( double scale )
 {
@@ -192,7 +192,9 @@ static bool LoadDocumentState( Green_Document *doc )
 	}
 	saved_uri[strcspn( saved_uri, "\r\n" )] = 0;
 	if (strcmp( saved_uri, doc->uri ) || !fgets( line, sizeof( line ), file )
-		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit ))
+		|| (!strchr( line, '\\n' ) && !feof( file ))
+		|| !ParseDocumentState( line, &page, &scale, &x, &y, &rotation, &mirrored, &fit )
+		|| fgetc( file ) != EOF || ferror( file ))
 	{
 		fclose( file );
 		return false;
@@ -464,7 +466,8 @@ static bool ParseBooleanSetting( const char *line, const char *key, bool *value 
 	if (strncmp( line, key, n ))
 		return false;
 	if ((line[n] == '0' || line[n] == '1')
-		&& (line[n + 1] == '\\n' || line[n + 1] == '\\r' || line[n + 1] == 0))
+		&& (line[n + 1] == '\\n' || line[n + 1] == 0
+			|| (line[n + 1] == '\\r' && (line[n + 2] == '\\n' || line[n + 2] == 0))))
 	{
 		*value = line[n] == '1';
 		return true;

@@ -63,6 +63,6 @@ The old test-mode switches and stage-1 pattern renderer are gone. Legacy SDL spr
 
 1. Build the cleaned branch and run a complete device smoke test. The cleanup has not yet been compiled or tested on-device.
 2. Specifically recheck RTL view entry after toggling RTL at 0°, 90°, 180° and 270°; the logical page-start mapping was adjusted during cleanup and needs device verification.
-3. Review the PDF backend API for rotation/mirroring functionality that may now be redundant because the SDL renderer calls it with zero rotation and no mirroring. Only simplify that API after checking every call site.
+3. The PDF backend API has now been simplified: `pb_render` and `pb_device_size` no longer accept rotation or mirroring arguments. All in-repository call sites were updated to use the unrotated API.
 4. Optionally collect a repeatable performance comparison. The user's current impression is that performance is unchanged or improved.
 5. Review the final diff and architecture before deciding whether to merge. Do not merge automatically.

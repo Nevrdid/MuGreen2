@@ -64,7 +64,7 @@ Horizontal D-pad page direction follows L1/R1: Left matches L1 and Right matches
 
 Page dimensions are measured unrotated against the logical framebuffer dimensions. This is important at 90°/270°, where the logical viewport width and height are swapped relative to the physical display. The transition remains limited to the experimental single-page path.
 
-**Device verification pending:** test all four D-pad directions at all four rotations, with pages that overflow horizontally and vertically. Confirm that reaching an edge does not change page until the next press, that the next press changes in the same direction as L1/R1, that next/previous pages start at the requested corners, and that first/last page boundaries do not wrap. Repeat with RTL and mirroring.
+**Device result:** the user has now tested the Stage 5 page-edge behaviour and confirmed that it works, including the final fit/overflow and rotation-specific direction refinements. The next/previous page entry corners also behave as intended. The broader mirror/rotation matrix remains part of the overall pipeline validation.
 
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
 - dual-page/facing-page layout (the current page is shown alone);
@@ -86,4 +86,4 @@ The normal renderer remains the default when neither test variable is enabled. T
 9. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
 10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
-This remains an experimental single-page path, not a replacement for the existing renderer. The user has build-tested and device-tested the current single-page rendering, zoom, and panning path, but this does not validate page-edge transitions, dual-page spreads, overlays, complete mirroring coverage, or performance. Keep the experiment isolated until those areas are migrated and tested, then compare complexity and behaviour against the existing renderer before considering any merge.
+This remains an experimental single-page path, not a replacement for the existing renderer. The user has build-tested and device-tested the current single-page rendering, zoom, panning, and page-edge transitions. Dual-page spreads, overlays, complete mirroring coverage, and performance remain outstanding. Keep the experiment isolated until those areas are migrated and tested, then compare complexity and behaviour against the existing renderer before considering any merge.

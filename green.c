@@ -544,6 +544,12 @@ pb_open_result Green_Open( Green_RTD *rtd, const char *filename, char *message, 
 	doc->finescale = 1;
 	doc->bb = rtd->bb;
 	RestoreLastPage( doc );
+	/* Command-line reader rotation takes precedence over saved document state. */
+	if (rtd->startup_rotation_set) {
+		doc->rotation = ((rtd->startup_rotation % 4) + 4) % 4;
+		doc->xoffset = 0;
+		doc->yoffset = 0;
+	}
 	rtd->doc = doc;
 	return PB_OPEN_OK;
 }

@@ -92,6 +92,7 @@ static Uint32	g_list_nav_next = 0;
 #define PAGE_INDICATOR_DURATION_MS	1200
 static int	g_page_indicator_page = -1;
 static Uint32	g_page_indicator_until = 0;
+static int	g_overlay_rotation = 0;
 
 static bool	g_help_active = false;
 /* Manual override for devices whose physical rotation direction differs. */
@@ -272,9 +273,25 @@ static void ZoomSpread(Green_RTD *rtd, int vw, int vh, double new_fs)
 static int	ViewWidth( Green_RTD *rtd );
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
+
+static void RenderHelp(SDL_Surface *display)
+{
+	SDL_Surface *overlay;
+	if (!g_help_active) return;
+	overlay = CreateOverlaySurface(display, g_overlay_rotation);
+	if (!overlay) {
+		RenderHelpContent(display);
+		return;
+	}
+	RenderHelpContent(overlay);
+	CompositeOverlay(display, overlay, g_overlay_rotation);
+	SDL_FreeSurface(overlay);
+}
+
 static RState	HelpInput( Uint8 button, unsigned short *flags );
 static void	HelpStepScroll( int dir, int max_scroll );
 static int	HelpMaxScroll( SDL_Surface *display );
+static int	HelpMaxScrollForHeight( int height );
 
 /* ---- SDL2 display ----
  * All drawing goes into g_fb, an off-screen XRGB8888 surface (so the PDF backend can render straight into it,
@@ -319,6 +336,49 @@ static int	CreateFramebuffer( int w, int h )
 static Uint8	*DstPixel( SDL_Surface *d, int lx, int ly )
 {
 	return (Uint8 *)d->pixels + ly * d->pitch + lx * d->format->BytesPerPixel;
+}
+
+/* Overlay surfaces use the reader's logical orientation. PDF content is already
+ * rendered in rotated device space, so UI layers must be rotated separately. */
+static SDL_Surface *CreateOverlaySurface(SDL_Surface *display, int rotation)
+{
+	int w = (rotation & 1) ? display->h : display->w;
+	int h = (rotation & 1) ? display->w : display->h;
+	SDL_Surface *overlay = SDL_CreateRGBSurfaceWithFormat(0, w, h, 32, display->format->format);
+	if (overlay) {
+		Uint32 key = SDL_MapRGB(overlay->format, 0xFF, 0x00, 0xFF);
+		SDL_FillRect(overlay, NULL, key);
+		SDL_SetColorKey(overlay, SDL_TRUE, key);
+	}
+	return overlay;
+}
+
+static void CompositeOverlay(SDL_Surface *display, SDL_Surface *overlay, int rotation)
+{
+	Uint32 key = SDL_MapRGB(overlay->format, 0xFF, 0x00, 0xFF);
+	int x, y;
+	for (y = 0; y < overlay->h; y++) {
+		Uint32 *src = (Uint32 *)((Uint8 *)overlay->pixels + y * overlay->pitch);
+		for (x = 0; x < overlay->w; x++) {
+			int dx, dy;
+			if (src[x] == key) continue;
+			switch (rotation & 3) {
+			case 1: dx = display->w - 1 - y; dy = x; break;
+			case 2: dx = display->w - 1 - x; dy = display->h - 1 - y; break;
+			case 3: dx = y; dy = display->h - 1 - x; break;
+			default: dx = x; dy = y; break;
+			}
+			if (dx >= 0 && dx < display->w && dy >= 0 && dy < display->h) {
+				Uint32 *dst = (Uint32 *)((Uint8 *)display->pixels + dy * display->pitch);
+				dst[dx] = src[x];
+			}
+		}
+	}
+}
+
+static int OrientedDisplayHeight(SDL_Surface *display, int rotation)
+{
+	return (rotation & 1) ? display->w : display->h;
 }
 
 static void	Present( void )
@@ -913,6 +973,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	else SDL_FillRect(display, &rect, SDL_MapRGB(display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b));
 	if (!Green_IsDocValid(rtd)) { Present(); return 0; }
 	doc = rtd->doc;
+	g_overlay_rotation = doc->rotation & 3;
 	if (rtd->side_by_side && doc->page_count > 1) {
 		int lp, rp, lw, lh, rw, rh;
 		if (GetSpreadMetrics(rtd, display->w, display->h, &tscale, &lp, &rp, &lw, &lh, &rw, &rh)) {
@@ -941,28 +1002,34 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 		rect.y = (display->h - rect.h) / 2;
 		RenderPage(rtd, rect, doc->xoffset, doc->yoffset, doc->page_cur, tscale, failed_page);
 	}
-	RenderTOC(display, rtd); RenderHelp(display);
+	RenderTOC(display, rtd);
+	RenderHelp(display);
 	if (g_state == NORMAL && g_page_indicator_until
 		&& !SDL_TICKS_PASSED(SDL_GetTicks(), g_page_indicator_until))
 	{
-		char label[64];
-		int first = doc->page_cur, last = first, box_w;
-		SDL_Rect box;
-		Uint32 bg = SDL_MapRGB(display->format, 0x18, 0x18, 0x20);
-		Uint32 fg = SDL_MapRGB(display->format, 0xF0, 0xF0, 0xF0);
-		if (rtd->side_by_side && doc->page_count > 1)
-		{
-			first = (doc->page_cur / 2) * 2;
-			last = first + 1;
+		SDL_Surface *overlay = CreateOverlaySurface(display, g_overlay_rotation);
+		if (overlay) {
+			char label[64];
+			int first = doc->page_cur, last = first, box_w;
+			SDL_Rect box;
+			Uint32 bg = SDL_MapRGB(overlay->format, 0x18, 0x18, 0x20);
+			Uint32 fg = SDL_MapRGB(overlay->format, 0xF0, 0xF0, 0xF0);
+			if (rtd->side_by_side && doc->page_count > 1) {
+				first = (doc->page_cur / 2) * 2;
+				last = first + 1;
+			}
+			if (last < doc->page_count && last != first)
+				snprintf(label, sizeof(label), "%d-%d / %d", first + 1, last + 1, doc->page_count);
+			else
+				snprintf(label, sizeof(label), "%d / %d", first + 1, doc->page_count);
+			/* DrawString advances 12 pixels per character (5x7 doubled glyphs). */
+			box_w = (int)strlen(label) * 12 + 16;
+			box.x = (overlay->w - box_w) / 2; box.y = 8; box.w = box_w; box.h = 24;
+			SDL_FillRect(overlay, &box, bg);
+			DrawString(overlay, box.x + 8, box.y + 5, label, fg);
+			CompositeOverlay(display, overlay, g_overlay_rotation);
+			SDL_FreeSurface(overlay);
 		}
-		if (last < doc->page_count && last != first)
-			snprintf(label, sizeof(label), "%d-%d / %d", first + 1, last + 1, doc->page_count);
-		else
-			snprintf(label, sizeof(label), "%d / %d", first + 1, doc->page_count);
-		box_w = (int)strlen(label) * 6 + 16;
-		box.x = (display->w - box_w) / 2; box.y = 8; box.w = box_w; box.h = 22;
-		SDL_FillRect(display, &box, bg);
-		DrawString(display, box.x + 8, box.y + 7, label, fg);
 	}
 	Present();
 	return *failed_page >= 0 ? -1 : 0;
@@ -1181,16 +1248,16 @@ static void	HelpStepScroll( int dir, int max_scroll )
 		g_help_scroll--;
 }
 
-static int	HelpMaxScroll( SDL_Surface *display )
+static int HelpMaxScrollForHeight(int height)
 {
-	int	line_h = 16, y0 = 48, visible;
-	
-	visible = (display->h - y0 - 8) / line_h;
-	if (visible < 1)
-		visible = 1;
-	if (HELP_LINE_COUNT <= visible)
-		return 0;
-	return HELP_LINE_COUNT - visible;
+	int line_h = 16, y0 = 48, visible = (height - y0 - 8) / line_h;
+	if (visible < 1) visible = 1;
+	return HELP_LINE_COUNT > visible ? HELP_LINE_COUNT - visible : 0;
+}
+
+static int HelpMaxScroll(SDL_Surface *display)
+{
+	return HelpMaxScrollForHeight(display->h);
 }
 
 static RState	OpenHelpPanel( unsigned short *flags )
@@ -1211,7 +1278,7 @@ static RState	OpenHelpPanel( unsigned short *flags )
 	return HELP;
 }
 
-static void	RenderHelp( SDL_Surface *display )
+static void RenderHelpContent(SDL_Surface *display)
 {
 	SDL_Rect	panel;
 	int		x0, y0, line_h, visible, i, max_scroll;
@@ -1271,7 +1338,7 @@ static void	RenderHelp( SDL_Surface *display )
 static RState	HelpInput( Uint8 button, unsigned short *flags )
 {
 	SDL_Surface *display = DrawSurface();
-	int max_scroll = HelpMaxScroll( display );
+	int max_scroll = HelpMaxScrollForHeight(OrientedDisplayHeight(display, g_overlay_rotation));
 	switch (button)
 	{
 		case SDL_CONTROLLER_BUTTON_B:
@@ -1551,7 +1618,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 			else if (g_state == TOC)
 				TOCStepSel(g_list_nav_dir);
 			else if (g_state == HELP)
-				HelpStepScroll(g_list_nav_dir, HelpMaxScroll(display));
+				HelpStepScroll(g_list_nav_dir, HelpMaxScrollForHeight(OrientedDisplayHeight(display, g_overlay_rotation)));
 			g_list_nav_next = SDL_GetTicks() + LIST_NAV_RATE_MS;
 			flags |= FLAG_RENDER;
 		}

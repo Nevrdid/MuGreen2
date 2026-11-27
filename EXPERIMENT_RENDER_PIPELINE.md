@@ -56,6 +56,8 @@ This stage still uses one page at a time. Page-edge transitions and preserving t
 
 The logical-PDF probe now supports the existing X/Y zoom buttons. Zoom is calculated against the logical framebuffer and keeps the page point under the viewport centre anchored as the scale changes. It does not call the legacy rotation-aware zoom routine. Zoom is bounded to the same 0.05–20.0 fine-scale range used by document state.
 
+**Device result:** the user built and tested the probe. X/Y zoom in/out, viewport-centred zoom, horizontal panning after zooming, and panning at 90° and 270° all work. The user also confirmed that zoom remains available after resetting the view and after changing reader rotation. The framebuffer pointer is refreshed after rendering because rotation can recreate the logical framebuffer.
+
 This is intentionally a single-page rendering probe. It does **not** yet migrate or validate:
 - page-edge transitions or page-change scroll anchoring;
 - zoom anchoring beyond the viewport-centre zoom implemented in Stage 4;
@@ -77,4 +79,4 @@ The normal renderer remains the default when neither test variable is enabled. T
 8. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
 9. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
-This stage is not a replacement for the existing renderer and must not be merged based only on the test-pattern result. Build and device verification are still required before proceeding to page-edge transitions, spreads, or overlays.
+This remains an experimental single-page path, not a replacement for the existing renderer. The user has build-tested and device-tested the current single-page rendering, zoom, and panning path, but this does not validate page-edge transitions, dual-page spreads, overlays, complete mirroring coverage, or performance. Keep the experiment isolated until those areas are migrated and tested, then compare complexity and behaviour against the existing renderer before considering any merge.

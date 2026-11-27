@@ -933,7 +933,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 
 	fit_doc.rotation = 0;
 	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
-	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0, &page_w, &page_h))
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		return 0;
 
 	/* Inverse of the clockwise whole-frame presentation rotation. */
@@ -984,7 +984,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			doc->xoffset = 0;
 			doc->yoffset = 0;
 			if (page_delta < 0
-				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
+				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 
 					&page_w, &page_h)
 				&& page_w > display->w)
 				doc->xoffset = page_w - display->w;
@@ -1024,8 +1024,8 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	old_scale = base_scale * doc->finescale;
 	new_scale = base_scale * new_fs;
 	if (old_scale <= 0.0 || new_scale <= 0.0
-		|| pb_device_size(doc->doc, doc->page_cur, (float)old_scale, 0, &old_page_w, &old_page_h)
-		|| pb_device_size(doc->doc, doc->page_cur, (float)new_scale, 0, &new_page_w, &new_page_h))
+		|| pb_device_size(doc->doc, doc->page_cur, (float)old_scale,  &old_page_w, &old_page_h)
+		|| pb_device_size(doc->doc, doc->page_cur, (float)new_scale,  &new_page_w, &new_page_h))
 		return 0;
 
 	old_page_x = old_page_w < display->w ? (display->w - old_page_w) / 2.0 : -old_x;
@@ -1116,8 +1116,8 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
             break;
     }
     *scale = base_scale * doc->finescale;
-    if (pb_device_size(doc->doc, *lp, (float)*scale, 0, lw, lh)
-        || pb_device_size(doc->doc, *rp, (float)*scale, 0, rw, rh))
+    if (pb_device_size(doc->doc, *lp, (float)*scale,  lw, lh)
+        || pb_device_size(doc->doc, *rp, (float)*scale,  rw, rh))
         return 0;
     return 1;
 }
@@ -1252,7 +1252,7 @@ static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
     int y2 = py + ph > display->h ? display->h : py + ph;
     const char *error;
     if (x1 >= x2 || y1 >= y2) return;
-    if (!pb_render(rtd->doc->doc, page, (float)scale, 0, 0, rtd->night,
+    if (!pb_render(rtd->doc->doc, page, (float)scale,  rtd->night,
         x1 - px, y1 - py, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
         DstPixel(display, x1, y1), display->pitch)) {
         g_rendered_content_this_frame = true;
@@ -1321,7 +1321,7 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 
 	fit_doc.rotation = 0;
 	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
-	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0, &page_w, &page_h))
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		error = pb_error_message(doc->doc);
 	if (error)
 		goto render_error;
@@ -1343,7 +1343,7 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 	x2 = page_x + page_w > display->w ? display->w : page_x + page_w;
 	y2 = page_y + page_h > display->h ? display->h : page_y + page_h;
 	if (x1 < x2 && y1 < y2
-		&& pb_render(doc->doc, doc->page_cur, (float)scale, 0, 0, rtd->night,
+		&& pb_render(doc->doc, doc->page_cur, (float)scale,  rtd->night,
 			x1 - page_x, y1 - page_y, x2 - x1, y2 - y1, PB_FMT_XRGB8888,
 			DstPixel(display, x1, y1), display->pitch))
 		error = pb_error_message(doc->doc);
@@ -1504,7 +1504,7 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 	fit_doc.rotation = 0;
 	scale = Green_Fit(&fit_doc, display->w, display->h) * doc->finescale;
 	doc->xoffset = doc->yoffset = 0;
-	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 0,
+	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 
 		&page_w, &page_h))
 		return;
 	max_x = page_w > display->w ? page_w - display->w : 0;
@@ -1570,7 +1570,7 @@ static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
 		fit_doc.rotation = 0;
 		if (pb_device_size(doc->doc, doc->page_cur,
 			(float)(Green_Fit(&fit_doc, DrawSurface()->w, DrawSurface()->h)
-				* doc->finescale), 0, &page_w, &page_h))
+				* doc->finescale),  &page_w, &page_h))
 		{
 			*flags |= FLAG_RENDER;
 			return;

@@ -134,7 +134,6 @@ int	main( int argc, char *argv[] )
 	rtd.fit_method = WIDTH;
 	rtd.step = 0.9;
 	rtd.zoomstep = 1.2;	/* ~20% per zoom click */
-	rtd.bb = 0x04;
 	rtd.side_by_side = 0;
 	rtd.spread_vertical = false;
 	rtd.xbox_layout = true;

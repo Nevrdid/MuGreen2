@@ -2,7 +2,8 @@
 *.o
 mugreen2
 
-# MuPDF build workspace and generated prefix
+# MuPDF build workspace and generated prefixes
+mupdf/
 mupdf-build/
 prefix/
 *.a

@@ -141,6 +141,7 @@ Exactly one PDF path is required. Options may be placed before or after the path
 | `-step=<fraction>` | Scroll step as a fraction of the viewport (default: `0.9`, leaving 10% overlap) |
 | `-zoomstep=<fraction>` | Zoom increment above 1 (default: `1/5`, i.e. 20%) |
 | `-controller-layout=nintendo\|xbox` | Select Nintendo-labelled (default) or Xbox face-button layout; Xbox swaps A/B and X/Y |
+| `-no-control-rotation` | Keep controller directions and face-button actions fixed when the reader rotates |
 | `-fullscreen` | Start fullscreen |
 | `-no-fullscreen` | Start windowed |
 | `-width=<pixels>` | Initial window width (`0`–`65535`); `0` uses the display width |

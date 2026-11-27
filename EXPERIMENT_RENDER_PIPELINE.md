@@ -41,7 +41,7 @@ The old `GREEN_ROTATE180`, `GREEN_TEST_LOGICAL_FRAME` and `GREEN_TEST_LOGICAL_PD
 
 ## Rotation-aware controller mapping
 
-Implemented on this branch; build and handheld verification are pending. The input layer applies the face-button permutation and D-pad rotation once, before routing events to the reader, TOC, help panel, and Select shortcuts. The Xbox layout swap is applied before reader rotation. Verify all four reader rotations, both layouts, and press/release behaviour on the handheld.
+Implemented on this branch; build and handheld verification are pending. The input layer applies the face-button permutation and D-pad rotation once, before routing events to the reader, TOC, help panel, and Select shortcuts. The Xbox layout swap is applied before reader rotation. `-no-control-rotation` disables the reader-rotation mapping while retaining the selected Nintendo/Xbox face-button convention. Mirror axis is now stored independently from reader rotation, preventing mirror shortcuts from rotating the UI or changing controller orientation. Document-state format 2 stores the mirror axis; format 1 states remain readable with the legacy axis default. Build and handheld verification are pending.
 
 ## Temporary action feedback
 

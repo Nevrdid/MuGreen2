@@ -254,14 +254,8 @@ static Uint8	*DstPixel( SDL_Surface *d, int lx, int ly )
 	return (Uint8 *)d->pixels + ly * d->pitch + lx * d->format->BytesPerPixel;
 }
 
-/* Overlay surfaces use the reader's logical orientation. PDF content is already
- * rendered in rotated device space, so UI layers must be rotated separately. */
-
-
-
-
-
-
+/* PDF content and UI are composed in logical coordinates. Present() applies
+ * the same final reader/display rotation to both layers. */
 static void	Present( void )
 {
 	int ow, oh;
@@ -391,12 +385,6 @@ static const unsigned char bitmap_font[][7] = {
 	{0x0C,0x02,0x02,0x01,0x02,0x02,0x0C}, // 125: }
 	{0x00,0x08,0x15,0x02,0x00,0x00,0x00}  // 126: ~
 };
-
-
-/* Draw the window [xoff,xoff+dest.w) x [yoff,yoff+dest.h) of page page_num into the display at dest.
- * green keeps its scroll offsets in UNROTATED page space, the backend works in device (rotated) space,
- * so the window origin is converted here. */
-void DrawString( SDL_Surface *display, int x, int y, const char *str, Uint32 color );
 
 
 // Draw a single character using bitmap font

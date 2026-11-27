@@ -41,6 +41,7 @@ GREEN_TEST_LOGICAL_PDF=1 GREEN_ROTATE180=1 ./mugreen2 /path/to/document.pdf
 In this probe:
 - **B** rotates the reader clockwise (the existing implementation's rotation binding).
 - **L1 / R1** move to the previous / next page.
+- **L2 / R2** are ignored in this probe; the normal ten-page skip action is intentionally disabled.
 - **A** resets the page to the width-fit view.
 - Zoom shortcuts are disabled in this probe because the existing zoom-anchor calculations still assume the physical/rotated viewport.
 - Mirroring is translated to a pre-presentation SDL flip so its existing post-rotation vertical-mirror result can be retained.

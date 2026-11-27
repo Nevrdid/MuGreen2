@@ -191,7 +191,7 @@ int	main( int argc, char *argv[] )
 		
 		if (err)
 		{
-			fprintf( stderr, "Unknown option!\n" );
+			fprintf( stderr, "MuGreen2: invalid option or value: %s\n", argv[i] );
 			PrintHelp();
 			return GREEN_EXIT_USAGE;
 		}

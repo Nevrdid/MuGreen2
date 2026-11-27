@@ -111,7 +111,8 @@ static const char	*g_help_lines[] = {
 	"",
 	"D-pad          Scroll / navigate; hold to repeat",
 	"B              Fit page to width / select TOC entry",
-	"A              Rotate right / close overlay",
+	"Select+Left    Rotate clockwise",
+	"Select+Right   Rotate anti-clockwise",
 	"X / Y          Zoom in / zoom out",
 	"L1 / R1        Previous / next page",
 	"L2 / R2        Jump -10 / +10 pages (optional)",
@@ -2208,11 +2209,6 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 					if (ScrollLogicalPDFSpread(rtd, display, button)) *flags |= FLAG_RENDER;
 				} else if (ScrollLogicalPDFPage(rtd, display, button)) *flags |= FLAG_RENDER;
 				break;
-			case SDL_CONTROLLER_BUTTON_B:
-				Green_RotateRight(doc);
-				doc->xoffset = doc->yoffset = 0;
-				*flags |= FLAG_RENDER;
-				break;
 			case SDL_CONTROLLER_BUTTON_A:
 				doc->fit_method = WIDTH;
 				doc->finescale = 1;
@@ -2263,16 +2259,6 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			doc->xoffset = doc->yoffset = 0;
 			*flags |= FLAG_RENDER;
 			break;
-		case SDL_CONTROLLER_BUTTON_B:
-			if (!doc)
-				break;
-			Green_RotateRight(doc);
-			if (rtd->side_by_side && doc->page_count > 1) {
-				doc->xoffset = doc->yoffset = 0;
-				ClampSpreadOffset(rtd, display->w, display->h);
-			} else Green_ValidateOffset(doc, display->w, display->h);
-			*flags |= FLAG_RENDER;
-			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			if (!doc) break;
 			if (rtd->side_by_side && doc->page_count > 1) {
@@ -2304,6 +2290,23 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			rtd->night = !rtd->night;
 			Green_SaveSettings(rtd);
 			*flags |= FLAG_RENDER;
+			break;
+		case SDL_CONTROLLER_BUTTON_DPAD_LEFT:
+		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
+			if (doc) {
+				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT)
+					Green_RotateRight(doc);
+				else
+					Green_RotateLeft(doc);
+				doc->xoffset = doc->yoffset = 0;
+				if (!g_logical_pdf_test) {
+					if (rtd->side_by_side && doc->page_count > 1)
+						ClampSpreadOffset(rtd, display->w, display->h);
+					else
+						Green_ValidateOffset(doc, display->w, display->h);
+				}
+				*flags |= FLAG_RENDER;
+			}
 			break;
 		case SDL_CONTROLLER_BUTTON_DPAD_UP:
 			if (g_logical_pdf_test && doc && rtd->side_by_side && doc->page_count > 1) {
@@ -2616,7 +2619,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					{
 						if (button == SDL_CONTROLLER_BUTTON_B || button == SDL_CONTROLLER_BUTTON_X
 							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_DPAD_UP
-			|| button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
+							|| button == SDL_CONTROLLER_BUTTON_DPAD_DOWN
+							|| button == SDL_CONTROLLER_BUTTON_DPAD_LEFT || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT
 							|| button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER || button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
 						{
 							g_select_chord_used = true;

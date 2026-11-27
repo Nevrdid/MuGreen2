@@ -573,6 +573,22 @@ void	Green_SaveAllLastPages( Green_RTD *rtd )
 	return;
 }
 
+void Green_LogMessage( const char *message )
+{
+	char path[PATH_MAX + 32];
+	const char *directory = GetDataDirectory();
+	FILE *file;
+
+	if (!directory || !message || !*message
+		|| snprintf( path, sizeof( path ), "%s/mugreen2.log", directory ) >= (int)sizeof( path ))
+		return;
+	file = fopen( path, "a" );
+	if (!file)
+		return;
+	fprintf( file, "%s\\n", message );
+	fclose( file );
+}
+
 static char *SettingsPath( void )
 {
 	static char path[PATH_MAX + 32];

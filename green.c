@@ -585,7 +585,7 @@ void Green_LogMessage( const char *message )
 	file = fopen( path, "a" );
 	if (!file)
 		return;
-	fprintf( file, "%s\\n", message );
+	fprintf( file, "%s\n", message );
 	fclose( file );
 }
 

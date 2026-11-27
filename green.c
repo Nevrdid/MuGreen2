@@ -261,7 +261,8 @@ static bool LoadDocumentState( Green_Document *doc )
 	fclose( file );
 	free( legacy_uri );
 	if (page < 1 || page > doc->page_count
-		|| scale <= 0 || mirrored < 0 || mirrored > 1
+		|| scale <= 0 || rotation < 0 || rotation > 3
+		|| mirrored < 0 || mirrored > 1
 		|| fit < NATURAL || fit > PAGE)
 		return false;
 

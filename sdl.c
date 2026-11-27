@@ -769,12 +769,9 @@ static int IsDpadButton(Uint8 button)
 		|| button == SDL_CONTROLLER_BUTTON_DPAD_LEFT || button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
 }
 
-/* Convert SDL GameController button IDs into the reader's logical controls.
- * Temporary diagnostics report each face-button mapping so the physical
- * controller mapping, layout normalisation and rotation can be checked. */
+/* Convert SDL GameController button IDs into the reader's logical controls. */
 static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 {
-	Uint8 raw_button = button;
 	int rotation = (rtd->controls_rotate && Green_IsDocValid(rtd)) ? (rtd->doc->rotation & 3) : 0;
 
 	if (rtd->xbox_layout)
@@ -785,7 +782,6 @@ static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 		else if (button == SDL_CONTROLLER_BUTTON_Y) button = SDL_CONTROLLER_BUTTON_X;
 	}
 
-	Uint8 layout_button = button;
 	switch (rotation)
 	{
 		case 1:
@@ -828,15 +824,6 @@ static Uint8 MapControllerButton(Green_RTD *rtd, Uint8 button)
 			break;
 	}
 
-	if (raw_button == SDL_CONTROLLER_BUTTON_A || raw_button == SDL_CONTROLLER_BUTTON_B
-		|| raw_button == SDL_CONTROLLER_BUTTON_X || raw_button == SDL_CONTROLLER_BUTTON_Y)
-	{
-		SDL_Log("MuGreen2 button map: raw=%s(%u), layout=%s(%u), rotation=%d, logical=%s(%u)",
-			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)raw_button), raw_button,
-			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)layout_button), layout_button,
-			rotation,
-			SDL_GameControllerGetStringForButton((SDL_GameControllerButton)button), button);
-	}
 	return button;
 }
 

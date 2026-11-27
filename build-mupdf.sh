@@ -44,7 +44,7 @@ case "$ARCH" in
 esac
 case "$MUPDF_PREFIX" in
  "$SYSROOT"|"$SYSROOT"/usr|"$SYSROOT"/usr/)
-  if [ "${ALLOW_SYSROOT_PREFIX:-0}" != 1 ]; then echo "PREFIX is inside the sysroot; use a separate prefix." >&2; exit 1; fi ;;
+  if [ "${ALLOW_SYSROOT_PREFIX:-0}" != 1 ]; then echo "MUPDF_PREFIX is inside the sysroot; use a separate prefix." >&2; exit 1; fi ;;
 esac
 SYSROOT_FLAG=
 if [ -n "$SYSROOT" ]; then SYSROOT_FLAG="--sysroot=$SYSROOT"; fi

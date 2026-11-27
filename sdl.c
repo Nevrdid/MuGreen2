@@ -832,60 +832,64 @@ static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h )
 static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 {
 	Green_Document *doc = rtd->doc;
-	int max_x, max_y, doc_max_y, doc_dy, page_step, next_page = 0;
+	int max_x, max_y, doc_max_x, doc_max_y, doc_dy, page_step, next_page = 0;
 	int rotation = doc->rotation & 3;
 
 	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
+	doc_max_x = (rotation & 1) ? max_y : max_x;
 	doc_max_y = (rotation & 1) ? max_x : max_y;
 
 	if (sx)
 	{
 		int old_x = doc->xoffset, old_y = doc->yoffset;
 
-		int old_page = doc->page_cur;
-		int moved;
-
 		/* Let Green apply the rotated/mirrored scroll transform and clamp the
 		 * offsets. A horizontal edge is reached when that scroll cannot move. */
 		Green_ScrollRelative( doc, sx, 0, w, h, 0 );
-		moved = doc->xoffset != old_x || doc->yoffset != old_y;
-		fprintf( stderr,
-			"[MuGreen2 nav] rotation=%d mirrored=%d sx=%d page=%d "
-			"offset=(%d,%d)->(%d,%d) scroll_region=(%d,%d) moved=%d\n",
-			rotation, doc->mirrored, sx, old_page, old_x, old_y,
-			doc->xoffset, doc->yoffset, max_x, max_y, moved );
-		if (moved)
+		if (doc->xoffset != old_x || doc->yoffset != old_y)
 			return 1;
 
 		/* Left goes backward at 0/270 degrees, forward at 90/180. */
 		next_page = sx < 0
 			? ((rotation == 1 || rotation == 2) ? 1 : -1)
 			: ((rotation == 1 || rotation == 2) ? -1 : 1);
-		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+	}
+	else if (rotation & 1)
+	{
+		int old_x = doc->xoffset, old_y = doc->yoffset;
+		int top_border, bottom_border;
+
+		/* At 90/270 degrees, Up/Down moves the document's X offset. */
+		Green_ScrollRelative( doc, 0, sy, w, h, 0 );
+		if (doc->xoffset != old_x || doc->yoffset != old_y)
+			return 1;
+
+		if (rotation == 1)
 		{
-			int target_page = old_page + next_page * page_step;
-			int changed = Green_GotoPage( doc, target_page, false );
-			fprintf( stderr,
-				"[MuGreen2 nav] edge reached: direction=%d step=%d target=%d "
-				"goto_result=%d\n",
-				next_page, page_step, target_page, changed );
-			if (!changed)
-				return 0;
+			top_border = doc->mirrored
+				? doc->xoffset == doc_max_x : doc->xoffset == 0;
+			bottom_border = doc->mirrored
+				? doc->xoffset == 0 : doc->xoffset == doc_max_x;
+		}
+		else
+		{
+			top_border = doc->mirrored
+				? doc->xoffset == 0 : doc->xoffset == doc_max_x;
+			bottom_border = doc->mirrored
+				? doc->xoffset == doc_max_x : doc->xoffset == 0;
 		}
 
-		/* The beginning of a page is always its unrotated top-left corner. */
-		doc->xoffset = 0;
-		doc->yoffset = 0;
-		Green_ValidateOffset( doc, w, h );
-		return 1;
+		/* Match Green's rotated top/bottom reading edges. */
+		if (sy < 0 && top_border)
+			next_page = -1;
+		else if (sy > 0 && bottom_border)
+			next_page = 1;
 	}
 	else
 	{
 		switch (rotation)
 		{
-			case 1: doc_dy = 0; break;
 			case 2: doc_dy = doc->mirrored ? sy : -sy; break;
-			case 3: doc_dy = 0; break;
 			default: doc_dy = doc->mirrored ? -sy : sy; break;
 		}
 
@@ -894,22 +898,26 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			next_page = 1;
 		else if (doc_dy < 0 && doc->yoffset <= 0)
 			next_page = -1;
-
-		if (next_page)
+		else
 		{
-			page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
-			if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
-				return 0;
-
-			Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
-			doc_max_y = (rotation & 1) ? max_x : max_y;
-			doc->yoffset = doc_dy > 0 ? 0 : doc_max_y;
-			Green_ValidateOffset( doc, w, h );
+			Green_ScrollRelative( doc, 0, sy, w, h, 0 );
 			return 1;
 		}
 	}
 
-	Green_ScrollRelative( doc, sx, sy, w, h, 0 );
+	if (next_page)
+	{
+		page_step = rtd->side_by_side && doc->page_count > 1 ? 2 : 1;
+		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
+			return 0;
+
+		/* Every page turn starts at the unrotated top-left corner. */
+		doc->xoffset = 0;
+		doc->yoffset = 0;
+		Green_ValidateOffset( doc, w, h );
+		return 1;
+	}
+
 	return 1;
 }
 

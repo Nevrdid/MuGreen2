@@ -2198,7 +2198,8 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			if (doc && rtd->side_by_side && doc->page_count > 1) {
 				g_spread_order_reversed = !g_spread_order_reversed;
 				doc->xoffset = doc->yoffset = 0;
-				ClampSpreadOffset(rtd, display->w, display->h);
+				if (!g_logical_pdf_test)
+					ClampSpreadOffset(rtd, display->w, display->h);
 				*flags |= FLAG_RENDER;
 			}
 			break;
@@ -2218,7 +2219,15 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			rtd->side_by_side = !rtd->side_by_side;
-			if (doc) { doc->xoffset = doc->yoffset = 0; if (rtd->side_by_side && doc->page_count > 1) ClampSpreadOffset(rtd, display->w, display->h); else Green_ValidateOffset(doc, display->w, display->h); }
+			if (doc) {
+				doc->xoffset = doc->yoffset = 0;
+				if (!g_logical_pdf_test) {
+					if (rtd->side_by_side && doc->page_count > 1)
+						ClampSpreadOffset(rtd, display->w, display->h);
+					else
+						Green_ValidateOffset(doc, display->w, display->h);
+				}
+			}
 			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER; break;
 		default: break;

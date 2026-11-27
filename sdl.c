@@ -1346,7 +1346,7 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     int lp, rp, lw, lh, rw, rh, vertical, max_x, max_y, spread_w, spread_h;
     double scale;
     int pair = (doc->page_cur / 2) * 2;
-    int step = (rtd->right_to_left ? -2 : 2) * (page_delta > 0 ? 1 : -1);
+    int step = page_delta * 2;
     if (!page_delta || !Green_GotoPage(doc, pair + step, true)) return 0;
     if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
         &lw, &lh, &rw, &rh, &vertical)) return 1;

@@ -86,7 +86,7 @@ The normal renderer remains the default when neither test variable is enabled. T
 9. Repeat with `GREEN_ROTATE180=1` and confirm it adds only the physical panel correction.
 10. Confirm the ordinary renderer still behaves exactly as before when both test variables are unset.
 
-This remains an experimental single-page path, not a replacement for the existing renderer. The user has build-tested and device-tested the current single-page rendering, zoom, panning, and page-edge transitions. Dual-page spreads, overlays, complete mirroring coverage, and performance remain outstanding. Keep the experiment isolated until those areas are migrated and tested, then compare complexity and behaviour against the existing renderer before considering any merge.
+This remains an experimental rendering path, not a replacement for the existing renderer. Single-page rendering, zoom, panning, page-edge transitions, and facing-page spreads have been build-tested and device-tested by the user. The first UI-overlay layer is now implemented but still needs build/device verification. Complete mirror/rotation coverage and performance comparison remain outstanding. Keep the experiment isolated until those areas are validated, then compare complexity and behaviour against the existing implementation before considering any merge.
 
 
 ## Stage 6 — logical facing-page spreads

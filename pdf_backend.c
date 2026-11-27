@@ -367,10 +367,16 @@ static fz_matrix make_ctm(pb_doc *d, float scale, int *W, int *H)
 	float pw = d->bounds.x1 - d->bounds.x0;
 	float ph = d->bounds.y1 - d->bounds.y0;
 	fz_matrix m = fz_translate(-d->bounds.x0, -d->bounds.y0);
+	fz_rect r;
+	float fw, fh;
 
 	m = fz_concat(m, fz_scale(scale, scale));
-	*W = (int)ceilf(pw * scale);
-	*H = (int)ceilf(ph * scale);
+	r = fz_transform_rect(fz_make_rect(0, 0, pw, ph), m);
+	m = fz_concat(m, fz_translate(-r.x0, -r.y0));
+	fw = r.x1 - r.x0;
+	fh = r.y1 - r.y0;
+	*W = (int)ceilf(fw);
+	*H = (int)ceilf(fh);
 	if (*W < 1) *W = 1;
 	if (*H < 1) *H = 1;
 	return m;

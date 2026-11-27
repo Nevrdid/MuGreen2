@@ -91,6 +91,7 @@ static Uint32	g_list_nav_next = 0;
 
 static bool	g_help_active = false;
 static bool	g_has_presented_frame = false;
+static bool	g_rendered_content_this_frame = false;
 static int	g_help_scroll = 0;
 
 static const char	*g_help_lines[] = {
@@ -328,6 +329,8 @@ static int	RenderPage( Green_RTD *rtd, SDL_Rect dest, int xoff, int yoff,
 			doc->mirrored, rtd->night, xd, yd, w, h, PB_FMT_XRGB8888,
 			DstPixel(display, dest.x, dest.y), display->pitch))
 			error = pb_error_message(doc->doc);
+		else if (w > 0 && h > 0)
+			g_rendered_content_this_frame = true;
 		if (!error && pb_page_has_warnings(doc->doc, page_num))
 		{
 			SDL_Rect marker = { dest.x + dest.w - 18, dest.y + 4, 14, 14 };
@@ -759,6 +762,7 @@ static int	Render( Green_RTD *rtd, int *failed_page )
 	double tscale;
 	int w, h, w2, h2;
 	*failed_page = -1;
+	g_rendered_content_this_frame = false;
 	rect.x = rect.y = 0; rect.w = display->w; rect.h = display->h;
 	if (rtd->night) SDL_FillRect(display, &rect, SDL_MapRGB(display->format, 0x10, 0x10, 0x10));
 	else SDL_FillRect(display, &rect, SDL_MapRGB(display->format, rtd->c_background.r, rtd->c_background.g, rtd->c_background.b));
@@ -1307,7 +1311,7 @@ if (flags & FLAG_RENDER)
 			int failed_page = rtd->doc ? rtd->doc->page_cur : 0;
 			if (Render( rtd, &failed_page ))
 			{
-				if (!g_has_presented_frame)
+				if (!g_has_presented_frame && !g_rendered_content_this_frame)
 				{
 					if (rtd->side_by_side && rtd->doc->page_count > 1)
 					{

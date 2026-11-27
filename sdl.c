@@ -961,17 +961,22 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			|| page_h <= display->h))) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
-			/* The destination corner follows the actual page transition:
-			 * next starts top-left; previous starts top-right. This remains
-			 * correct when rotation or RTL reverses a physical button's delta. */
+			/* Choose the arrival corner from the logical D-pad direction,
+			 * independently of page order: Left/Up enters at the far edge,
+			 * Right/Down at the near edge. RTL affects which page is selected,
+			 * not the corner requested by the physical input direction. */
 			scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 			doc->xoffset = 0;
 			doc->yoffset = 0;
-			if (page_delta < 0
-				&& !pb_device_size(doc->doc, doc->page_cur, (float)scale, 
-					&page_w, &page_h)
-				&& page_w > display->w)
-				doc->xoffset = page_w - display->w;
+			if (!pb_device_size(doc->doc, doc->page_cur, (float)scale,
+				&page_w, &page_h)) {
+				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
+					&& page_w > display->w)
+					doc->xoffset = page_w - display->w;
+				else if (button == SDL_CONTROLLER_BUTTON_DPAD_UP
+					&& page_h > display->h)
+					doc->yoffset = page_h - display->h;
+			}
 			return 1;
 		}
 		/* At the first/last page, keep the view clamped at this edge. */

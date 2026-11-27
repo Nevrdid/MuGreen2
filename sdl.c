@@ -22,8 +22,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_gamecontroller.h>
+#include <SDL.h>
+#include <SDL_gamecontroller.h>
 #include "green.h"
 
 

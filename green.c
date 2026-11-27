@@ -73,6 +73,11 @@ static int EnsureDirectory( char *path )
 	return MakeDirectory( path );
 }
 
+static int UsableDirectory( char *path )
+{
+	return EnsureDirectory( path ) == 0 && access( path, W_OK | X_OK ) == 0 ? 0 : -1;
+}
+
 #ifndef PATH_MAX
 #define PATH_MAX 4096
 #endif
@@ -109,15 +114,16 @@ static char *GetDataDirectory( void )
 				free( cwd );
 			}
 		}
-		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+		if (n >= 0 && n < (int)sizeof( candidate ) && UsableDirectory( candidate ) == 0)
 			goto use_candidate;
+		fprintf( stderr, "MuGreen2: warning: MUGREEN2_DATA_DIR '%s' is unusable; trying default data directories.\\n", override );
 	}
 
 	xdg = getenv( "XDG_DATA_HOME" );
 	if (xdg && xdg[0] == '/')
 	{
 		n = snprintf( candidate, sizeof( candidate ), "%s/mugreen2", xdg );
-		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+		if (n >= 0 && n < (int)sizeof( candidate ) && UsableDirectory( candidate ) == 0)
 			goto use_candidate;
 	}
 
@@ -125,7 +131,7 @@ static char *GetDataDirectory( void )
 	if (home && home[0] == '/')
 	{
 		n = snprintf( candidate, sizeof( candidate ), "%s/.local/share/mugreen2", home );
-		if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+		if (n >= 0 && n < (int)sizeof( candidate ) && UsableDirectory( candidate ) == 0)
 			goto use_candidate;
 	}
 
@@ -141,7 +147,7 @@ static char *GetDataDirectory( void )
 		{
 			*slash = 0;
 			n = snprintf( candidate, sizeof( candidate ), "%s/.mugreen2-data", executable );
-			if (n >= 0 && n < (int)sizeof( candidate ) && EnsureDirectory( candidate ) == 0)
+			if (n >= 0 && n < (int)sizeof( candidate ) && UsableDirectory( candidate ) == 0)
 				goto use_candidate;
 		}
 	}
@@ -154,28 +160,47 @@ static char *GetDataDirectory( void )
 	return NULL;
 
 use_candidate:
-	if (snprintf( directory, sizeof( directory ), "%s", candidate ) >= (int)sizeof( directory))
+	strcpy( directory, candidate );
+	return directory;
+}
+
+static const char *GetDocumentsDirectory( void )
+{
+	static char directory[PATH_MAX];
+	static bool resolved = false;
+	const char *base;
+	int n;
+
+	if (resolved)
+		return directory[0] ? directory : NULL;
+	resolved = true;
+	base = GetDataDirectory();
+	if (!base)
 		return NULL;
+	n = snprintf( directory, sizeof( directory ), "%s/documents", base );
+	if (n < 0 || n >= (int)sizeof( directory ) || UsableDirectory( directory ))
+	{
+		directory[0] = 0;
+		fprintf( stderr, "MuGreen2: warning: document-state directory is not writable; document state will not be saved.\\n" );
+		return NULL;
+	}
 	return directory;
 }
 
 static char *DocumentStatePath( const char *uri, char *path, size_t size )
 {
-	char directory[PATH_MAX];
-	const char *base = GetDataDirectory();
+	const char *directory = GetDocumentsDirectory();
 	uint64_t h1, h2;
 	int n;
 
-	if (!uri || !*uri || !base)
-		return NULL;
-	n = snprintf( directory, sizeof( directory ), "%s/documents", base );
-	if (n < 0 || n >= (int)sizeof( directory ) || EnsureDirectory( directory ))
+	if (!uri || !*uri || !directory)
 		return NULL;
 
 	h1 = StateHash( uri, UINT64_C(14695981039346656037), UINT64_C(1099511628211) );
 	h2 = StateHash( uri, UINT64_C(7809847782465536322), UINT64_C(14029467366897019727) );
-	if (snprintf( path, size, "%s/%016llx%016llx.state", directory,
-		(unsigned long long)h1, (unsigned long long)h2 ) >= (int)size)
+	n = snprintf( path, size, "%s/%016llx%016llx.state", directory,
+		(unsigned long long)h1, (unsigned long long)h2 );
+	if (n < 0 || n >= (int)size)
 		return NULL;
 	return path;
 }
@@ -418,7 +443,7 @@ static char *PathToURI( const char *path )
 	return uri;
 }
 
-char* FilenameToURI( char *filename )
+static char *FilenameToURI( const char *filename )
 {
 	char *canonical, *cwd = NULL, *absolute = NULL, *uri;
 	size_t len;
@@ -480,10 +505,7 @@ int	Green_Open( Green_RTD *rtd, char *uri )
 	if (!doc)
 		return -1;
 	
-	if (!strncmp( uri, "file:", 5 ))
-		doc->uri = strdup( uri );
-	else
-		doc->uri = FilenameToURI( uri );
+	doc->uri = FilenameToURI( uri );
 	
 	if (!doc->uri)
 	{

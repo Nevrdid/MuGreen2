@@ -106,6 +106,7 @@ static const char	*g_help_lines[] = {
 	"Hotkey+X       Mirror horizontally",
 	"Hotkey+Y       Mirror vertically",
 	"Hotkey+L1      Toggle dual-page mode",
+	"Hotkey+R1      Toggle right-to-left manga reading",
 	"",
 	"In document TOC",
 	"",
@@ -747,15 +748,27 @@ void	Render( Green_RTD *rtd )
 	{
 		int left_page, right_page;
 		
-		// Book-style pairs: 1-2, 3-4, 5-6, etc.
-		// If current page is odd (1, 3, 5...), show current and next
-		// If current page is even (2, 4, 6...), show previous and current
-		if (doc->page_cur % 2 == 0) { // 0-indexed, so page 0 is page 1, page 1 is page 2
-			left_page = doc->page_cur;
-			right_page = doc->page_cur + 1;
-		} else {
-			left_page = doc->page_cur - 1;
-			right_page = doc->page_cur;
+		/* Keep page pairs in document order, but place the first page
+		 * on the right for right-to-left manga reading. */
+		if (doc->page_cur % 2 == 0)
+		{
+			if (rtd->right_to_left) {
+				left_page = doc->page_cur + 1;
+				right_page = doc->page_cur;
+			} else {
+				left_page = doc->page_cur;
+				right_page = doc->page_cur + 1;
+			}
+		}
+		else
+		{
+			if (rtd->right_to_left) {
+				left_page = doc->page_cur;
+				right_page = doc->page_cur - 1;
+			} else {
+				left_page = doc->page_cur - 1;
+				right_page = doc->page_cur;
+			}
 		}
 		
 		if (left_page >= 0 && right_page < doc->page_count)
@@ -819,13 +832,32 @@ static void	CloseCurrentFile( Green_RTD *rtd, unsigned short *flags )
 	*flags &= ~FLAG_RENDER;
 }
 
-/* Page turn keeps finescale + pan; clamp offsets to the new page */
-static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h )
+static void	SetPageStart( Green_Document *doc, bool right_to_left, int w, int h );
+
+/* Page turn keeps finescale + pan in normal mode; manga mode starts at top-right. */
+static int	GotoPageKeepView( Green_Document *doc, int page, int w, int h, bool right_to_left )
 {
 	if (!Green_GotoPage( doc, page, false ))
 		return 0;
-	Green_ValidateOffset( doc, w, h );
+	if (right_to_left)
+		SetPageStart( doc, true, w, h );
+	else
+		Green_ValidateOffset( doc, w, h );
 	return 1;
+}
+
+/* Position a newly selected page at the leading corner. Offsets are stored in
+ * unrotated document space, so this remains the original top-right corner
+ * regardless of the current display rotation. */
+static void	SetPageStart( Green_Document *doc, bool right_to_left, int w, int h )
+{
+	int max_x, max_y;
+	Green_GetScrollRegion( doc, w, h, &max_x, &max_y );
+	if (doc->rotation & 1)
+		max_x = max_y;
+	doc->xoffset = right_to_left ? max_x : 0;
+	doc->yoffset = 0;
+	Green_ValidateOffset( doc, w, h );
 }
 
 /* Scroll in screen directions and change pages at the corresponding edges. */
@@ -849,10 +881,12 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 		if (doc->xoffset != old_x || doc->yoffset != old_y)
 			return 1;
 
-		/* Left goes backward at 0/270 degrees, forward at 90/180. */
+		/* Convert the screen edge into document order, then apply reading direction. */
 		next_page = sx < 0
 			? ((rotation == 1 || rotation == 2) ? 1 : -1)
 			: ((rotation == 1 || rotation == 2) ? -1 : 1);
+		if (rtd->right_to_left)
+			next_page = -next_page;
 	}
 	else if (rotation & 1)
 	{
@@ -885,6 +919,8 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			next_page = rotation == 1 ? -1 : 1;
 		else if (sy > 0 && bottom_border)
 			next_page = rotation == 1 ? 1 : -1;
+		if (rtd->right_to_left)
+			next_page = -next_page;
 	}
 	else
 	{
@@ -899,6 +935,8 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 			next_page = 1;
 		else if (doc_dy < 0 && doc->yoffset <= 0)
 			next_page = -1;
+		if (rtd->right_to_left)
+			next_page = -next_page;
 		else
 		{
 			Green_ScrollRelative( doc, 0, sy, w, h, 0 );
@@ -912,10 +950,8 @@ static int	ScrollDocument( Green_RTD *rtd, int sx, int sy, int w, int h )
 		if (!Green_GotoPage( doc, doc->page_cur + next_page * page_step, false ))
 			return 0;
 
-		/* Every page turn starts at the unrotated top-left corner. */
-		doc->xoffset = 0;
-		doc->yoffset = 0;
-		Green_ValidateOffset( doc, w, h );
+		/* Start at the leading corner: top-left normally, top-right for manga. */
+		SetPageStart( doc, rtd->right_to_left, w, h );
 		return 1;
 	}
 
@@ -929,7 +965,7 @@ static void	SkipPages( Green_Document *doc, Green_RTD *rtd, int delta, int w, in
 	if (!doc)
 		return;
 	
-	page = doc->page_cur + delta;
+	page = doc->page_cur + (rtd->right_to_left ? -delta : delta);
 	if (page < 0)
 		page = 0;
 	else if (page >= doc->page_count)
@@ -1120,13 +1156,13 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
 			if (!doc) break;
-			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur - 2, vw, display->h )) break; }
-			else if (!GotoPageKeepView( doc, doc->page_cur - 1, vw, display->h )) break;
+			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? 2 : -2), vw, display->h, rtd->right_to_left )) break; }
+			else if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? 1 : -1), vw, display->h, rtd->right_to_left )) break;
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			if (!doc) break;
-			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + 2, vw, display->h )) break; }
-			else if (!GotoPageKeepView( doc, doc->page_cur + 1, vw, display->h )) break;
+			if (rtd->side_by_side) { if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? -2 : 2), vw, display->h, rtd->right_to_left )) break; }
+			else if (!GotoPageKeepView( doc, doc->page_cur + (rtd->right_to_left ? -1 : 1), vw, display->h, rtd->right_to_left )) break;
 			*flags |= FLAG_RENDER; break;
 		case SDL_CONTROLLER_BUTTON_START: return OpenTOCPanel( rtd, flags );
 		default: break;
@@ -1149,6 +1185,12 @@ static void	SelectChord( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			break;
 		case SDL_CONTROLLER_BUTTON_X:
 			if (doc) Green_MirrorV( doc );
+			*flags |= FLAG_RENDER;
+			break;
+		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
+			rtd->right_to_left = !rtd->right_to_left;
+			if (doc) SetPageStart( doc, rtd->right_to_left, ViewWidth( rtd ), display->h );
+			Green_SaveSettings( rtd );
 			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:
@@ -1306,7 +1348,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					if (g_select_button_held)
 					{
 						if (button == SDL_CONTROLLER_BUTTON_A || button == SDL_CONTROLLER_BUTTON_X
-							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER)
+							|| button == SDL_CONTROLLER_BUTTON_Y || button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
+							|| button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER)
 						{
 							g_select_chord_used = true;
 							if (g_state == NORMAL) SelectChord( rtd, button, &flags );

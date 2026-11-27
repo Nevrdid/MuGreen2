@@ -138,7 +138,7 @@ Both dependency build scripts verify pinned SHA-256 checksums before extracting 
 
 ## Saved settings
 
-The night-mode and right-to-left reading preferences remain global and are stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
+The night-mode, right-to-left reading, and dual-page preferences remain global and are stored in `~/.green.settings`. Per-document reading state is stored separately under `$XDG_DATA_HOME/mugreen2/documents/` (or `~/.local/share/mugreen2/documents/` when `XDG_DATA_HOME` is unset). Each PDF gets a compact state filename derived from its URI; the URI is also recorded inside the state file to guard against hash collisions.
 
 Document paths are converted to file URIs with reserved characters, percent signs, spaces, and non-ASCII bytes percent-encoded. State files are strictly parsed and invalid values are ignored; restored zoom is bounded to a fine-scale range of 0.05–20.0, and negative scroll offsets are reset before the display bounds are applied. State writes use a private temporary file, fsync, and atomic rename. While reading, changes are saved after a 750 ms idle period, as well as when the document closes or the application exits. Global settings use the same atomic-write procedure.
 

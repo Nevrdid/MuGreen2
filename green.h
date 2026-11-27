@@ -78,7 +78,7 @@ inline static int Green_IsDocValid(Green_RTD *rtd) { return rtd && rtd->doc; }
 inline static void Green_PageSize(Green_Document *doc, int page, double *w, double *h)
 {
 	float fw = 1, fh = 1;
-	if (pb_page_size(doc->doc, page, &fw, &fh)) fw = fh = 1;
+	if (pb_page_size(doc->doc, page, &fw, &fh)) { fw = 612; fh = 792; }
 	*w = fw; *h = fh;
 }
 inline static void Green_GetDimension(Green_Document *doc, int page, int *w, int *h, double tscale, bool rotated)

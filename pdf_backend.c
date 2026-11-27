@@ -206,6 +206,7 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 	d->ctx = ctx;
 	d->list_page = -1;
 	fz_var(password_required);
+	fz_var(tracking_alloc_failed);
 	fz_try(ctx)
 	{
 		d->doc = fz_open_document(ctx, p);
@@ -220,7 +221,10 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 		d->page_errors = calloc((size_t)d->page_count, 1);
 		d->page_warning_reported = calloc((size_t)d->page_count, 1);
 		if (!d->page_errors || !d->page_warning_reported)
-			fz_throw(ctx, FZ_ERROR_MEMORY, "out of memory tracking page warnings");
+		{
+			tracking_alloc_failed = 1;
+			fz_throw(ctx, FZ_ERROR_GENERIC, "out of memory tracking page warnings");
+		}
 	}
 	fz_catch(ctx)
 	{
@@ -235,7 +239,7 @@ pb_open_result pb_open(const char *path, pb_doc **out, char *message, size_t mes
 		ctx_release();
 		if (password_required)
 			return PB_OPEN_PASSWORD_REQUIRED;
-		if (caught_error == FZ_ERROR_MEMORY)
+		if (tracking_alloc_failed)
 			return PB_OPEN_NO_MEMORY;
 		return PB_OPEN_INVALID_DOCUMENT;
 	}

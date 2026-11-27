@@ -39,7 +39,7 @@ Some controls are optional and depend on the controller exposing the correspondi
 
 ## Differences from the original Green
 
-MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://github.com/schandinat/green), not a from-scratch replacement. It keeps the Green reader's SDL-based application structure and configuration concepts while changing the PDF engine and tailoring the reading workflow.
+MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://github.com/schandinat/green), not a from-scratch replacement. It keeps the Green reader's SDL-based application structure while changing the PDF engine and tailoring the reading workflow.
 
 | Area | Original Green | MuGreen2 |
 | --- | --- | --- |
@@ -48,7 +48,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 | Input | SDL frontends with keyboard-oriented navigation | SDL2 GameController input with controller hot-plug support |
 | Navigation | Page scrolling, page stepping, direct page entry and text search | Page scrolling and shoulder-button page stepping, plus navigation through the PDF's document outline / table of contents |
 | Display | Single-page viewing, fit modes and zoom | Fit and zoom, rotation, horizontal/vertical mirroring, optional dual-page view and night mode |
-| Reading state | Configuration and display schemes | Per-document reading position and view state are saved, alongside the user's night-mode setting |
+| Reading state | Configuration and display schemes | Per-document reading position and view state are saved, alongside global night-mode and reading-direction preferences |
 
 ### What this means in practice
 
@@ -57,7 +57,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 - Input is handled through SDL2's GameController API. MuGreen2 currently uses a controller-first interface; keyboard navigation is not implemented.
 - The PDF outline is exposed as an on-screen, navigable table of contents when the document provides one.
 - The view can be rotated or mirrored, shown in dual-page mode, and switched to night mode. Per-document position and view settings are restored on a later launch.
-- Green's multi-document switching, interactive text-search workflow and direct page-entry workflow are not currently exposed in MuGreen2. The original configuration/scheme mechanism remains available.
+- Green's multi-document switching, interactive text-search workflow, direct page-entry workflow and legacy configuration/scheme system are not implemented in MuGreen2. Window size, fullscreen mode and MuPDF cache size can be set with command-line options.
 
 The original Green-derived files retain Florian Tobias Schandinat's copyright and GPL-3.0 notices. MuPDF is integrated as the rendering backend; see the licensing notes below and the `LICENSE` file for the terms applying to the combined application.
 

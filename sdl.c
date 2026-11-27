@@ -166,13 +166,6 @@ void DrawString(SDL_Surface *display, int x, int y, const char *str, Uint32 colo
 /* Combined-spread geometry: offsets are device pixels from the spread's
  * leading top-left corner, allowing either page to move across the viewport. */
 
-
-
-
-
-
-
-
 static RState	OpenHelpPanel( unsigned short *flags );
 static void	RenderHelp( SDL_Surface *display );
 static void RenderHelpContent(SDL_Surface *display);

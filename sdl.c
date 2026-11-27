@@ -1780,10 +1780,9 @@ static RState	NormalInput( Green_RTD *rtd, Uint8 button, unsigned short *flags )
 			case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: {
 				int rotation = doc->rotation & 3;
 				int page_delta = button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER ? -1 : 1;
-				/* The logical frame is presented with a clockwise rotation.
-				 * Keep shoulder navigation in the physical left/right direction;
-				 * the page order reverses at 180° and 270°. */
-				if (rotation >= 2) page_delta = -page_delta;
+				/* Keep shoulder navigation in the physical left/right direction.
+				 * The page order reverses at 90° and 180°. */
+				if (rotation == 1 || rotation == 2) page_delta = -page_delta;
 				if (rtd->right_to_left) page_delta = -page_delta;
 				if (Green_GotoPage(doc, doc->page_cur + page_delta, true))
 					*flags |= FLAG_RENDER;

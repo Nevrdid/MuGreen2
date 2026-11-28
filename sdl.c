@@ -876,6 +876,16 @@ static RState TOCInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 	return TOC;
 }
 
+/* A single effective order rule drives spread placement and D-pad page turns.
+ * Horizontal RTL and the manual override each reverse the horizontal order;
+ * in vertical layout RTL keeps document order, while the manual override can
+ * still swap the stack. */
+static int LogicalSpreadOrderReversed(Green_RTD *rtd)
+{
+    return g_spread_order_reversed
+        ^ (!rtd->spread_vertical && rtd->right_to_left);
+}
+
 static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 {
 	Green_Document *doc = rtd->doc;
@@ -906,10 +916,12 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 			page_delta = -page_delta;
 		if (rtd->right_to_left)
 			page_delta = -page_delta;
-	} else if (rtd->right_to_left
-		&& (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
-			|| button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) {
-		page_delta = -page_delta;
+	} else if (rtd->side_by_side && doc->page_count > 1
+		&& IsDpadButton(button)) {
+		/* D-pad movement follows the effective visual order. In vertical
+		 * layout, RTL alone does not reverse top-to-bottom progression. */
+		if (LogicalSpreadOrderReversed(rtd))
+			page_delta = -page_delta;
 	}
 	return page_delta;
 }
@@ -1113,14 +1125,13 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
         return 0;
     *vertical = rtd->spread_vertical;
-    /* Horizontal spreads follow the reading direction. Vertical spreads
-     * always place earlier document pages above later ones, so manga mode
-     * does not reverse top-to-bottom progression. The explicit manual
-     * override can still swap the two pages in either layout. */
+    /* Apply the same effective-order predicate used by D-pad page turns.
+     * Start with document order, then reverse for horizontal RTL or the
+     * explicit manual override (which also works in vertical layout). */
     if (*vertical && *lp > *rp) {
         int page = *lp; *lp = *rp; *rp = page;
     }
-    if (g_spread_order_reversed) {
+    if (LogicalSpreadOrderReversed(rtd)) {
         int page = *lp; *lp = *rp; *rp = page;
     }
     Green_PageSize(doc, *lp, &lpage_w, &lpage_h);
@@ -1156,7 +1167,7 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     Green_Document *doc = rtd->doc;
     int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
     int target_page, target_x, target_y, target_w;
-    int next_page, enter_from_right, max_x, max_y;
+    int next_page, enter_from_right, max_x, max_y, order_reversed;
     double scale;
     int pair = (doc->page_cur / 2) * 2;
     int step = page_delta * 2;
@@ -1167,13 +1178,16 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
 
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
-    next_page = rtd->right_to_left ? page_delta < 0 : page_delta > 0;
-    enter_from_right = rtd->right_to_left ? next_page : !next_page;
+    order_reversed = LogicalSpreadOrderReversed(rtd);
+    /* LogicalPDFPageDelta already returns document-order movement, so a
+     * positive delta always means advancing to a later document page. */
+    next_page = page_delta > 0;
+    enter_from_right = order_reversed ? next_page : !next_page;
 
     /* Always align the first page of the destination spread in reading
      * order. This means a backward turn lands on the previous-previous page,
      * allowing the other page of that spread to remain visible as well. */
-    target_page = (vertical || !rtd->right_to_left) ? lp : rp;
+    target_page = vertical || !order_reversed ? lp : rp;
 
     if (target_page == lp) {
         target_x = vertical ? (spread_w - lw) / 2 : 0;

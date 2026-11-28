@@ -1204,13 +1204,11 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
-    /* Align the selected page's top edge with the viewport. Enter from the
-     * effective reading-side corner: the shared order rule also accounts for
-     * the manual slot override. All coordinates are logical. */
-    /* Align to the spread's outer edge on the cross-axis. Pages are
-     * centred within that axis, so aligning to the selected page instead
-     * can clip a taller partner above (horizontal) or a wider partner
-     * to the left (vertical). Keep directional entry on the page-turn axis. */
+    /* Keep directional entry on the progression axis, using the effective
+     * reading-side corner (including the manual slot override). On the
+     * cross-axis, align to the spread's outer boundary: pages are centred
+     * there, so aligning to the selected page could clip a taller partner
+     * above (horizontal) or a wider partner to the left (vertical). */
     doc->xoffset = vertical ? 0 : (enter_from_right
         ? target_x + target_w - display->w : target_x);
     doc->yoffset = vertical ? target_y : 0;

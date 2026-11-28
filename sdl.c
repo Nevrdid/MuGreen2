@@ -1206,12 +1206,12 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
-    /* Align the viewport to the selected page on both axes. On the
-     * progression axis, enter from the reading-side edge; on the cross-axis,
-     * align its top edge (horizontal spread) or left/right edge (vertical
-     * spread). Scrolling remains bounded by the full spread dimensions. */
-    doc->xoffset = enter_from_right
-        ? target_x + target_w - display->w : target_x;
+    /* Horizontal spreads progress along X: enter from the selected
+     * page's reading-side edge and align its top on Y. Vertical spreads
+     * progress along Y: align the selected page's top and its left edge on X.
+     * Scrolling remains bounded by the full spread dimensions. */
+    doc->xoffset = vertical ? target_x : (enter_from_right
+        ? target_x + target_w - display->w : target_x);
     doc->yoffset = target_y;
     if (doc->xoffset < 0) doc->xoffset = 0;
     else if (doc->xoffset > max_x) doc->xoffset = max_x;

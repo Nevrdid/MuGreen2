@@ -1158,8 +1158,8 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
 {
     Green_Document *doc = rtd->doc;
     int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
-    int target_page, target_x, target_y, target_w;
-    int next_page, enter_from_right, max_x, max_y, order_reversed;
+    int target_x, target_y, target_w, target_page;
+    int max_x, max_y;
     double scale;
     int pair = (doc->page_cur / 2) * 2;
     int step = page_delta * 2;
@@ -1170,19 +1170,11 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
 
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
-    order_reversed = LogicalSpreadOrderReversed(rtd);
-    /* LogicalPDFPageDelta already returns document-order movement, so a
-     * positive delta always means advancing to a later document page. */
-    next_page = page_delta > 0;
-    enter_from_right = order_reversed ? next_page : !next_page;
 
-    /* Enter on the page reached by the turn: the earlier document page
-     * when moving forward, the later one when moving backward. lp/rp already
-     * reflect the effective visual order, including RTL/manual reversal. */
-    target_page = page_delta > 0
-        ? (order_reversed ? rp : lp)
-        : (order_reversed ? lp : rp);
-
+    /* Choose the page whose top-right corner is the spread's top-right
+     * reading entry: the top page in a vertical stack, the right page in a
+     * horizontal stack. lp/rp are already in their rendered visual slots. */
+    target_page = vertical ? lp : rp;
     if (target_page == lp) {
         target_x = vertical ? (spread_w - lw) / 2 : 0;
         target_y = vertical ? 0 : (spread_h - lh) / 2;
@@ -1196,12 +1188,10 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
-    /* Horizontal spreads progress along X: enter from the selected
-     * page's reading-side edge and align its top on Y. Vertical spreads
-     * progress along Y: align the selected page's top and its left edge on X.
-     * Scrolling remains bounded by the full spread dimensions. */
-    doc->xoffset = vertical ? target_x : (enter_from_right
-        ? target_x + target_w - display->w : target_x);
+    /* Align the selected page's top-right corner with the viewport's
+     * top-right corner. Keep offsets bounded by the complete spread so its
+     * partner remains reachable by ordinary panning. */
+    doc->xoffset = target_x + target_w - display->w;
     doc->yoffset = target_y;
     if (doc->xoffset < 0) doc->xoffset = 0;
     else if (doc->xoffset > max_x) doc->xoffset = max_x;

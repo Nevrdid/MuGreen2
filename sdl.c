@@ -1133,14 +1133,10 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     next_page = rtd->right_to_left ? page_delta < 0 : page_delta > 0;
     enter_from_right = rtd->right_to_left ? next_page : !next_page;
 
-    /* Select the page reached in reading order, not merely the first page
-     * of the pair. In vertical layout, document order is always top-to-bottom. */
-    if (vertical)
-        target_page = next_page ? lp : rp;
-    else if (rtd->right_to_left)
-        target_page = next_page ? rp : lp;
-    else
-        target_page = next_page ? lp : rp;
+    /* Always align the first page of the destination spread in reading
+     * order. This means a backward turn lands on the previous-previous page,
+     * allowing the other page of that spread to remain visible as well. */
+    target_page = (vertical || !rtd->right_to_left) ? lp : rp;
 
     if (target_page == lp) {
         target_x = vertical ? (spread_w - lw) / 2 : 0;

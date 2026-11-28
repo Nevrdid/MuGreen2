@@ -1192,7 +1192,9 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     right_center_y = ry + rh / 2.0;
     choose_left = left_center_y < right_center_y
         || (left_center_y == right_center_y
-            && left_center_x >= right_center_x);
+            && (rtd->right_to_left
+                ? left_center_x <= right_center_x
+                : left_center_x >= right_center_x));
 
     if (choose_left) {
         target_x = lx;
@@ -1207,9 +1209,10 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
-    /* Align the chosen page's top-right corner with the viewport's
-     * top-right corner. The full spread remains pannable. */
-    doc->xoffset = target_x + target_w - display->w;
+    /* Align the chosen page's reading-side top corner with the viewport:
+     * top-right in LTR, top-left in RTL. The full spread remains pannable. */
+    doc->xoffset = rtd->right_to_left
+        ? target_x : target_x + target_w - display->w;
     doc->yoffset = target_y;
     if (doc->xoffset < 0) doc->xoffset = 0;
     else if (doc->xoffset > max_x) doc->xoffset = max_x;

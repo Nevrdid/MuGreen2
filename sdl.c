@@ -895,15 +895,21 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 			return 0;
 	}
 
-	/* D-pad buttons are already in logical screen coordinates. Shoulder
-	 * buttons remain fixed physical controls and retain their reader mapping. */
+	/* D-pad directions are already logical after rotation mapping. Reading
+	 * direction reverses horizontal navigation only: vertical movement always
+	 * follows document order, including in manga mode. Shoulder buttons retain
+	 * their existing rotation and reading-direction behavior. */
 	if (button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
 		|| button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) {
 		if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
 			page_delta = -page_delta;
-	}
-	if (rtd->right_to_left)
+		if (rtd->right_to_left)
+			page_delta = -page_delta;
+	} else if (rtd->right_to_left
+		&& (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
+			|| button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT)) {
 		page_delta = -page_delta;
+	}
 	return page_delta;
 }
 
@@ -1075,9 +1081,13 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
         return 0;
     *vertical = rtd->spread_vertical;
-    /* Page order is determined by reading direction and the explicit
-     * manual override, not by reader rotation. The spread axis is already
-     * kept stable in the user's physical viewing orientation. */
+    /* Horizontal spreads follow the reading direction. Vertical spreads
+     * always place earlier document pages above later ones, so manga mode
+     * does not reverse top-to-bottom progression. The explicit manual
+     * override can still swap the two pages in either layout. */
+    if (*vertical && *lp > *rp) {
+        int page = *lp; *lp = *rp; *rp = page;
+    }
     if (g_spread_order_reversed) {
         int page = *lp; *lp = *rp; *rp = page;
     }

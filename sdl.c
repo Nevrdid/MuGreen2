@@ -913,6 +913,41 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 	return page_delta;
 }
 
+/* An unmatched final page in dual-page mode occupies one slot of a spread.
+ * Fit it as though the missing partner had the same dimensions, so it keeps
+ * the same apparent page size as pages in complete spreads. */
+static double LogicalPDFPageScale(Green_RTD *rtd, SDL_Surface *display)
+{
+    Green_Document *doc = rtd->doc;
+    double page_w, page_h, fit_w, fit_h, base_scale;
+
+    if (rtd->side_by_side && doc->page_count > 1
+        && doc->page_cur == doc->page_count - 1 && (doc->page_cur % 2) == 0) {
+        Green_PageSize(doc, doc->page_cur, &page_w, &page_h);
+        if (!isfinite(page_w) || !isfinite(page_h) || page_w <= 0 || page_h <= 0)
+            return Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+        if (rtd->spread_vertical) {
+            fit_w = page_w;
+            fit_h = page_h * 2.0;
+        } else {
+            fit_w = page_w * 2.0;
+            fit_h = page_h;
+        }
+        switch (doc->fit_method) {
+            case NATURAL: base_scale = 1.0; break;
+            case WIDTH: base_scale = display->w / fit_w; break;
+            case HEIGHT: base_scale = display->h / fit_h; break;
+            case PAGE:
+            default:
+                base_scale = display->w / fit_w;
+                if (display->h / fit_h < base_scale) base_scale = display->h / fit_h;
+                break;
+        }
+        return base_scale * doc->finescale;
+    }
+    return Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+}
+
 /* Pan in logical page coordinates. Only an additional press beyond an edge
  * changes page: first reach the edge, then cross it on the next D-pad repeat
  * or press. Page dimensions and viewport dimensions are both logical, so
@@ -932,7 +967,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 		case SDL_CONTROLLER_BUTTON_DPAD_DOWN: dy = 1; break;
 		default: return 0;
 	}
-	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+	scale = LogicalPDFPageScale(rtd, display);
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		return 0;
 
@@ -972,7 +1007,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			int enter_from_right = rtd->right_to_left ? next_page : !next_page;
 			/* Page turns always enter at the top. The reading direction chooses
 			 * the horizontal entry corner; reader rotation never changes it. */
-			scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+			scale = LogicalPDFPageScale(rtd, display);
 			doc->xoffset = 0;
 			doc->yoffset = 0;
 			if (!pb_device_size(doc->doc, doc->page_cur, (float)scale,
@@ -1008,7 +1043,7 @@ static int ZoomLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, double facto
 	if (new_fs < 0.05) new_fs = 0.05;
 	if (new_fs > 20.0) new_fs = 20.0;
 	if (new_fs == doc->finescale) return 0;
-	base_scale = Green_FitLogical(doc, display->w, display->h);
+	base_scale = LogicalPDFPageScale(rtd, display) / doc->finescale;
 	old_scale = base_scale * doc->finescale;
 	new_scale = base_scale * new_fs;
 	if (old_scale <= 0.0 || new_scale <= 0.0
@@ -1368,7 +1403,7 @@ static int RenderLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, int *faile
 	double scale;
 	int page_w, page_h, page_x, page_y, x1, y1, x2, y2, offset_x, offset_y;
 	const char *error = NULL;
-	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+	scale = LogicalPDFPageScale(rtd, display);
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale,  &page_w, &page_h))
 		error = pb_error_message(doc->doc);
 	if (error)
@@ -1565,7 +1600,7 @@ static void SetLogicalPageStart(Green_RTD *rtd, SDL_Surface *display)
 	int page_w, page_h, max_x, max_y;
 	double scale;
 	int rotation = doc->rotation & 3;
-	scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
+	scale = LogicalPDFPageScale(rtd, display);
 	doc->xoffset = doc->yoffset = 0;
 	if (pb_device_size(doc->doc, doc->page_cur, (float)scale, 
 		&page_w, &page_h))
@@ -1624,14 +1659,24 @@ static void SkipPages(Green_Document *doc, Green_RTD *rtd, int delta,
 			max_x = spread_w > DrawSurface()->w ? spread_w - DrawSurface()->w : 0;
 			max_y = spread_h > DrawSurface()->h ? spread_h - DrawSurface()->h : 0;
 		}
-		else max_x = max_y = 0;
+		else
+		{
+			int page_w, page_h;
+			if (pb_device_size(doc->doc, doc->page_cur,
+				(float)LogicalPDFPageScale(rtd, DrawSurface()), &page_w, &page_h))
+			{
+				*flags |= FLAG_RENDER;
+				return;
+			}
+			max_x = page_w > DrawSurface()->w ? page_w - DrawSurface()->w : 0;
+			max_y = page_h > DrawSurface()->h ? page_h - DrawSurface()->h : 0;
+		}
 	}
 	else
 	{
 		int page_w, page_h;
 		if (pb_device_size(doc->doc, doc->page_cur,
-			(float)(Green_FitLogical(doc, DrawSurface()->w, DrawSurface()->h)
-				* doc->finescale),  &page_w, &page_h))
+			(float)LogicalPDFPageScale(rtd, DrawSurface()),  &page_w, &page_h))
 		{
 			*flags |= FLAG_RENDER;
 			return;
@@ -2251,7 +2296,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						{
 							Green_Document *doc = rtd->doc;
 							if (rtd->side_by_side && doc->page_count > 1) {
-								if (ZoomLogicalPDFSpread(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
+								if (ZoomLogicalPDFSpread(rtd, display, 1.0 / rtd->zoomstep)
+									|| ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
 							} else if (ZoomLogicalPDFPage(rtd, display, 1.0 / rtd->zoomstep)) flags |= FLAG_RENDER;
 						}
 						g_y_held = false;
@@ -2262,7 +2308,8 @@ int	Green_SDL_Main( Green_RTD *rtd )
 						{
 							Green_Document *doc = rtd->doc;
 							if (rtd->side_by_side && doc->page_count > 1) {
-								if (ZoomLogicalPDFSpread(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
+								if (ZoomLogicalPDFSpread(rtd, display, rtd->zoomstep)
+									|| ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
 							} else if (ZoomLogicalPDFPage(rtd, display, rtd->zoomstep)) flags |= FLAG_RENDER;
 						}
 						g_x_held = false;

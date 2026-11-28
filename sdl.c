@@ -1186,10 +1186,12 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     next_page = page_delta > 0;
     enter_from_right = order_reversed ? next_page : !next_page;
 
-    /* Always align the first page of the destination spread in reading
-     * order. This means a backward turn lands on the previous-previous page,
-     * allowing the other page of that spread to remain visible as well. */
-    target_page = vertical || !order_reversed ? lp : rp;
+    /* Enter on the page reached by the turn: the earlier document page
+     * when moving forward, the later one when moving backward. lp/rp already
+     * reflect the effective visual order, including RTL/manual reversal. */
+    target_page = page_delta > 0
+        ? (order_reversed ? rp : lp)
+        : (order_reversed ? lp : rp);
 
     if (target_page == lp) {
         target_x = vertical ? (spread_w - lw) / 2 : 0;
@@ -1204,14 +1206,13 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
-    /* Keep directional entry on the progression axis, using the effective
-     * reading-side corner (including the manual slot override). On the
-     * cross-axis, align to the spread's outer boundary: pages are centred
-     * there, so aligning to the selected page could clip a taller partner
-     * above (horizontal) or a wider partner to the left (vertical). */
-    doc->xoffset = vertical ? 0 : (enter_from_right
-        ? target_x + target_w - display->w : target_x);
-    doc->yoffset = vertical ? target_y : 0;
+    /* Align the viewport to the selected page on both axes. On the
+     * progression axis, enter from the reading-side edge; on the cross-axis,
+     * align its top edge (horizontal spread) or left/right edge (vertical
+     * spread). Scrolling remains bounded by the full spread dimensions. */
+    doc->xoffset = enter_from_right
+        ? target_x + target_w - display->w : target_x;
+    doc->yoffset = target_y;
     if (doc->xoffset < 0) doc->xoffset = 0;
     else if (doc->xoffset > max_x) doc->xoffset = max_x;
     if (doc->yoffset < 0) doc->yoffset = 0;

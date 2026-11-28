@@ -1,6 +1,6 @@
 # MuGreen2 Roadmap
 
-This roadmap tracks implementation scope and verification status. Items are not considered tested merely because their code has been committed; device/build verification is recorded separately.
+This roadmap tracks implementation scope and verification status. Items are not considered tested merely because their code has been committed; device/build verification is recorded separately. The actionable outstanding checks are maintained in [PENDING_TESTS.md](PENDING_TESTS.md), which is updated alongside this roadmap.
 
 ## Phase 1 — Build-system reliability
 

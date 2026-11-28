@@ -117,7 +117,7 @@ The following items were identified during review of the merged renderer. They a
 
 #### Correctness and interaction
 
-- **Arrival-corner mapping — implemented; device verification pending.** In single-page mode, `ScrollLogicalPDFPage` now selects the destination corner from the logical D-pad direction rather than `page_delta`: Left/Up enters at the far edge, Right/Down at the near edge. RTL continues to reverse page selection independently, without changing the requested arrival corner. Verify all four reader rotations in both LTR and RTL.
+- **Page-turn entry — simplified; device verification pending.** Page turns are rotation-independent and always enter at the top. In LTR, next enters at the top-left and previous at the top-right; dual-page navigation aligns the page reached in reading order, including the immediately preceding page when moving backward. RTL mirrors the horizontal entry side. Rotation affects controller-direction mapping only. Verify single/dual-page, horizontal/vertical spreads, LTR/RTL, and all four rotations.
 - **D-pad repeat must not auto-chain page turns.** Once a held direction reaches a page edge, the 100 ms repeat can turn successive pages. Require a fresh press to cross the edge, or introduce a deliberate edge-crossing pause, so a held direction cannot rapidly page through the document.
 - **Dual-page zoom anchor drift.** In `ZoomLogicalPDFSpread`, convert the anchor pixel to the new scale using the ratio between the new and old scale (capture `old_scale` from the first metrics pass, recompute metrics after changing `finescale`, then multiply `anchor_x` and `anchor_y` by `scale / old_scale`). The single-page zoom path already performs the corresponding page-coordinate conversion.
 - **Manual page-order override and RTL must share one navigation rule.** RTL currently swaps slots and flips page delta, while Select+Down swaps slots only. Decide whether the manual override should also reverse D-pad page delta, then use one shared predicate for both. Persist the override in the settings file if it is intended to survive a restart; otherwise document it explicitly as session-only.
@@ -152,6 +152,7 @@ The following items were identified during review of the merged renderer. They a
 
 **Status: Planned.**
 
+- **Continuous scrolling mode:** support both vertical and horizontal scrolling in single-page and dual-page layouts. Revisit page-turn entry from the bottom as part of this work.
 - Automatic page/content crop.
 - CBZ and image-document support.
 - Configurable cover-page offset for facing-page layouts.

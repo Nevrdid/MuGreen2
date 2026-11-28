@@ -10,7 +10,7 @@ This is a single-document reader for Linux devices. The build supports AArch64, 
 - MuPDF-backed PDF rendering.
 - SDL2 display and controller input.
 - Document table of contents (when present in the PDF).
-- Controller-oriented navigation, zoom, rotation, mirroring, dual-page view, and night mode.
+- Controller-oriented navigation, zoom, rotation, dual-page view, and night mode.
 - Remembers reader state between launches.
 - Optional right-to-left page navigation for manga and other right-to-left documents.
 
@@ -32,7 +32,6 @@ This is a single-document reader for Linux devices. The build supports AArch64, 
 | Select + Start | Exit |
 | Guide | Exit (optional) |
 | Select + B | Toggle night mode |
-| Select + X / Y | Mirror horizontally / vertically |
 | Select + L1 | Toggle dual-page mode |
 | Select + R1 | Toggle right-to-left manga reading |
 
@@ -46,8 +45,8 @@ The selected layout determines which physical button position receives each acti
 | --- | --- | --- |
 | East | A — fit page / select TOC; Select+A has no extra action | B — Select+B toggles night mode |
 | South | B — Select+B toggles night mode | A — fit page / select TOC; Select+A has no extra action |
-| North | X — zoom in; Select+X mirrors horizontally | Y — zoom out; Select+Y mirrors vertically |
-| West | Y — zoom out; Select+Y mirrors vertically | X — zoom in; Select+X mirrors horizontally |
+| North | X — zoom in | Y — zoom out |
+| West | Y — zoom out | X — zoom in |
 
 
 ### Custom SDL2 controller mappings
@@ -79,7 +78,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 | Documents | Multiple documents could be opened and switched between in one process | One PDF document is opened per invocation |
 | Input | SDL frontends with keyboard-oriented navigation | SDL2 GameController input with controller hot-plug support |
 | Navigation | Page scrolling, page stepping, direct page entry and text search | Page scrolling and shoulder-button page stepping, plus navigation through the PDF's document outline / table of contents |
-| Display | Single-page viewing, fit modes and zoom | Fit and zoom, rotation, horizontal/vertical mirroring, optional dual-page view and night mode |
+| Display | Single-page viewing, fit modes and zoom | Fit and zoom, rotation, optional dual-page view and night mode |
 | Reading state | Configuration and display schemes | Per-document reading position and view state are saved, alongside global night-mode and reading-direction preferences |
 
 ### What this means in practice
@@ -88,7 +87,7 @@ MuGreen2 is a focused adaptation of Florian Tobias Schandinat's [Green](https://
 - The reader is deliberately single-document: launch `mugreen2` again for another PDF rather than switching between several open documents.
 - Input is handled through SDL2's GameController API. MuGreen2 currently uses a controller-first interface; keyboard navigation is not implemented.
 - The PDF outline is exposed as an on-screen, navigable table of contents when the document provides one.
-- The view can be rotated or mirrored, shown in dual-page mode, and switched to night mode. In dual-page mode, both pages form one continuous spread for scrolling and zooming; zoom is anchored at the current viewport centre. Horizontal stacking is the default and remains horizontal from the user's viewing orientation at all reader rotations; hold Select and press D-pad Up to toggle vertical stacking. Hold Select and press D-pad Down to manually reverse facing-page order when needed. Select+B remains the night-mode shortcut. The stack-axis preference is persisted; the manual page-order override lasts for the current reader session. Per-document position and view settings are restored on a later launch.
+- The view can be rotated, shown in dual-page mode, and switched to night mode. In dual-page mode, both pages form one continuous spread for scrolling and zooming; zoom is anchored at the current viewport centre. Horizontal stacking is the default and remains horizontal from the user's viewing orientation at all reader rotations; hold Select and press D-pad Up to toggle vertical stacking. Hold Select and press D-pad Down to manually reverse facing-page order when needed. Select+B remains the night-mode shortcut. The stack-axis preference is persisted; the manual page-order override lasts for the current reader session. Per-document position and view settings are restored on a later launch.
 - Green's multi-document switching, interactive text-search workflow, direct page-entry workflow and legacy configuration/scheme system are not implemented in MuGreen2. Window size, fullscreen mode and MuPDF cache size can be set with command-line options.
 
 The original Green-derived files retain Florian Tobias Schandinat's copyright and GPL-3.0 notices. MuPDF is integrated as the rendering backend; see the licensing notes below and the `LICENSE` file for the terms applying to the combined application.

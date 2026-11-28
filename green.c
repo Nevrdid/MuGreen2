@@ -230,7 +230,7 @@ static bool ParseDocumentState(char *line, int *page, double *scale,
     int *x, int *y, int *rotation, int *fit)
 {
     char *p = line, *end;
-    long values[4];
+    long values[5];
     double d;
     int i;
 

@@ -185,8 +185,7 @@ static SDL_Window	*g_window = NULL;
 static SDL_Renderer	*g_renderer = NULL;
 static SDL_Texture	*g_texture = NULL;
 static SDL_Surface	*g_fb = NULL;
-/* Logical-PDF UI is kept on its own layer so document mirroring never flips
- * controller-facing overlays. Both layers receive the same final rotation. */
+/* Logical-PDF UI is kept on its own layer. Both layers receive the same final rotation. */
 static SDL_Surface	*g_overlay_fb = NULL;
 static SDL_Texture	*g_overlay_texture = NULL;
 
@@ -263,7 +262,7 @@ static void	Present( void )
 		dst.y = (oh - dst.h) / 2;
 		SDL_RenderCopyEx(g_renderer, g_texture, NULL, &dst, angle, NULL,
 			SDL_FLIP_NONE);
-		/* UI follows reader rotation, but is deliberately not mirrored. */
+		/* UI follows reader rotation. */
 		if (g_overlay_fb && g_overlay_texture)
 		{
 			SDL_UpdateTexture(g_overlay_texture, NULL, g_overlay_fb->pixels,
@@ -982,7 +981,6 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 	logical_dx = dx;
 	logical_dy = dy;
 
-	/* Mirroring affects presentation only; controller input remains unchanged. */
 
 	max_x = page_w > display->w ? page_w - display->w : 0;
 	max_y = page_h > display->h ? page_h - display->h : 0;
@@ -1234,7 +1232,6 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
     logical_dx = dx;
     logical_dy = dy;
-    /* Mirroring affects presentation only; controller input remains unchanged. */
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
     old_x = doc->xoffset < 0 ? 0 : (doc->xoffset > max_x ? max_x : doc->xoffset);
@@ -1295,9 +1292,7 @@ static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double fac
     return 1;
 }
 
-/* Render a page crop with its mirror applied to that page alone. The
- * requested mirror axis is in the final reader view; odd reader rotations
- * exchange the corresponding logical source axis. */
+/* Render an unmodified page crop into the logical document framebuffer. */
 static int RenderLogicalPageRegion(Green_RTD *rtd, SDL_Surface *display,
     int page, int page_w, int page_h, double scale,
     int local_x, int local_y, int width, int height, int dst_x, int dst_y)
@@ -1968,7 +1963,7 @@ static bool DocumentStateEqual( const Green_Document *a, const Green_Document *b
 {
 	return a->page_cur == b->page_cur && a->xoffset == b->xoffset
 		&& a->yoffset == b->yoffset && a->rotation == b->rotation
-		&& a->mirrored == b->mirrored && a->fit_method == b->fit_method
+		&& a->fit_method == b->fit_method
 		&& a->finescale == b->finescale;
 }
 

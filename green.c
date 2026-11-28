@@ -516,7 +516,6 @@ pb_open_result Green_Open( Green_RTD *rtd, const char *filename, char *message, 
 	doc->page_cur = 0;
 	doc->xoffset = 0;
 	doc->yoffset = 0;
-	doc->mirrored = false;
 	doc->rotation = 0;
 	doc->fit_method = rtd->fit_method;
 	doc->finescale = 1;

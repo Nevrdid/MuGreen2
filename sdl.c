@@ -917,7 +917,7 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
  * changes page: first reach the edge, then cross it on the next D-pad repeat
  * or press. Page dimensions and viewport dimensions are both logical, so
  * their bounds remain correct when the physical display axes are swapped. */
-static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
+static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 button, int allow_page_turn)
 {
 	Green_Document *doc = rtd->doc;
 	double scale;
@@ -965,6 +965,7 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			|| page_h <= display->h))
 		|| (logical_dy > 0 && ((max_y > 0 && old_y == max_y)
 			|| page_h <= display->h))) {
+		if (!allow_page_turn) return 0;
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
 			int next_page = rtd->right_to_left ? page_delta < 0 : page_delta > 0;
@@ -1165,7 +1166,7 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     return 1;
 }
 
-static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 button)
+static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 button, int allow_page_turn)
 {
     Green_Document *doc = rtd->doc;
     int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
@@ -1181,7 +1182,7 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
     }
     if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
         &lw, &lh, &rw, &rh, &vertical))
-        return ScrollLogicalPDFPage(rtd, display, button);
+        return ScrollLogicalPDFPage(rtd, display, button, allow_page_turn);
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
     logical_dx = dx;
@@ -1194,6 +1195,7 @@ static int ScrollLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, Uint8 bu
     doc->xoffset = old_x; doc->yoffset = old_y;
     if ((logical_dx < 0 && old_x == 0) || (logical_dx > 0 && old_x == max_x)
         || (logical_dy < 0 && old_y == 0) || (logical_dy > 0 && old_y == max_y)) {
+        if (!allow_page_turn) return 0;
         return LogicalSpreadPageTurn(rtd, display, LogicalPDFPageDelta(rtd, button));
     }
     step = logical_dx ? (int)(display->w * rtd->step) : (int)(display->h * rtd->step);
@@ -1800,7 +1802,7 @@ static RState	OpenTOCPanel( Green_RTD *rtd, unsigned short *flags )
 	return TOC;
 }
 
-static RState NormalInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
+static RState NormalInput(Green_RTD *rtd, Uint8 button, unsigned short *flags, int allow_page_turn)
 {
 	Green_Document *doc = Green_IsDocValid(rtd) ? rtd->doc : NULL;
 	SDL_Surface *display = DrawSurface();
@@ -1817,10 +1819,10 @@ static RState NormalInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 		case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:
 			if (rtd->side_by_side && doc->page_count > 1)
 			{
-				if (ScrollLogicalPDFSpread(rtd, display, button))
+				if (ScrollLogicalPDFSpread(rtd, display, button, allow_page_turn))
 					*flags |= FLAG_RENDER;
 			}
-			else if (ScrollLogicalPDFPage(rtd, display, button))
+			else if (ScrollLogicalPDFPage(rtd, display, button, allow_page_turn))
 				*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_A:
@@ -2072,7 +2074,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 		{
 			if (g_state == NORMAL)
 			{
-				g_state = NormalInput(rtd, (Uint8)g_list_nav_button, &flags);
+				g_state = NormalInput(rtd, (Uint8)g_list_nav_button, &flags, 0);
 			}
 			else if (g_state == TOC)
 				TOCStepSel(g_list_nav_dir);
@@ -2216,7 +2218,7 @@ int	Green_SDL_Main( Green_RTD *rtd )
 					else if (g_state == HELP) g_state = HelpInput( button, &flags );
 					else if (g_state == NORMAL)
 					{
-						g_state = NormalInput( rtd, button, &flags );
+						g_state = NormalInput( rtd, button, &flags, 1 );
 						if (IsDpadButton(button)) ListNavStart(button);
 					}
 					break;

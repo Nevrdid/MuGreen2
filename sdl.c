@@ -906,21 +906,23 @@ static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
 			return 0;
 	}
 
-	/* D-pad directions are already logical after rotation mapping. Reading
-	 * direction reverses horizontal navigation only: vertical movement always
-	 * follows document order, including in manga mode. Shoulder buttons retain
-	 * their existing rotation and reading-direction behavior. */
+	/* D-pad directions are already logical after rotation mapping. In a
+	 * spread, page progression follows its effective visual order. In
+	 * single-page mode, preserve the established RTL horizontal behaviour.
+	 * Vertical RTL progression remains document order. */
 	if (button == SDL_CONTROLLER_BUTTON_LEFTSHOULDER
 		|| button == SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) {
 		if ((doc->rotation & 3) == 1 || (doc->rotation & 3) == 2)
 			page_delta = -page_delta;
 		if (rtd->right_to_left)
 			page_delta = -page_delta;
-	} else if (rtd->side_by_side && doc->page_count > 1
-		&& IsDpadButton(button)) {
-		/* D-pad movement follows the effective visual order. In vertical
-		 * layout, RTL alone does not reverse top-to-bottom progression. */
-		if (LogicalSpreadOrderReversed(rtd))
+	} else if (IsDpadButton(button)) {
+		int reverse = rtd->side_by_side && doc->page_count > 1
+			? LogicalSpreadOrderReversed(rtd)
+			: (rtd->right_to_left
+				&& (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
+					|| button == SDL_CONTROLLER_BUTTON_DPAD_RIGHT));
+		if (reverse)
 			page_delta = -page_delta;
 	}
 	return page_delta;
@@ -1116,11 +1118,11 @@ static int GetLogicalSpreadMetrics(Green_RTD *rtd, SDL_Surface *display,
     double base_scale;
     if (!rtd->side_by_side || doc->page_count < 2) return 0;
     if (doc->page_cur % 2 == 0) {
-        if (rtd->right_to_left) { *lp = doc->page_cur + 1; *rp = doc->page_cur; }
-        else { *lp = doc->page_cur; *rp = doc->page_cur + 1; }
+        *lp = doc->page_cur;
+        *rp = doc->page_cur + 1;
     } else {
-        if (rtd->right_to_left) { *lp = doc->page_cur; *rp = doc->page_cur - 1; }
-        else { *lp = doc->page_cur - 1; *rp = doc->page_cur; }
+        *lp = doc->page_cur - 1;
+        *rp = doc->page_cur;
     }
     if (*lp < 0 || *rp < 0 || *lp >= doc->page_count || *rp >= doc->page_count)
         return 0;
@@ -1203,8 +1205,8 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     max_y = spread_h > display->h ? spread_h - display->h : 0;
 
     /* Align the selected page's top edge with the viewport. Enter from the
-     * reading-side corner: left for LTR next, right for LTR previous, reversed
-     * for RTL. All coordinates are logical, so reader rotation is irrelevant. */
+     * effective reading-side corner: the shared order rule also accounts for
+     * the manual slot override. All coordinates are logical. */
     doc->xoffset = enter_from_right
         ? target_x + target_w - display->w : target_x;
     doc->yoffset = target_y;

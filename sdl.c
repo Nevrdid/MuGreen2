@@ -100,8 +100,6 @@ static Uint32	g_action_message_until = 0;
 static int	g_reader_rotation = 0;
 
 static bool	g_help_active = false;
-/* Manual override for devices whose physical rotation direction differs. */
-static bool	g_spread_order_reversed = false;
 static bool	g_has_presented_frame = false;
 static bool	g_rendered_content_this_frame = false;
 static int	g_help_scroll = 0;
@@ -124,10 +122,7 @@ static const char	*g_help_lines[] = {
 	"Hotkey shortcuts (hold Select first)",
 	"",
 	"Hotkey+Up      Toggle stack axis",
-	"Hotkey+Down    Toggle facing-page order (dual-page only)",
 	"Hotkey+B       Toggle night mode",
-	"Hotkey+X       Mirror horizontally",
-	"Hotkey+Y       Mirror vertically",
 	"Hotkey+L1      Toggle dual-page mode",
 	"Hotkey+R1      Toggle right-to-left manga reading",
 	"",
@@ -876,14 +871,11 @@ static RState TOCInput(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 	return TOC;
 }
 
-/* A single effective order rule drives spread placement and D-pad page turns.
- * Horizontal RTL and the manual override each reverse the horizontal order;
- * in vertical layout RTL keeps document order, while the manual override can
- * still swap the stack. */
+/* Horizontal spread order follows reading direction; vertical spreads
+ * always retain document order. */
 static int LogicalSpreadOrderReversed(Green_RTD *rtd)
 {
-    return g_spread_order_reversed
-        ^ (!rtd->spread_vertical && rtd->right_to_left);
+    return !rtd->spread_vertical && rtd->right_to_left;
 }
 
 static int LogicalPDFPageDelta(Green_RTD *rtd, Uint8 button)
@@ -1310,45 +1302,11 @@ static int RenderLogicalPageRegion(Green_RTD *rtd, SDL_Surface *display,
     int page, int page_w, int page_h, double scale,
     int local_x, int local_y, int width, int height, int dst_x, int dst_y)
 {
-    Green_Document *doc = rtd->doc;
-    int mirror_horizontal = (!doc->mirror_vertical) ^ ((doc->rotation + g_display_rotation) & 1);
-    int mirror_vertical = !mirror_horizontal;
-    int source_x = local_x, source_y = local_y;
-    SDL_Surface *temporary;
-    int x, y;
-
-    if (!doc->mirrored)
-        return pb_render(doc->doc, page, (float)scale, rtd->night,
-            source_x, source_y, width, height, PB_FMT_XRGB8888,
-            DstPixel(display, dst_x, dst_y), display->pitch);
-
-    if (mirror_horizontal)
-        source_x = page_w - local_x - width;
-    else
-        source_y = page_h - local_y - height;
-
-    temporary = SDL_CreateRGBSurfaceWithFormat(0, width, height, 32,
-        SDL_PIXELFORMAT_XRGB8888);
-    if (!temporary)
-        return -2;
-
-    if (pb_render(doc->doc, page, (float)scale, rtd->night,
-        source_x, source_y, width, height, PB_FMT_XRGB8888,
-        temporary->pixels, temporary->pitch)) {
-        SDL_FreeSurface(temporary);
-        return -1;
-    }
-
-    for (y = 0; y < height; y++) {
-        const Uint32 *src = (const Uint32 *)((const Uint8 *)temporary->pixels
-            + (mirror_vertical ? height - 1 - y : y) * temporary->pitch);
-        Uint32 *dst = (Uint32 *)((Uint8 *)display->pixels
-            + (dst_y + y) * display->pitch) + dst_x;
-        for (x = 0; x < width; x++)
-            dst[x] = src[mirror_horizontal ? width - 1 - x : x];
-    }
-    SDL_FreeSurface(temporary);
-    return 0;
+    (void)page_w;
+    (void)page_h;
+    return pb_render(rtd->doc->doc, page, (float)scale, rtd->night,
+        local_x, local_y, width, height, PB_FMT_XRGB8888,
+        DstPixel(display, dst_x, dst_y), display->pitch);
 }
 
 static void RenderLogicalSpreadPage(Green_RTD *rtd, SDL_Surface *display,
@@ -1961,29 +1919,6 @@ static void SelectChord(Green_RTD *rtd, Uint8 button, unsigned short *flags)
 				Green_SaveSettings(rtd);
 				*flags |= FLAG_RENDER;
 			}
-			break;
-		case SDL_CONTROLLER_BUTTON_DPAD_DOWN:
-			if (doc && rtd->side_by_side && doc->page_count > 1)
-			{
-				g_spread_order_reversed = !g_spread_order_reversed;
-				ShowActionMessage(g_spread_order_reversed ? "Pages swapped" : "Page order restored");
-				doc->xoffset = doc->yoffset = 0;
-				*flags |= FLAG_RENDER;
-			}
-			break;
-		case SDL_CONTROLLER_BUTTON_Y:
-			if (doc) {
-				Green_MirrorH(doc);
-				ShowActionMessage("Horizontal mirror");
-			}
-			*flags |= FLAG_RENDER;
-			break;
-		case SDL_CONTROLLER_BUTTON_X:
-			if (doc) {
-				Green_MirrorV(doc);
-				ShowActionMessage("Vertical mirror");
-			}
-			*flags |= FLAG_RENDER;
 			break;
 		case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:
 			rtd->right_to_left = !rtd->right_to_left;

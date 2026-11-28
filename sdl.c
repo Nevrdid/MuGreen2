@@ -967,22 +967,17 @@ static int ScrollLogicalPDFPage(Green_RTD *rtd, SDL_Surface *display, Uint8 butt
 			|| page_h <= display->h))) {
 		int page_delta = LogicalPDFPageDelta(rtd, button);
 		if (page_delta && Green_GotoPage(doc, doc->page_cur + page_delta, true)) {
-			/* Choose the arrival corner from the logical D-pad direction,
-			 * independently of page order: Left/Up enters at the far edge,
-			 * Right/Down at the near edge. RTL affects which page is selected,
-			 * not the corner requested by the physical input direction. */
+			int next_page = rtd->right_to_left ? page_delta < 0 : page_delta > 0;
+			int enter_from_right = rtd->right_to_left ? next_page : !next_page;
+			/* Page turns always enter at the top. The reading direction chooses
+			 * the horizontal entry corner; reader rotation never changes it. */
 			scale = Green_FitLogical(doc, display->w, display->h) * doc->finescale;
 			doc->xoffset = 0;
 			doc->yoffset = 0;
 			if (!pb_device_size(doc->doc, doc->page_cur, (float)scale,
-				&page_w, &page_h)) {
-				if (button == SDL_CONTROLLER_BUTTON_DPAD_LEFT
-					&& page_w > display->w)
-					doc->xoffset = page_w - display->w;
-				else if (button == SDL_CONTROLLER_BUTTON_DPAD_UP
-					&& page_h > display->h)
-					doc->yoffset = page_h - display->h;
-			}
+				&page_w, &page_h) && enter_from_right
+				&& page_w > display->w)
+				doc->xoffset = page_w - display->w;
 			return 1;
 		}
 		/* At the first/last page, keep the view clamped at this edge. */
@@ -1122,37 +1117,57 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
     int page_delta)
 {
     Green_Document *doc = rtd->doc;
-    int lp, rp, lw, lh, rw, rh, vertical, max_x, max_y, spread_w, spread_h;
+    int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
+    int target_page, target_x, target_y, target_w, target_h;
+    int next_page, enter_from_right, max_x, max_y;
     double scale;
     int pair = (doc->page_cur / 2) * 2;
     int step = page_delta * 2;
+
     if (!page_delta || !Green_GotoPage(doc, pair + step, true)) return 0;
     if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
         &lw, &lh, &rw, &rh, &vertical)) return 1;
+
     spread_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     spread_h = vertical ? lh + rh : (lh > rh ? lh : rh);
+    next_page = rtd->right_to_left ? page_delta < 0 : page_delta > 0;
+    enter_from_right = rtd->right_to_left ? next_page : !next_page;
+
+    /* Select the page reached in reading order, not merely the first page
+     * of the pair. In vertical layout, document order is always top-to-bottom. */
+    if (vertical)
+        target_page = next_page ? lp : rp;
+    else if (rtd->right_to_left)
+        target_page = next_page ? rp : lp;
+    else
+        target_page = next_page ? lp : rp;
+
+    if (target_page == lp) {
+        target_x = vertical ? (spread_w - lw) / 2 : 0;
+        target_y = vertical ? 0 : (spread_h - lh) / 2;
+        target_w = lw;
+        target_h = lh;
+    } else {
+        target_x = vertical ? (spread_w - rw) / 2 : lw;
+        target_y = vertical ? lh : (spread_h - rh) / 2;
+        target_w = rw;
+        target_h = rh;
+    }
+
     max_x = spread_w > display->w ? spread_w - display->w : 0;
     max_y = spread_h > display->h ? spread_h - display->h : 0;
-    /* Enter next spreads at physical top-left and previous spreads at
-     * physical bottom-right, transformed into the logical framebuffer. */
-    switch (doc->rotation & 3) {
-        case 1:
-            doc->xoffset = page_delta > 0 ? 0 : max_x;
-            doc->yoffset = page_delta > 0 ? max_y : 0;
-            break;
-        case 2:
-            doc->xoffset = page_delta > 0 ? max_x : 0;
-            doc->yoffset = page_delta > 0 ? max_y : 0;
-            break;
-        case 3:
-            doc->xoffset = page_delta > 0 ? max_x : 0;
-            doc->yoffset = page_delta > 0 ? 0 : max_y;
-            break;
-        default:
-            doc->xoffset = page_delta > 0 ? 0 : max_x;
-            doc->yoffset = page_delta > 0 ? 0 : max_y;
-            break;
-    }
+
+    /* Align the selected page's top edge with the viewport. Enter from the
+     * reading-side corner: left for LTR next, right for LTR previous, reversed
+     * for RTL. All coordinates are logical, so reader rotation is irrelevant. */
+    doc->xoffset = enter_from_right
+        ? target_x + target_w - display->w : target_x;
+    doc->yoffset = target_y;
+    if (doc->xoffset < 0) doc->xoffset = 0;
+    else if (doc->xoffset > max_x) doc->xoffset = max_x;
+    if (doc->yoffset < 0) doc->yoffset = 0;
+    else if (doc->yoffset > max_y) doc->yoffset = max_y;
+
     return 1;
 }
 

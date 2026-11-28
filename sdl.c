@@ -1118,7 +1118,7 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
 {
     Green_Document *doc = rtd->doc;
     int lp, rp, lw, lh, rw, rh, vertical, spread_w, spread_h;
-    int target_page, target_x, target_y, target_w, target_h;
+    int target_page, target_x, target_y, target_w;
     int next_page, enter_from_right, max_x, max_y;
     double scale;
     int pair = (doc->page_cur / 2) * 2;
@@ -1146,12 +1146,10 @@ static int LogicalSpreadPageTurn(Green_RTD *rtd, SDL_Surface *display,
         target_x = vertical ? (spread_w - lw) / 2 : 0;
         target_y = vertical ? 0 : (spread_h - lh) / 2;
         target_w = lw;
-        target_h = lh;
     } else {
         target_x = vertical ? (spread_w - rw) / 2 : lw;
         target_y = vertical ? lh : (spread_h - rh) / 2;
         target_w = rw;
-        target_h = rh;
     }
 
     max_x = spread_w > display->w ? spread_w - display->w : 0;

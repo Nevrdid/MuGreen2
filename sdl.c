@@ -1211,9 +1211,9 @@ static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double fac
 {
     Green_Document *doc = rtd->doc;
     int lp, rp, lw, lh, rw, rh, vertical, old_w, old_h, new_w, new_h, max_x, max_y;
-    double scale, old_fs = doc->finescale, anchor_x, anchor_y;
+    double scale, old_scale, old_fs = doc->finescale, anchor_x, anchor_y;
     int old_x = doc->xoffset, old_y = doc->yoffset;
-    if (!GetLogicalSpreadMetrics(rtd, display, &scale, &lp, &rp,
+    if (!GetLogicalSpreadMetrics(rtd, display, &old_scale, &lp, &rp,
         &lw, &lh, &rw, &rh, &vertical)) return 0;
     old_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     old_h = vertical ? lh + rh : (lh > rh ? lh : rh);
@@ -1229,6 +1229,10 @@ static int ZoomLogicalPDFSpread(Green_RTD *rtd, SDL_Surface *display, double fac
         &lw, &lh, &rw, &rh, &vertical)) {
         doc->finescale = old_fs; return 0;
     }
+    /* The anchor is measured in old spread pixels; convert it to the new
+     * scale before deriving offsets, otherwise zoom shifts the viewed point. */
+    anchor_x *= scale / old_scale;
+    anchor_y *= scale / old_scale;
     new_w = vertical ? (lw > rw ? lw : rw) : lw + rw;
     new_h = vertical ? lh + rh : (lh > rh ? lh : rh);
     doc->xoffset = (int)(anchor_x - display->w / 2.0

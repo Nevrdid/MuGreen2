@@ -45,8 +45,6 @@ typedef struct {
 	pb_doc *doc;
 	char *uri;
 	int page_count, page_cur, xoffset, yoffset;
-	bool mirrored;
-	bool mirror_vertical;
 	int rotation;
 	Green_FitMethod fit_method;
 	double finescale;
@@ -103,21 +101,5 @@ inline static void Green_RotateRight(Green_Document *doc)
 inline static void Green_RotateLeft(Green_Document *doc)
 {
 	doc->rotation = (doc->rotation + 3) % 4;
-}
-inline static void Green_MirrorH(Green_Document *doc)
-{
-	if (doc->mirrored && !doc->mirror_vertical)
-		doc->mirrored = false;
-	else
-		doc->mirrored = true;
-	doc->mirror_vertical = false;
-}
-inline static void Green_MirrorV(Green_Document *doc)
-{
-	if (doc->mirrored && doc->mirror_vertical)
-		doc->mirrored = false;
-	else
-		doc->mirrored = true;
-	doc->mirror_vertical = true;
 }
 #endif /* __GREEN_H__ */

@@ -289,7 +289,7 @@ static bool LoadDocumentState(Green_Document *doc)
         fclose(file);
         return false;
     }
-    saved_uri[strcspn(saved_uri, "\\r\\n")] = 0;
+    saved_uri[strcspn(saved_uri, "\r\n")] = 0;
     if (strcmp(saved_uri, doc->uri) || !fgets(line, sizeof(line), file)
         || (!strchr(line, '\n') && !feof(file))
         || !ParseDocumentState(line, &page, &scale, &x, &y, &rotation, &fit)
@@ -383,7 +383,7 @@ static void SaveDocumentState(Green_Document *doc)
         return;
     scale = ClampFineScale(doc->finescale);
     if (snprintf(content, sizeof(content),
-        "MUGREEN2 3\\n%s\\n%d %.6f %d %d %d %d\\n",
+        "MUGREEN2 3\n%s\n%d %.6f %d %d %d %d\n",
         doc->uri, doc->page_cur + 1, scale,
         doc->xoffset < 0 ? 0 : doc->xoffset,
         doc->yoffset < 0 ? 0 : doc->yoffset,
